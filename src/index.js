@@ -1,0 +1,100 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// Import routes
+const authRoutes = require('./routes/auth');
+const subscriptionRoutes = require('./routes/subscription');
+const modelsRoutes = require('./routes/models');
+const fansRoutes = require('./routes/fans');
+const webhooksRoutes = require('./routes/webhooks');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Auto-detect APP_URL on Railway
+const APP_URL = process.env.APP_URL || 
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : `http://localhost:${PORT}`);
+process.env.APP_URL = APP_URL; // Make it available to other modules
+
+// Security middleware
+app.use(helmet());
+
+// CORS - allow requests from Chrome extension and OnlyFans
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow Chrome extensions
+    if (origin.startsWith('chrome-extension://')) return callback(null, true);
+    
+    // Allow OnlyFans
+    if (origin.includes('onlyfans.com')) return callback(null, true);
+    
+    // Allow our own domain
+    if (APP_URL && origin === APP_URL) return callback(null, true);
+    
+    // Allow localhost for development
+    if (origin.includes('localhost')) return callback(null, true);
+    
+    callback(null, true); // Allow all for now, tighten in production if needed
+  },
+  credentials: true
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests, please try again later' }
+});
+app.use('/api/', limiter);
+
+// Body parsing - raw for webhooks, json for rest
+app.use('/api/webhooks', express.raw({ type: 'application/json' }));
+app.use(express.json());
+
+// Health check
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    service: 'OF Stats Backend',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/models', modelsRoutes);
+app.use('/api/fans', fansRoutes);
+app.use('/api/webhooks', webhooksRoutes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({ 
+    error: err.message || 'Internal server error' 
+  });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 OF Stats Backend running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+module.exports = app;
