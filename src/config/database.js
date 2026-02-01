@@ -42,6 +42,8 @@ async function initDatabase() {
         email_verified BOOLEAN DEFAULT false,
         password_reset_token VARCHAR(255),
         password_reset_expires TIMESTAMP,
+        email_verification_code VARCHAR(10),
+        email_verification_expires TIMESTAMP,
         trial_started_at TIMESTAMP,
         last_login_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
@@ -57,6 +59,12 @@ async function initDatabase() {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_reset_expires') THEN
           ALTER TABLE users ADD COLUMN password_reset_expires TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_verification_code') THEN
+          ALTER TABLE users ADD COLUMN email_verification_code VARCHAR(10);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_verification_expires') THEN
+          ALTER TABLE users ADD COLUMN email_verification_expires TIMESTAMP;
         END IF;
       END $$;
     `);

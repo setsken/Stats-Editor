@@ -43,7 +43,12 @@ async function sendEmail(to, subject, html) {
   }
 }
 
-// Register new user
+// Generate 6-digit code
+function generateVerificationCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Register new user (requires email verification)
 router.post('/register', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -62,60 +67,59 @@ router.post('/register', async (req, res) => {
     }
 
     const existingUser = await getOne(
-      'SELECT id FROM users WHERE email = $1',
+      'SELECT id, email_verified FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
-    if (existingUser) {
+    if (existingUser && existingUser.email_verified) {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+    const verificationCode = generateVerificationCode();
+    const codeExpires = new Date(Date.now() + 3600000); // 1 hour
 
-    const result = await query(
-      `INSERT INTO users (email, password_hash, trial_started_at)
-       VALUES ($1, $2, NOW())
-       RETURNING id, email, created_at`,
-      [email.toLowerCase(), passwordHash]
-    );
+    let user;
+    if (existingUser) {
+      // Update existing unverified user
+      const result = await query(
+        `UPDATE users SET password_hash = $1, email_verification_code = $2, email_verification_expires = $3
+         WHERE id = $4 RETURNING id, email, created_at`,
+        [passwordHash, verificationCode, codeExpires, existingUser.id]
+      );
+      user = result.rows[0];
+    } else {
+      // Create new user
+      const result = await query(
+        `INSERT INTO users (email, password_hash, email_verified, email_verification_code, email_verification_expires, trial_started_at)
+         VALUES ($1, $2, false, $3, $4, NOW())
+         RETURNING id, email, created_at`,
+        [email.toLowerCase(), passwordHash, verificationCode, codeExpires]
+      );
+      user = result.rows[0];
+    }
 
-    const user = result.rows[0];
-
-    const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
-    await query(
-      `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
-       VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days')`,
-      [user.id]
-    );
-
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-
-    // Send welcome email (non-blocking)
-    sendEmail(user.email, 'Welcome to Stats Editor Pro!', `
+    // Send verification email
+    const emailSent = await sendEmail(user.email, 'Verify Your Email - Stats Editor Pro', `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
         <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
         <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: #00d4ff;">Welcome!</h2>
-          <p>Your account has been created successfully.</p>
-          <p><strong>Email:</strong> ${user.email}</p>
-          <p><strong>Trial Period:</strong> ${trialDays} days</p>
-          <p><strong>Models Limit:</strong> 10 models</p>
-          <hr style="border: none; border-top: 1px solid #334155; margin: 20px 0;">
-          <p style="color: #94a3b8;">Upgrade to Premium for up to 50 models!</p>
+          <h2 style="color: #00d4ff;">Verify Your Email</h2>
+          <p>Welcome! Please enter the code below to verify your email address:</p>
+          <div style="background: #0f172a; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+            <code style="color: #00d4ff; font-size: 32px; letter-spacing: 8px; font-weight: bold;">${verificationCode}</code>
+          </div>
+          <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 hour.</p>
+          <p style="color: #94a3b8; font-size: 14px;">If you didn't create this account, please ignore this email.</p>
         </div>
       </div>
     `);
 
     res.status(201).json({
-      message: 'Registration successful',
-      user: { id: user.id, email: user.email },
-      token,
-      trial: { active: true, days: trialDays, modelLimit: 10 }
+      message: 'Verification code sent',
+      requiresVerification: true,
+      email: user.email
     });
 
   } catch (error) {
@@ -134,7 +138,7 @@ router.post('/login', async (req, res) => {
     }
 
     const user = await getOne(
-      'SELECT id, email, password_hash, is_active FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, is_active, email_verified FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -144,6 +148,11 @@ router.post('/login', async (req, res) => {
 
     if (!user.is_active) {
       return res.status(403).json({ error: 'Account is deactivated' });
+    }
+
+    // Check if email is verified
+    if (!user.email_verified) {
+      return res.status(403).json({ error: 'Please verify your email first', code: 'EMAIL_NOT_VERIFIED' });
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
@@ -175,6 +184,138 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Verify email with code
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and code are required' });
+    }
+
+    const user = await getOne(
+      `SELECT id, email, email_verification_code, email_verification_expires 
+       FROM users WHERE email = $1 AND email_verified = false`,
+      [email.toLowerCase()]
+    );
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid email or already verified' });
+    }
+
+    if (user.email_verification_code !== code) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    if (new Date(user.email_verification_expires) < new Date()) {
+      return res.status(400).json({ error: 'Verification code expired. Please request a new one.' });
+    }
+
+    // Mark email as verified
+    await query(
+      `UPDATE users SET email_verified = true, email_verification_code = NULL, email_verification_expires = NULL WHERE id = $1`,
+      [user.id]
+    );
+
+    // Create trial subscription
+    const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
+    await query(
+      `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
+       VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days')
+       ON CONFLICT (user_id) DO NOTHING`,
+      [user.id]
+    );
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    const subscription = await getOne(`
+      SELECT plan, model_limit, status, expires_at,
+        CASE WHEN expires_at > NOW() AND status = 'active' THEN true ELSE false END as is_active
+      FROM subscriptions WHERE user_id = $1 ORDER BY expires_at DESC LIMIT 1
+    `, [user.id]);
+
+    // Send welcome email
+    sendEmail(user.email, 'Welcome to Stats Editor Pro!', `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
+        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
+        <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
+          <h2 style="color: #00d4ff;">Welcome!</h2>
+          <p>Your email has been verified and your account is now active.</p>
+          <p><strong>Email:</strong> ${user.email}</p>
+          <p><strong>Trial Period:</strong> ${trialDays} days</p>
+          <p><strong>Models Limit:</strong> 10 models</p>
+          <hr style="border: none; border-top: 1px solid #334155; margin: 20px 0;">
+          <p style="color: #94a3b8;">Upgrade to Premium for up to 50 models!</p>
+        </div>
+      </div>
+    `);
+
+    res.json({
+      message: 'Email verified successfully',
+      user: { id: user.id, email: user.email },
+      token,
+      subscription: subscription || null
+    });
+
+  } catch (error) {
+    console.error('Verify email error:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// Resend verification code
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await getOne(
+      'SELECT id, email FROM users WHERE email = $1 AND email_verified = false',
+      [email.toLowerCase()]
+    );
+
+    if (!user) {
+      return res.json({ message: 'If this email exists and is unverified, a new code has been sent' });
+    }
+
+    const verificationCode = generateVerificationCode();
+    const codeExpires = new Date(Date.now() + 3600000);
+
+    await query(
+      'UPDATE users SET email_verification_code = $1, email_verification_expires = $2 WHERE id = $3',
+      [verificationCode, codeExpires, user.id]
+    );
+
+    await sendEmail(user.email, 'Verify Your Email - Stats Editor Pro', `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
+        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
+        <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
+          <h2 style="color: #00d4ff;">Verify Your Email</h2>
+          <p>Here is your new verification code:</p>
+          <div style="background: #0f172a; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+            <code style="color: #00d4ff; font-size: 32px; letter-spacing: 8px; font-weight: bold;">${verificationCode}</code>
+          </div>
+          <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 hour.</p>
+        </div>
+      </div>
+    `);
+
+    res.json({ message: 'Verification code sent' });
+
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({ error: 'Failed to resend code' });
   }
 });
 
