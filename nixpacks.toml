@@ -1,2 +1,5 @@
-engines:
-  node: ">=18"
+[phases.build]
+providers = ["node"]
+
+[start]
+cmd = "npm start"
