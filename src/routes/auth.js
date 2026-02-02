@@ -8,37 +8,42 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Email transporter
+// Email transporter with SSL (port 465) and timeout
 let transporter = null;
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  const port = parseInt(process.env.SMTP_PORT) || 465;
   transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: false,
+    port: port,
+    secure: port === 465, // true for 465, false for other ports
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
-    }
+    },
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 15000
   });
+  console.log(`📧 SMTP configured: ${process.env.SMTP_HOST || 'smtp.gmail.com'}:${port}`);
 }
 
-// Helper to send email
+// Helper to send email (non-blocking, doesn't fail the request)
 async function sendEmail(to, subject, html) {
   if (!transporter) {
-    console.log('SMTP not configured, skipping email to:', to);
+    console.log('⚠️ SMTP not configured, skipping email to:', to);
     return false;
   }
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'Stats Editor Pro <noreply@statseditor.pro>',
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to,
       subject,
       html
     });
-    console.log('Email sent to:', to);
+    console.log('✅ Email sent to:', to);
     return true;
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('❌ Email send error:', error.message);
     return false;
   }
 }
@@ -116,8 +121,11 @@ router.post('/register', async (req, res) => {
       </div>
     `);
 
+    // Log code for debugging (remove in production when email works)
+    console.log(`📧 Verification code for ${user.email}: ${verificationCode} (email sent: ${emailSent})`);
+
     res.status(201).json({
-      message: 'Verification code sent',
+      message: emailSent ? 'Verification code sent to your email' : 'Account created. Check logs for verification code.',
       requiresVerification: true,
       email: user.email
     });
@@ -332,28 +340,28 @@ router.post('/forgot-password', async (req, res) => {
 
     // Always return success to prevent email enumeration
     if (!user) {
-      return res.json({ message: 'If this email exists, a reset link has been sent' });
+      return res.json({ message: 'If this email exists, a reset code has been sent' });
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    // Use 6-digit code instead of long token
+    const resetCode = generateVerificationCode();
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour
 
     await query(
       'UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3',
-      [resetTokenHash, expiresAt, user.id]
+      [resetCode, expiresAt, user.id]
     );
 
-    // Send reset email (non-blocking)
-    sendEmail(user.email, 'Password Reset - Stats Editor Pro', `
+    // Send reset email
+    const emailSent = await sendEmail(user.email, 'Password Reset - Stats Editor Pro', `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
         <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
         <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
           <h2 style="color: #00d4ff;">Password Reset</h2>
           <p>You requested a password reset for your account.</p>
           <p>Your reset code:</p>
-          <div style="background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <code style="color: #00d4ff; font-size: 18px; letter-spacing: 2px;">${resetToken}</code>
+          <div style="background: #0f172a; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+            <code style="color: #00d4ff; font-size: 32px; letter-spacing: 8px; font-weight: bold;">${resetCode}</code>
           </div>
           <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 hour.</p>
           <p style="color: #94a3b8; font-size: 14px;">If you didn't request this, please ignore this email.</p>
@@ -361,7 +369,10 @@ router.post('/forgot-password', async (req, res) => {
       </div>
     `);
 
-    res.json({ message: 'If this email exists, a reset link has been sent' });
+    // Log code for debugging (remove in production when email works)
+    console.log(`📧 Reset code for ${user.email}: ${resetCode} (email sent: ${emailSent})`);
+
+    res.json({ message: 'If this email exists, a reset code has been sent' });
 
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -369,28 +380,27 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// Reset password with token
+// Reset password with code (6-digit)
 router.post('/reset-password', async (req, res) => {
   try {
     const { email, token, newPassword } = req.body;
 
     if (!email || !token || !newPassword) {
-      return res.status(400).json({ error: 'Email, token, and new password are required' });
+      return res.status(400).json({ error: 'Email, code, and new password are required' });
     }
 
     if (newPassword.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
+    // Token is now a 6-digit code stored as plain text
     const user = await getOne(
       'SELECT id FROM users WHERE email = $1 AND password_reset_token = $2 AND password_reset_expires > NOW()',
-      [email.toLowerCase(), tokenHash]
+      [email.toLowerCase(), token.trim()]
     );
 
     if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
 
     const salt = await bcrypt.genSalt(10);
