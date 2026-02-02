@@ -8,23 +8,26 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Email transporter with SSL (port 465) and timeout
+// Email transporter with STARTTLS (port 587) - same as working Python code
 let transporter = null;
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-  const port = parseInt(process.env.SMTP_PORT) || 465;
   transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: port,
-    secure: port === 465, // true for 465, false for other ports
+    port: 587,
+    secure: false, // use STARTTLS
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,
-    socketTimeout: 15000
+    tls: {
+      ciphers: 'SSLv3',
+      rejectUnauthorized: false
+    },
+    connectionTimeout: 30000, // 30 seconds
+    greetingTimeout: 30000,
+    socketTimeout: 30000
   });
-  console.log(`📧 SMTP configured: ${process.env.SMTP_HOST || 'smtp.gmail.com'}:${port}`);
+  console.log(`📧 SMTP configured: ${process.env.SMTP_HOST || 'smtp.gmail.com'}:587 (STARTTLS)`);
 }
 
 // Helper to send email (non-blocking, doesn't fail the request)
