@@ -247,7 +247,7 @@ router.post('/apply', authenticateToken, async (req, res) => {
     );
 
     if (existingSub && existingSub.status === 'active' && new Date(existingSub.expires_at) > new Date()) {
-      // Extend existing subscription
+      // Extend existing subscription - DON'T clear models, just extend time
       const newExpiry = new Date(existingSub.expires_at);
       newExpiry.setDate(newExpiry.getDate() + promoCode.days);
       
@@ -258,7 +258,10 @@ router.post('/apply', authenticateToken, async (req, res) => {
         [newExpiry, promoCode.plan, promoCode.model_limit, existingSub.id]
       );
     } else {
-      // Create new subscription
+      // Create new subscription - clear models for fresh start
+      await query(`DELETE FROM user_models WHERE user_id = $1`, [userId]);
+      console.log(`Cleared models for user ${userId} (new promo subscription)`);
+      
       await query(
         `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
          VALUES ($1, $2, $3, 'active', 'promo', $4)`,

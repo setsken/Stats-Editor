@@ -96,6 +96,10 @@ router.post('/nowpayments', async (req, res) => {
         ) VALUES ($1, $2, $3, 'active', 'nowpayments', $4, NOW(), NOW() + INTERVAL '30 days')
       `, [payment.user_id, payment.plan, planConfig.modelLimit, payment_id]);
 
+      // Clear user's models for new subscription period
+      await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
+      console.log(`Cleared models for user ${payment.user_id} (new subscription period)`);
+
       console.log(`Subscription activated: ${payment.plan} for user ${payment.user_id}`);
     }
 
