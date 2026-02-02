@@ -236,14 +236,21 @@ router.post('/verify-email', async (req, res) => {
       [user.id]
     );
 
-    // Create trial subscription
-    const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
-    await query(
-      `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
-       VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days')
-       ON CONFLICT (user_id) DO NOTHING`,
+    // Check if subscription already exists
+    const existingSub = await getOne(
+      'SELECT id FROM subscriptions WHERE user_id = $1',
       [user.id]
     );
+
+    // Create trial subscription only if doesn't exist
+    if (!existingSub) {
+      const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
+      await query(
+        `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
+         VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days')`,
+        [user.id]
+      );
+    }
 
     // Generate token
     const token = jwt.sign(
