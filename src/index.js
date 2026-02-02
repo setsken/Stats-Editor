@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { query } = require('./config/database');
 
@@ -81,6 +82,9 @@ app.use('/api/', limiter);
 // Body parsing - raw for webhooks, json for rest
 app.use('/api/webhooks', express.raw({ type: 'application/json' }));
 app.use(express.json());
+
+// Serve static files (logo, etc.)
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Health check
 app.get('/', (req, res) => {

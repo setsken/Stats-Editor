@@ -85,11 +85,7 @@ function generateEmailTemplate(title, content) {
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="padding-right: 12px;">
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="40" height="40" style="border-radius: 10px; background-color: #00b4d8;">
-                      <tr>
-                        <td align="center" valign="middle" width="40" height="40" style="font-size: 22px; color: #ffffff; font-weight: bold; font-family: Arial, sans-serif;">S</td>
-                      </tr>
-                    </table>
+                    <img src="https://stats-editor-production.up.railway.app/logo.png" alt="Stats Editor" width="40" height="40" style="border-radius: 10px; display: block;">
                   </td>
                   <td>
                     <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Stats Editor</h1>
