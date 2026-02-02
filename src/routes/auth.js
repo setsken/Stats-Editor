@@ -2,49 +2,51 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
 const { query, getOne } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Email transporter with STARTTLS (port 587) - same as working Python code
-let transporter = null;
-if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: 587,
-    secure: false, // use STARTTLS
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    tls: {
-      ciphers: 'SSLv3',
-      rejectUnauthorized: false
-    },
-    connectionTimeout: 30000, // 30 seconds
-    greetingTimeout: 30000,
-    socketTimeout: 30000
-  });
-  console.log(`📧 SMTP configured: ${process.env.SMTP_HOST || 'smtp.gmail.com'}:587 (STARTTLS)`);
+// Resend API configuration
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Stats Editor <onboarding@resend.dev>';
+
+if (RESEND_API_KEY) {
+  console.log('📧 Resend API configured');
+} else {
+  console.log('⚠️ RESEND_API_KEY not set - emails will be skipped');
 }
 
-// Helper to send email (non-blocking, doesn't fail the request)
+// Helper to send email via Resend API
 async function sendEmail(to, subject, html) {
-  if (!transporter) {
-    console.log('⚠️ SMTP not configured, skipping email to:', to);
+  if (!RESEND_API_KEY) {
+    console.log('⚠️ Resend not configured, skipping email to:', to);
     return false;
   }
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to,
-      subject,
-      html
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: EMAIL_FROM,
+        to: [to],
+        subject: subject,
+        html: html
+      })
     });
-    console.log('✅ Email sent to:', to);
-    return true;
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      console.log('✅ Email sent to:', to, 'id:', data.id);
+      return true;
+    } else {
+      console.error('❌ Resend error:', data);
+      return false;
+    }
   } catch (error) {
     console.error('❌ Email send error:', error.message);
     return false;
