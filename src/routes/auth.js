@@ -58,6 +58,71 @@ function generateVerificationCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Generate responsive email HTML template
+function generateEmailTemplate(title, content) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <!--[if mso]>
+  <style type="text/css">
+    table { border-collapse: collapse; }
+    .content { width: 600px !important; }
+  </style>
+  <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0e1a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #0a0e1a;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; background: linear-gradient(180deg, #0f1535 0%, #0a0e27 100%); border-radius: 16px; border: 1px solid rgba(0, 180, 255, 0.2); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 180, 255, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td align="center" style="padding: 30px 40px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="padding-right: 12px;">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #00b4ff, #00d4aa); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                      <span style="font-size: 20px; color: white; font-weight: bold;">S</span>
+                    </div>
+                  </td>
+                  <td>
+                    <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Stats Editor</h1>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <tr>
+                  <td style="padding: 30px;">
+                    ${content}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding: 0 40px 30px;">
+              <p style="margin: 0; color: #64748b; font-size: 12px;">© 2026 Stats Editor. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
 // Register new user (requires email verification)
 router.post('/register', async (req, res) => {
   try {
@@ -121,20 +186,15 @@ router.post('/register', async (req, res) => {
     });
 
     // Send verification email in background (fire and forget)
-    sendEmail(user.email, 'Verify Your Email - Stats Editor Pro', `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
-        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
-        <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: #00d4ff;">Verify Your Email</h2>
-          <p>Welcome! Please enter the code below to verify your email address:</p>
-          <div style="background: #0f172a; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <code style="color: #00d4ff; font-size: 32px; letter-spacing: 8px; font-weight: bold;">${verificationCode}</code>
-          </div>
-          <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 hour.</p>
-          <p style="color: #94a3b8; font-size: 14px;">If you didn't create this account, please ignore this email.</p>
-        </div>
+    sendEmail(user.email, 'Verify Your Email - Stats Editor', generateEmailTemplate('Verify Your Email', `
+      <h2 style="margin: 0 0 16px; color: #00b4ff; font-size: 20px; font-weight: 600;">Verify Your Email</h2>
+      <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Welcome! Please enter the code below to verify your email address:</p>
+      <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
+        <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${verificationCode}</code>
       </div>
-    `).catch(err => console.error('Background email error:', err));
+      <p style="margin: 0 0 8px; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
+      <p style="margin: 0; color: #64748b; font-size: 13px;">If you didn't create this account, please ignore this email.</p>
+    `)).catch(err => console.error('Background email error:', err));
 
     return; // Already sent response
 
@@ -267,20 +327,37 @@ router.post('/verify-email', async (req, res) => {
     `, [user.id]);
 
     // Send welcome email
-    sendEmail(user.email, 'Welcome to Stats Editor Pro!', `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
-        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
-        <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: #00d4ff;">Welcome!</h2>
-          <p>Your email has been verified and your account is now active.</p>
-          <p><strong>Email:</strong> ${user.email}</p>
-          <p><strong>Trial Period:</strong> ${trialDays} days</p>
-          <p><strong>Models Limit:</strong> 10 models</p>
-          <hr style="border: none; border-top: 1px solid #334155; margin: 20px 0;">
-          <p style="color: #94a3b8;">Upgrade to Premium for up to 50 models!</p>
-        </div>
-      </div>
-    `);
+    sendEmail(user.email, 'Welcome to Stats Editor!', generateEmailTemplate('Welcome', `
+      <h2 style="margin: 0 0 16px; color: #00b4ff; font-size: 20px; font-weight: 600;">Welcome!</h2>
+      <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Your email has been verified and your account is now active.</p>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <span style="color: #94a3b8; font-size: 14px;">Email</span>
+          </td>
+          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right;">
+            <span style="color: #e2e8f0; font-size: 14px; font-weight: 500;">${user.email}</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <span style="color: #94a3b8; font-size: 14px;">Trial Period</span>
+          </td>
+          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right;">
+            <span style="color: #10b981; font-size: 14px; font-weight: 500;">${trialDays} days</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12px 0;">
+            <span style="color: #94a3b8; font-size: 14px;">Models Limit</span>
+          </td>
+          <td style="padding: 12px 0; text-align: right;">
+            <span style="color: #00b4ff; font-size: 14px; font-weight: 500;">10 models</span>
+          </td>
+        </tr>
+      </table>
+      <p style="margin: 20px 0 0; color: #64748b; font-size: 13px; text-align: center;">Upgrade to Premium for up to 50 models!</p>
+    `));
 
     res.json({
       message: 'Email verified successfully',
@@ -321,19 +398,14 @@ router.post('/resend-verification', async (req, res) => {
       [verificationCode, codeExpires, user.id]
     );
 
-    await sendEmail(user.email, 'Verify Your Email - Stats Editor Pro', `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
-        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
-        <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: #00d4ff;">Verify Your Email</h2>
-          <p>Here is your new verification code:</p>
-          <div style="background: #0f172a; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <code style="color: #00d4ff; font-size: 32px; letter-spacing: 8px; font-weight: bold;">${verificationCode}</code>
-          </div>
-          <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 hour.</p>
-        </div>
+    await sendEmail(user.email, 'Verify Your Email - Stats Editor', generateEmailTemplate('Verify Your Email', `
+      <h2 style="margin: 0 0 16px; color: #00b4ff; font-size: 20px; font-weight: 600;">Verify Your Email</h2>
+      <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Here is your new verification code:</p>
+      <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
+        <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${verificationCode}</code>
       </div>
-    `);
+      <p style="margin: 0; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
+    `));
 
     res.json({ message: 'Verification code sent' });
 
@@ -375,21 +447,16 @@ router.post('/forgot-password', async (req, res) => {
     res.json({ message: 'If this email exists, a reset code has been sent' });
 
     // Send email in background (fire and forget)
-    sendEmail(user.email, 'Password Reset - Stats Editor Pro', `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
-        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
-        <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: #00d4ff;">Password Reset</h2>
-          <p>You requested a password reset for your account.</p>
-          <p>Your reset code:</p>
-          <div style="background: #0f172a; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <code style="color: #00d4ff; font-size: 32px; letter-spacing: 8px; font-weight: bold;">${resetCode}</code>
-          </div>
-          <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 hour.</p>
-          <p style="color: #94a3b8; font-size: 14px;">If you didn't request this, please ignore this email.</p>
-        </div>
+    sendEmail(user.email, 'Password Reset - Stats Editor', generateEmailTemplate('Password Reset', `
+      <h2 style="margin: 0 0 16px; color: #00b4ff; font-size: 20px; font-weight: 600;">Password Reset</h2>
+      <p style="margin: 0 0 12px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">You requested a password reset for your account.</p>
+      <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Your reset code:</p>
+      <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
+        <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${resetCode}</code>
       </div>
-    `).catch(err => console.error('Background email error:', err));
+      <p style="margin: 0 0 8px; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
+      <p style="margin: 0; color: #64748b; font-size: 13px;">If you didn't request this, please ignore this email.</p>
+    `)).catch(err => console.error('Background email error:', err));
 
     return; // Already sent response
 
