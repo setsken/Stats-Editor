@@ -240,46 +240,43 @@ router.post('/apply', authenticateToken, async (req, res) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + promoCode.days);
 
-    // Check existing subscription
-    const existingSub = await getOne(
-      'SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY expires_at DESC LIMIT 1',
-      [userId]
-    );
+    // Use UPSERT to ensure only ONE subscription record per user
+    const result = await query(`
+      INSERT INTO subscriptions (
+        user_id, plan, model_limit, status, payment_provider, 
+        starts_at, expires_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, 'active', 'promo', NOW(), $4, NOW(), NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        plan = EXCLUDED.plan,
+        model_limit = EXCLUDED.model_limit,
+        status = 'active',
+        payment_provider = 'promo',
+        starts_at = CASE 
+          WHEN subscriptions.status = 'active' AND subscriptions.expires_at > NOW() 
+          THEN subscriptions.starts_at
+          ELSE NOW()
+        END,
+        expires_at = CASE 
+          WHEN subscriptions.status = 'active' AND subscriptions.expires_at > NOW() 
+          THEN subscriptions.expires_at + INTERVAL '${promoCode.days} days'
+          ELSE EXCLUDED.expires_at
+        END,
+        updated_at = NOW()
+      RETURNING 
+        (xmax = 0) as is_insert,
+        (SELECT status FROM subscriptions WHERE user_id = $1) as old_status,
+        (SELECT expires_at FROM subscriptions WHERE user_id = $1) as old_expires
+    `, [userId, promoCode.plan, promoCode.model_limit, expiresAt]);
 
-    if (existingSub && existingSub.status === 'active' && new Date(existingSub.expires_at) > new Date()) {
-      // Extend existing subscription - DON'T clear models, just extend time
-      const newExpiry = new Date(existingSub.expires_at);
-      newExpiry.setDate(newExpiry.getDate() + promoCode.days);
-      
-      await query(
-        `UPDATE subscriptions 
-         SET expires_at = $1, plan = $2, model_limit = $3, status = 'active', 
-             payment_provider = 'promo', updated_at = NOW()
-         WHERE id = $4`,
-        [newExpiry, promoCode.plan, promoCode.model_limit, existingSub.id]
-      );
-    } else if (existingSub) {
-      // Update expired subscription record - clear models for fresh start
+    const wasInsert = result.rows[0]?.is_insert;
+    const oldStatus = result.rows[0]?.old_status;
+    const oldExpires = result.rows[0]?.old_expires;
+    
+    // Clear models only if this is a NEW subscription (not extension of active one)
+    const wasActive = oldStatus === 'active' && new Date(oldExpires) > new Date();
+    if (wasInsert || !wasActive) {
       await query(`DELETE FROM user_models WHERE user_id = $1`, [userId]);
       console.log(`Cleared models for user ${userId} (new promo subscription)`);
-      
-      await query(
-        `UPDATE subscriptions 
-         SET expires_at = $1, plan = $2, model_limit = $3, status = 'active',
-             payment_provider = 'promo', starts_at = NOW(), updated_at = NOW()
-         WHERE id = $4`,
-        [expiresAt, promoCode.plan, promoCode.model_limit, existingSub.id]
-      );
-    } else {
-      // Create first subscription record - clear models for fresh start
-      await query(`DELETE FROM user_models WHERE user_id = $1`, [userId]);
-      console.log(`Cleared models for user ${userId} (first promo subscription)`);
-      
-      await query(
-        `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
-         VALUES ($1, $2, $3, 'active', 'promo', $4)`,
-        [userId, promoCode.plan, promoCode.model_limit, expiresAt]
-      );
     }
 
     // Record usage

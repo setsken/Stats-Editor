@@ -99,6 +99,38 @@ async function initDatabase() {
       )
     `);
 
+    // Add updated_at column if missing
+    try {
+      await query(`ALTER TABLE subscriptions ADD COLUMN updated_at TIMESTAMP`);
+      console.log('✅ Added updated_at column to subscriptions');
+    } catch (err) {
+      if (err.code !== '42701') console.error('Error adding updated_at:', err.message);
+    }
+
+    // Add UNIQUE constraint on user_id (one subscription per user)
+    // First, clean up duplicates - keep only the latest subscription per user
+    try {
+      await query(`
+        DELETE FROM subscriptions 
+        WHERE id NOT IN (
+          SELECT DISTINCT ON (user_id) id 
+          FROM subscriptions 
+          ORDER BY user_id, id DESC
+        )
+      `);
+      console.log('✅ Cleaned up duplicate subscriptions');
+    } catch (err) {
+      console.log('No duplicates to clean or error:', err.message);
+    }
+
+    // Now add the unique constraint
+    try {
+      await query(`ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_user_id_unique UNIQUE (user_id)`);
+      console.log('✅ Added unique constraint on subscriptions.user_id');
+    } catch (err) {
+      if (err.code !== '42710') console.error('Error adding unique constraint:', err.message);
+    }
+
     // Update existing trial subscriptions to have model_limit = 10
     await query(`
       UPDATE subscriptions SET model_limit = 10 WHERE plan = 'trial' AND model_limit IS NULL

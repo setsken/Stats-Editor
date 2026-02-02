@@ -49,6 +49,12 @@ router.post('/nowpayments', async (req, res) => {
     // Map status
     const mappedStatus = nowpayments.PAYMENT_STATUSES[payment_status] || 'pending';
 
+    // Check if this payment was already processed (to prevent duplicate processing)
+    if (payment.status === 'completed' && mappedStatus === 'completed') {
+      console.log(`Payment ${payment_id} already processed, skipping`);
+      return res.status(200).json({ received: true, message: 'Already processed' });
+    }
+
     // Update payment record
     await query(`
       UPDATE payments 
@@ -74,46 +80,38 @@ router.post('/nowpayments', async (req, res) => {
         UPDATE users SET trial_used = true WHERE id = $1
       `, [payment.user_id]);
 
-      // Check if user already has a subscription record
-      const existingSub = await getOne(
-        'SELECT id, expires_at, status FROM subscriptions WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
-        [payment.user_id]
-      );
+      // Use UPSERT to ensure only ONE subscription record per user
+      // This prevents race conditions from duplicate webhooks
+      const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 days from now
+      
+      const result = await query(`
+        INSERT INTO subscriptions (
+          user_id, plan, model_limit, status, payment_provider, payment_id, 
+          starts_at, expires_at, created_at, updated_at
+        ) VALUES ($1, $2, $3, 'active', 'nowpayments', $4, NOW(), $5, NOW(), NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+          plan = EXCLUDED.plan,
+          model_limit = EXCLUDED.model_limit,
+          status = 'active',
+          payment_provider = 'nowpayments',
+          payment_id = EXCLUDED.payment_id,
+          starts_at = NOW(),
+          expires_at = CASE 
+            WHEN subscriptions.status = 'active' AND subscriptions.expires_at > NOW() 
+            THEN subscriptions.expires_at + INTERVAL '30 days'
+            ELSE EXCLUDED.expires_at
+          END,
+          updated_at = NOW()
+        RETURNING (xmax = 0) as is_insert
+      `, [payment.user_id, payment.plan, planConfig.modelLimit, payment_id, newExpiry]);
 
-      if (existingSub) {
-        // Update existing subscription record
-        // If current subscription is still active, extend from its expiry date
-        // Otherwise start fresh from now
-        const currentExpiry = new Date(existingSub.expires_at);
-        const now = new Date();
-        const baseDate = (existingSub.status === 'active' && currentExpiry > now) ? currentExpiry : now;
-        const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
-        
-        await query(`
-          UPDATE subscriptions 
-          SET plan = $1, model_limit = $2, status = 'active', 
-              payment_provider = 'nowpayments', payment_id = $3,
-              starts_at = NOW(), expires_at = $4, updated_at = NOW()
-          WHERE id = $5
-        `, [payment.plan, planConfig.modelLimit, payment_id, newExpiry, existingSub.id]);
-        
-        // Only clear models if this is a NEW subscription (not extension of active one)
-        if (existingSub.status !== 'active' || currentExpiry <= now) {
-          await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
-          console.log(`Cleared models for user ${payment.user_id} (new subscription period)`);
-        }
-      } else {
-        // Create first subscription record for this user
-        await query(`
-          INSERT INTO subscriptions (
-            user_id, plan, model_limit, status, payment_provider, payment_id, 
-            starts_at, expires_at
-          ) VALUES ($1, $2, $3, 'active', 'nowpayments', $4, NOW(), NOW() + INTERVAL '30 days')
-        `, [payment.user_id, payment.plan, planConfig.modelLimit, payment_id]);
-        
-        // Clear models for fresh start
+      const wasInsert = result.rows[0]?.is_insert;
+      
+      // Clear models only on new subscription (not extension)
+      // Check if previous was not active
+      if (wasInsert) {
         await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
-        console.log(`Cleared models for user ${payment.user_id} (first paid subscription)`);
+        console.log(`Cleared models for user ${payment.user_id} (first subscription)`);
       }
 
       console.log(`Subscription activated: ${payment.plan} for user ${payment.user_id}`);
