@@ -78,7 +78,7 @@ function generateEmailTemplate(title, content) {
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #0a0e1a;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; background: linear-gradient(180deg, #0f1535 0%, #0a0e27 100%); border-radius: 16px; border: 1px solid rgba(0, 180, 255, 0.2); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 180, 255, 0.1);">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; background: #0f1525; border-radius: 16px; border: 1px solid #1a3a4f; ">
           <!-- Header -->
           <tr>
             <td align="center" style="padding: 30px 40px 20px;">
@@ -97,7 +97,7 @@ function generateEmailTemplate(title, content) {
           <!-- Content -->
           <tr>
             <td style="padding: 0 40px 30px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: #1e293b; border-radius: 12px; border: 1px solid #2a3547;">
                 <tr>
                   <td style="padding: 30px;">
                     ${content}
@@ -187,7 +187,7 @@ router.post('/register', async (req, res) => {
     sendEmail(user.email, 'Verify Your Email - Stats Editor', generateEmailTemplate('Verify Your Email', `
       <h2 style="margin: 0 0 16px; color: #00b4ff; font-size: 20px; font-weight: 600;">Verify Your Email</h2>
       <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Welcome! Please enter the code below to verify your email address:</p>
-      <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
+      <div style="background: #0f172a; padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid #1a3a4f;">
         <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${verificationCode}</code>
       </div>
       <p style="margin: 0 0 8px; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
@@ -330,18 +330,18 @@ router.post('/verify-email', async (req, res) => {
       <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Your email has been verified and your account is now active.</p>
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 20px 0;">
         <tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 12px 0; border-bottom: 1px solid #2a3547;">
             <span style="color: #94a3b8; font-size: 14px;">Email</span>
           </td>
-          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right;">
+          <td style="padding: 12px 0; border-bottom: 1px solid #2a3547; text-align: right;">
             <span style="color: #e2e8f0; font-size: 14px; font-weight: 500;">${user.email}</span>
           </td>
         </tr>
         <tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 12px 0; border-bottom: 1px solid #2a3547;">
             <span style="color: #94a3b8; font-size: 14px;">Trial Period</span>
           </td>
-          <td style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right;">
+          <td style="padding: 12px 0; border-bottom: 1px solid #2a3547; text-align: right;">
             <span style="color: #10b981; font-size: 14px; font-weight: 500;">${trialDays} days</span>
           </td>
         </tr>
@@ -399,7 +399,7 @@ router.post('/resend-verification', async (req, res) => {
     await sendEmail(user.email, 'Verify Your Email - Stats Editor', generateEmailTemplate('Verify Your Email', `
       <h2 style="margin: 0 0 16px; color: #00b4ff; font-size: 20px; font-weight: 600;">Verify Your Email</h2>
       <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Here is your new verification code:</p>
-      <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
+      <div style="background: #0f172a; padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid #1a3a4f;">
         <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${verificationCode}</code>
       </div>
       <p style="margin: 0; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
@@ -449,7 +449,7 @@ router.post('/forgot-password', async (req, res) => {
       <h2 style="margin: 0 0 16px; color: #00b4ff; font-size: 20px; font-weight: 600;">Password Reset</h2>
       <p style="margin: 0 0 12px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">You requested a password reset for your account.</p>
       <p style="margin: 0 0 20px; color: #e2e8f0; font-size: 15px; line-height: 1.6;">Your reset code:</p>
-      <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
+      <div style="background: #0f172a; padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid #1a3a4f;">
         <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${resetCode}</code>
       </div>
       <p style="margin: 0 0 8px; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
