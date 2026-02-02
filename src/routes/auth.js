@@ -109,7 +109,7 @@ function generateEmailTemplate(title, content) {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding: 0 40px 30px;">
-              <p style="margin: 0; color: #cbd5e1; font-size: 13px;">© 2026 Stats Editor. All rights reserved.</p>
+              <p style="margin: 0; color: #64748b; font-size: 12px;">© 2026 Stats Editor. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -190,7 +190,7 @@ router.post('/register', async (req, res) => {
       <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
         <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${verificationCode}</code>
       </div>
-      <p style="margin: 0 0 8px; color: #ffffff; font-size: 14px; font-weight: 500;">This code expires in 1 hour.</p>
+      <p style="margin: 0 0 8px; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
       <p style="margin: 0; color: #64748b; font-size: 13px;">If you didn't create this account, please ignore this email.</p>
     `)).catch(err => console.error('Background email error:', err));
 
@@ -402,7 +402,7 @@ router.post('/resend-verification', async (req, res) => {
       <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
         <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${verificationCode}</code>
       </div>
-      <p style="margin: 0; color: #ffffff; font-size: 14px; font-weight: 500;">This code expires in 1 hour.</p>
+      <p style="margin: 0; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
     `));
 
     res.json({ message: 'Verification code sent' });
@@ -452,8 +452,8 @@ router.post('/forgot-password', async (req, res) => {
       <div style="background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%); padding: 24px; border-radius: 10px; text-align: center; margin: 24px 0; border: 1px solid rgba(0, 180, 255, 0.2);">
         <code style="color: #00b4ff; font-size: 36px; letter-spacing: 10px; font-weight: bold; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${resetCode}</code>
       </div>
-      <p style="margin: 0 0 8px; color: #ffffff; font-size: 14px; font-weight: 500;">This code expires in 1 hour.</p>
-      <p style="margin: 0; color: #94a3b8; font-size: 14px;">If you didn't request this, please ignore this email.</p>
+      <p style="margin: 0 0 8px; color: #94a3b8; font-size: 13px;">This code expires in 1 hour.</p>
+      <p style="margin: 0; color: #64748b; font-size: 13px;">If you didn't request this, please ignore this email.</p>
     `)).catch(err => console.error('Background email error:', err));
 
     return; // Already sent response
