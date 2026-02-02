@@ -236,6 +236,8 @@ router.post('/verify-email', async (req, res) => {
       [user.id]
     );
 
+    const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
+
     // Check if subscription already exists
     const existingSub = await getOne(
       'SELECT id FROM subscriptions WHERE user_id = $1',
@@ -244,7 +246,6 @@ router.post('/verify-email', async (req, res) => {
 
     // Create trial subscription only if doesn't exist
     if (!existingSub) {
-      const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
       await query(
         `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
          VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days')`,
