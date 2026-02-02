@@ -49,23 +49,24 @@ router.post('/nowpayments', async (req, res) => {
     // Map status
     let mappedStatus = nowpayments.PAYMENT_STATUSES[payment_status] || 'pending';
 
-    // Check if this payment was already processed (to prevent duplicate processing)
-    if (payment.status === 'completed' && mappedStatus === 'completed') {
-      console.log(`Payment ${payment_id} already processed, skipping`);
-      return res.status(200).json({ received: true, message: 'Already processed' });
-    }
-
     // Get plan config to check price
     const planConfig = nowpayments.PLANS[payment.plan];
     const requiredPrice = planConfig ? planConfig.price : 0;
 
-    // For partially_paid, check if actually_paid >= 98% of subscription price
+    // ALWAYS check if actually_paid >= 98% of subscription price before activating
+    const paidAmount = parseFloat(actually_paid) || 0;
+    const paidPercentage = requiredPrice > 0 ? (paidAmount / requiredPrice) * 100 : 0;
+    
+    console.log(`Payment ${payment_id} check: status=${payment_status}, actually_paid=${paidAmount} USDT, required=${requiredPrice} USD, percentage=${paidPercentage.toFixed(2)}%`);
+
+    // If payment would be "completed" but amount is insufficient, reject it
+    if (mappedStatus === 'completed' && paidPercentage < 98) {
+      console.log(`Payment ${payment_id} REJECTED - insufficient amount (${paidPercentage.toFixed(2)}% < 98%)`);
+      mappedStatus = 'partial'; // Mark as partial, not completed
+    }
+
+    // For partially_paid status, also check amount
     if (payment_status === 'partially_paid') {
-      const paidAmount = parseFloat(actually_paid) || 0;
-      const paidPercentage = requiredPrice > 0 ? (paidAmount / requiredPrice) * 100 : 0;
-      
-      console.log(`Partial payment check: actually_paid=${paidAmount} USDT, required=${requiredPrice} USD, percentage=${paidPercentage.toFixed(2)}%`);
-      
       if (paidPercentage >= 98) {
         console.log(`Partial payment ${payment_id} ACCEPTED (${paidPercentage.toFixed(2)}% >= 98%)`);
         mappedStatus = 'completed';
@@ -73,6 +74,13 @@ router.post('/nowpayments', async (req, res) => {
         console.log(`Partial payment ${payment_id} REJECTED (${paidPercentage.toFixed(2)}% < 98%)`);
         mappedStatus = 'partial';
       }
+    }
+
+    // Check if this payment was already processed (to prevent duplicate processing)
+    // But only skip if BOTH are completed - allow re-processing if status changes
+    if (payment.status === 'completed' && mappedStatus === 'completed') {
+      console.log(`Payment ${payment_id} already processed as completed, skipping`);
+      return res.status(200).json({ received: true, message: 'Already processed' });
     }
 
     // Update payment record
@@ -87,7 +95,7 @@ router.post('/nowpayments', async (req, res) => {
 
     // If payment completed, activate subscription
     if (mappedStatus === 'completed') {
-      console.log(`Payment ${payment_id} completed, activating subscription for user ${payment.user_id}`);
+      console.log(`Payment ${payment_id} completed with sufficient amount, activating subscription for user ${payment.user_id}`);
 
       // Plan config already loaded above
       if (!planConfig) {
