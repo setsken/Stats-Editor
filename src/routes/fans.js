@@ -4,6 +4,31 @@ const { authenticateToken, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// DEBUG: Get all recent fans records (for testing)
+router.get('/debug/recent', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const records = await getMany(`
+      SELECT model_username, fans_count, fans_text, recorded_at
+      FROM model_fans_history
+      ORDER BY recorded_at DESC
+      LIMIT $1
+    `, [limit]);
+    
+    res.json({
+      count: records.length,
+      records: records.map(r => ({
+        username: r.model_username,
+        fans: r.fans_text || r.fans_count,
+        recordedAt: r.recorded_at
+      }))
+    });
+  } catch (error) {
+    console.error('Debug fans error:', error);
+    res.status(500).json({ error: 'Failed to get fans data' });
+  }
+});
+
 // Report fans count for a model (when user visits profile with visible fans)
 router.post('/report', authenticateToken, async (req, res) => {
   try {
