@@ -93,10 +93,31 @@ const initDatabase = async () => {
         model_username VARCHAR(255) NOT NULL,
         display_name VARCHAR(255),
         created_at TIMESTAMP DEFAULT NOW(),
+        is_deleted BOOLEAN DEFAULT FALSE,
+        deleted_at TIMESTAMP,
         UNIQUE(user_id, model_username)
       );
     `);
     console.log('✅ Table "user_models" ready');
+
+    // Add is_deleted column if not exists (migration)
+    try {
+      await pool.query(`ALTER TABLE user_models ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE`);
+      console.log('✅ Added column: is_deleted to user_models');
+    } catch (err) {
+      if (err.code === '42701') {
+        console.log('ℹ️ Column is_deleted already exists');
+      }
+    }
+
+    try {
+      await pool.query(`ALTER TABLE user_models ADD COLUMN deleted_at TIMESTAMP`);
+      console.log('✅ Added column: deleted_at to user_models');
+    } catch (err) {
+      if (err.code === '42701') {
+        console.log('ℹ️ Column deleted_at already exists');
+      }
+    }
 
     // Create model_fans_history table (global - shared between all users)
     await pool.query(`

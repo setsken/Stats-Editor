@@ -4,14 +4,14 @@ const { authenticateToken, requireSubscription } = require('../middleware/auth')
 
 const router = express.Router();
 
-// Get user's models list
+// Get user's models list (only active, not deleted)
 router.get('/', authenticateToken, requireSubscription, async (req, res) => {
   try {
     const models = await getMany(`
-      SELECT 
-        um.id, 
-        um.model_username, 
-        um.display_name, 
+      SELECT
+        um.id,
+        um.model_username,
+        um.display_name,
         um.created_at,
         (
           SELECT json_build_object(
@@ -25,9 +25,16 @@ router.get('/', authenticateToken, requireSubscription, async (req, res) => {
           LIMIT 1
         ) as last_fans
       FROM user_models um
-      WHERE um.user_id = $1
+      WHERE um.user_id = $1 AND (um.is_deleted = false OR um.is_deleted IS NULL)
       ORDER BY um.created_at DESC
     `, [req.user.id]);
+
+    // Count unique models added this subscription period
+    const uniqueCount = await getOne(`
+      SELECT COUNT(*) as count 
+      FROM user_models 
+      WHERE user_id = $1 AND created_at >= $2
+    `, [req.user.id, req.subscription.starts_at]);
 
     res.json({
       models: models.map(m => ({
@@ -38,7 +45,9 @@ router.get('/', authenticateToken, requireSubscription, async (req, res) => {
         lastFans: m.last_fans
       })),
       count: models.length,
-      limit: req.subscription.model_limit // null = unlimited
+      uniqueThisPeriod: parseInt(uniqueCount.count),
+      limit: req.subscription.model_limit, // null = unlimited
+      periodStart: req.subscription.starts_at
     });
 
   } catch (error) {
@@ -59,42 +68,66 @@ router.post('/add', authenticateToken, requireSubscription, async (req, res) => 
     // Clean username (remove @ and extra spaces)
     const cleanUsername = username.trim().toLowerCase().replace('@', '');
 
-    // Check model limit (if not unlimited)
-    if (req.subscription.model_limit !== null) {
-      const countResult = await getOne(
-        'SELECT COUNT(*) as count FROM user_models WHERE user_id = $1',
-        [req.user.id]
-      );
+    // Check if model was previously added (even if deleted) - can restore for free
+    const existingModel = await getOne(
+      'SELECT id, is_deleted, created_at FROM user_models WHERE user_id = $1 AND model_username = $2',
+      [req.user.id, cleanUsername]
+    );
 
-      const currentCount = parseInt(countResult.count);
-      
-      if (currentCount >= req.subscription.model_limit) {
-        return res.status(403).json({ 
-          error: `Model limit reached (${req.subscription.model_limit})`,
-          code: 'MODEL_LIMIT_REACHED',
-          currentCount,
-          limit: req.subscription.model_limit
+    if (existingModel) {
+      if (existingModel.is_deleted) {
+        // Model was deleted - restore it (doesn't count as new unique)
+        await query(
+          'UPDATE user_models SET is_deleted = false, deleted_at = NULL, display_name = COALESCE($3, display_name) WHERE id = $1',
+          [existingModel.id, req.user.id, displayName]
+        );
+
+        return res.status(200).json({
+          message: 'Model restored successfully',
+          restored: true,
+          model: {
+            id: existingModel.id,
+            username: cleanUsername,
+            displayName: displayName,
+            createdAt: existingModel.created_at
+          }
+        });
+      } else {
+        // Model already active
+        return res.status(409).json({
+          error: 'Model already added',
+          code: 'MODEL_EXISTS'
         });
       }
     }
 
-    // Check if model already added
-    const existing = await getOne(
-      'SELECT id FROM user_models WHERE user_id = $1 AND model_username = $2',
-      [req.user.id, cleanUsername]
-    );
+    // New model - check unique models limit for this subscription period
+    if (req.subscription.model_limit !== null) {
+      // Count unique models added since subscription started
+      const uniqueCount = await getOne(`
+        SELECT COUNT(*) as count 
+        FROM user_models 
+        WHERE user_id = $1 AND created_at >= $2
+      `, [req.user.id, req.subscription.starts_at]);
 
-    if (existing) {
-      return res.status(409).json({ 
-        error: 'Model already added',
-        code: 'MODEL_EXISTS'
-      });
+      const currentUniqueCount = parseInt(uniqueCount.count);
+
+      if (currentUniqueCount >= req.subscription.model_limit) {
+        return res.status(403).json({
+          error: `Unique models limit reached for this period (${req.subscription.model_limit})`,
+          code: 'MODEL_LIMIT_REACHED',
+          currentCount: currentUniqueCount,
+          limit: req.subscription.model_limit,
+          periodStart: req.subscription.starts_at,
+          hint: 'Your limit resets when subscription period renews'
+        });
+      }
     }
 
-    // Add model
+    // Add new model
     const result = await query(`
-      INSERT INTO user_models (user_id, model_username, display_name)
-      VALUES ($1, $2, $3)
+      INSERT INTO user_models (user_id, model_username, display_name, is_deleted)
+      VALUES ($1, $2, $3, false)
       RETURNING id, model_username, display_name, created_at
     `, [req.user.id, cleanUsername, displayName || null]);
 
@@ -116,20 +149,18 @@ router.post('/add', authenticateToken, requireSubscription, async (req, res) => 
   }
 });
 
-// Remove a model
+// Remove a model (soft delete - keeps history, can be restored)
 router.delete('/:username', authenticateToken, async (req, res) => {
   try {
     const { username } = req.params;
     const cleanUsername = username.trim().toLowerCase().replace('@', '');
 
+    // Soft delete - mark as deleted but keep record
     const result = await query(
-      'DELETE FROM user_models WHERE user_id = $1 AND model_username = $2 RETURNING id',
-      [req.user.id, cleanUsername]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Model not found' });
-    }
+      `UPDATE user_models 
+       SET is_deleted = true, deleted_at = NOW() 
+       WHERE user_id = $1 AND model_username = $2 AND (is_deleted = false OR is_deleted IS NULL)
+       RETURNING id`,
 
     res.json({ message: 'Model removed successfully' });
 
