@@ -51,31 +51,29 @@ async function initDatabase() {
     `);
 
     // Add new columns if they don't exist (for existing databases)
-    await query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_reset_token') THEN
-          ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(255);
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_reset_expires') THEN
-          ALTER TABLE users ADD COLUMN password_reset_expires TIMESTAMP;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_verification_code') THEN
-          ALTER TABLE users ADD COLUMN email_verification_code VARCHAR(10);
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_verification_expires') THEN
-          ALTER TABLE users ADD COLUMN email_verification_expires TIMESTAMP;
-        END IF;
-        -- Adding email_verified column
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_verified') THEN
-          ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false;
-        END IF;
-      END $$;
-    `);
+    // Using try/catch for each column to handle errors gracefully
+    const columnsToAdd = [
+      { name: 'password_reset_token', type: 'VARCHAR(255)' },
+      { name: 'password_reset_expires', type: 'TIMESTAMP' },
+      { name: 'email_verification_code', type: 'VARCHAR(10)' },
+      { name: 'email_verification_expires', type: 'TIMESTAMP' },
+      { name: 'email_verified', type: 'BOOLEAN DEFAULT false' },
+      { name: 'trial_used', type: 'BOOLEAN DEFAULT false' }
+    ];
 
-    // Direct column addition (PostgreSQL 9.6+)
-    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false`);
-    console.log('Checked email_verified column');
+    for (const col of columnsToAdd) {
+      try {
+        await query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
+        console.log(`✅ Added column: ${col.name}`);
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log(`Column ${col.name} already exists`);
+        } else {
+          console.error(`Error adding column ${col.name}:`, err.message);
+        }
+      }
+    }
+    console.log('✅ Users table columns migration complete');
 
     // Subscriptions table
     await query(`
