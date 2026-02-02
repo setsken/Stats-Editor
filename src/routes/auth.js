@@ -132,7 +132,6 @@ router.post('/register', async (req, res) => {
     `).catch(err => console.error('Background email error:', err));
 
     return; // Already sent response
-    });
 
   } catch (error) {
     console.error('Registration error:', error);
