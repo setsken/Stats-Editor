@@ -161,6 +161,12 @@ router.delete('/:username', authenticateToken, async (req, res) => {
        SET is_deleted = true, deleted_at = NOW() 
        WHERE user_id = $1 AND model_username = $2 AND (is_deleted = false OR is_deleted IS NULL)
        RETURNING id`,
+      [req.user.id, cleanUsername]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
 
     res.json({ message: 'Model removed successfully' });
 
@@ -177,7 +183,7 @@ router.get('/check/:username', authenticateToken, async (req, res) => {
     const cleanUsername = username.trim().toLowerCase().replace('@', '');
 
     const model = await getOne(
-      'SELECT id FROM user_models WHERE user_id = $1 AND model_username = $2',
+      'SELECT id FROM user_models WHERE user_id = $1 AND model_username = $2 AND (is_deleted = false OR is_deleted IS NULL)',
       [req.user.id, cleanUsername]
     );
 
