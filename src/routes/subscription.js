@@ -267,7 +267,13 @@ router.get('/payment-status/:paymentId', authenticateToken, async (req, res) => 
     if (payment.status === 'pending' && payment.provider_payment_id) {
       try {
         const providerStatus = await nowpayments.getPaymentStatus(payment.provider_payment_id);
-        const mappedStatus = nowpayments.PAYMENT_STATUSES[providerStatus.payment_status] || 'pending';
+        let mappedStatus = nowpayments.PAYMENT_STATUSES[providerStatus.payment_status] || 'pending';
+        
+        // If partially paid but >= 98% of amount, treat as completed
+        if (providerStatus.payment_status === 'partially_paid' && nowpayments.isPartiallyPaidAcceptable(providerStatus)) {
+          console.log('Partial payment accepted as completed (>= 98% paid)');
+          mappedStatus = 'completed';
+        }
         
         if (mappedStatus !== payment.status) {
           await query('UPDATE payments SET status = $1 WHERE id = $2', [mappedStatus, paymentId]);

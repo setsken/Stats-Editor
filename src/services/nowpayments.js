@@ -169,11 +169,26 @@ const PAYMENT_STATUSES = {
   confirming: 'pending',   // Payment detected, waiting confirmations
   confirmed: 'completed',  // Payment confirmed
   sending: 'completed',    // Sending to merchant
-  partially_paid: 'partial', // Partially paid
+  partially_paid: 'partial', // Partially paid (will be upgraded to completed if >= 98%)
   finished: 'completed',   // Payment finished
   failed: 'failed',        // Payment failed
   refunded: 'refunded',    // Payment refunded
   expired: 'expired'       // Payment expired
+};
+
+// Check if partially paid amount is acceptable (>= 98% of required)
+const isPartiallyPaidAcceptable = (providerStatus) => {
+  if (providerStatus.payment_status !== 'partially_paid') return false;
+  
+  const actuallyPaid = parseFloat(providerStatus.actually_paid) || 0;
+  const payAmount = parseFloat(providerStatus.pay_amount) || 0;
+  
+  // Accept if paid >= 98% of the required amount
+  const paidPercentage = payAmount > 0 ? (actuallyPaid / payAmount) * 100 : 0;
+  
+  console.log(`Partial payment check: paid ${actuallyPaid}, required ${payAmount}, percentage: ${paidPercentage.toFixed(2)}%`);
+  
+  return paidPercentage >= 98;
 };
 
 module.exports = {
@@ -185,5 +200,6 @@ module.exports = {
   createInvoice,
   getPaymentStatus,
   verifyIPNSignature,
-  PAYMENT_STATUSES
+  PAYMENT_STATUSES,
+  isPartiallyPaidAcceptable
 };
