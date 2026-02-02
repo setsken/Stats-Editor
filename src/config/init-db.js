@@ -144,6 +144,36 @@ const initDatabase = async () => {
     `);
     console.log('✅ Indexes created');
 
+    // Create promo_codes table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS promo_codes (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        plan VARCHAR(50) NOT NULL DEFAULT 'pro',
+        days INTEGER NOT NULL DEFAULT 30,
+        model_limit INTEGER DEFAULT 50,
+        max_uses INTEGER,
+        current_uses INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        created_by VARCHAR(255)
+      );
+    `);
+    console.log('✅ Table "promo_codes" ready');
+
+    // Create promo_code_uses table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS promo_code_uses (
+        id SERIAL PRIMARY KEY,
+        promo_code_id INTEGER REFERENCES promo_codes(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        used_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(promo_code_id, user_id)
+      );
+    `);
+    console.log('✅ Table "promo_code_uses" ready');
+
     console.log('🎉 Database initialization complete!');
     
   } catch (error) {

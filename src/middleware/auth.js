@@ -98,8 +98,56 @@ const requireSubscription = async (req, res, next) => {
   }
 };
 
+// Admin authentication - checks if user email is in admin list
+const authenticateAdmin = async (req, res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    const user = await getOne(
+      'SELECT id, email, is_active FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (!user || !user.is_active) {
+      return res.status(401).json({ error: 'User not found or inactive' });
+    }
+
+    // Check if user is admin (email in ADMIN_EMAILS env variable)
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+    
+    if (!adminEmails.includes(user.email.toLowerCase())) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    req.user = {
+      id: user.id,
+      email: user.email,
+      isAdmin: true
+    };
+
+    next();
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired' });
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    console.error('Admin auth middleware error:', error);
+    return res.status(500).json({ error: 'Authentication failed' });
+  }
+};
+
 module.exports = {
   authenticateToken,
   optionalAuth,
-  requireSubscription
+  requireSubscription,
+  authenticateAdmin
 };
