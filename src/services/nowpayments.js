@@ -92,7 +92,7 @@ const createPayment = async ({
       cancel_url: cancelUrl,
       is_fixed_rate: true,
       is_fee_paid_by_user: false,
-      lifetime: 15
+      lifetime: 20
     };
 
     const response = await api.post('/payment', payload);
@@ -124,7 +124,7 @@ const createInvoice = async ({
       cancel_url: cancelUrl,
       is_fixed_rate: true,
       is_fee_paid_by_user: false,
-      lifetime: 15
+      lifetime: 20
     };
 
     const response = await api.post('/invoice', payload);
