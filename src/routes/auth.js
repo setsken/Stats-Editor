@@ -85,9 +85,11 @@ function generateEmailTemplate(title, content) {
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="padding-right: 12px;">
-                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #00b4ff, #00d4aa); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                      <span style="font-size: 20px; color: white; font-weight: bold;">S</span>
-                    </div>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="40" height="40" style="border-radius: 10px; background-color: #00b4d8;">
+                      <tr>
+                        <td align="center" valign="middle" width="40" height="40" style="font-size: 22px; color: #ffffff; font-weight: bold; font-family: Arial, sans-serif;">S</td>
+                      </tr>
+                    </table>
                   </td>
                   <td>
                     <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Stats Editor</h1>
