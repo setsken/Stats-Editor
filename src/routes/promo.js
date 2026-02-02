@@ -253,14 +253,27 @@ router.post('/apply', authenticateToken, async (req, res) => {
       
       await query(
         `UPDATE subscriptions 
-         SET expires_at = $1, plan = $2, model_limit = $3, status = 'active', updated_at = NOW()
+         SET expires_at = $1, plan = $2, model_limit = $3, status = 'active', 
+             payment_provider = 'promo', updated_at = NOW()
          WHERE id = $4`,
         [newExpiry, promoCode.plan, promoCode.model_limit, existingSub.id]
       );
-    } else {
-      // Create new subscription - clear models for fresh start
+    } else if (existingSub) {
+      // Update expired subscription record - clear models for fresh start
       await query(`DELETE FROM user_models WHERE user_id = $1`, [userId]);
       console.log(`Cleared models for user ${userId} (new promo subscription)`);
+      
+      await query(
+        `UPDATE subscriptions 
+         SET expires_at = $1, plan = $2, model_limit = $3, status = 'active',
+             payment_provider = 'promo', starts_at = NOW(), updated_at = NOW()
+         WHERE id = $4`,
+        [expiresAt, promoCode.plan, promoCode.model_limit, existingSub.id]
+      );
+    } else {
+      // Create first subscription record - clear models for fresh start
+      await query(`DELETE FROM user_models WHERE user_id = $1`, [userId]);
+      console.log(`Cleared models for user ${userId} (first promo subscription)`);
       
       await query(
         `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)

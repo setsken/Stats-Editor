@@ -70,35 +70,51 @@ router.post('/nowpayments', async (req, res) => {
         return res.status(200).json({ received: true });
       }
 
-      // Deactivate any existing active subscriptions (except trial)
-      await query(`
-        UPDATE subscriptions 
-        SET status = 'replaced', updated_at = NOW()
-        WHERE user_id = $1 AND status = 'active' AND plan != 'trial'
-      `, [payment.user_id]);
-
-      // Also mark trial as used
-      await query(`
-        UPDATE subscriptions 
-        SET status = 'upgraded', updated_at = NOW()
-        WHERE user_id = $1 AND plan = 'trial' AND status = 'active'
-      `, [payment.user_id]);
-
       await query(`
         UPDATE users SET trial_used = true WHERE id = $1
       `, [payment.user_id]);
 
-      // Create new subscription (30 days)
-      await query(`
-        INSERT INTO subscriptions (
-          user_id, plan, model_limit, status, payment_provider, payment_id, 
-          starts_at, expires_at
-        ) VALUES ($1, $2, $3, 'active', 'nowpayments', $4, NOW(), NOW() + INTERVAL '30 days')
-      `, [payment.user_id, payment.plan, planConfig.modelLimit, payment_id]);
+      // Check if user already has a subscription record
+      const existingSub = await getOne(
+        'SELECT id, expires_at, status FROM subscriptions WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+        [payment.user_id]
+      );
 
-      // Clear user's models for new subscription period
-      await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
-      console.log(`Cleared models for user ${payment.user_id} (new subscription period)`);
+      if (existingSub) {
+        // Update existing subscription record
+        // If current subscription is still active, extend from its expiry date
+        // Otherwise start fresh from now
+        const currentExpiry = new Date(existingSub.expires_at);
+        const now = new Date();
+        const baseDate = (existingSub.status === 'active' && currentExpiry > now) ? currentExpiry : now;
+        const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
+        
+        await query(`
+          UPDATE subscriptions 
+          SET plan = $1, model_limit = $2, status = 'active', 
+              payment_provider = 'nowpayments', payment_id = $3,
+              starts_at = NOW(), expires_at = $4, updated_at = NOW()
+          WHERE id = $5
+        `, [payment.plan, planConfig.modelLimit, payment_id, newExpiry, existingSub.id]);
+        
+        // Only clear models if this is a NEW subscription (not extension of active one)
+        if (existingSub.status !== 'active' || currentExpiry <= now) {
+          await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
+          console.log(`Cleared models for user ${payment.user_id} (new subscription period)`);
+        }
+      } else {
+        // Create first subscription record for this user
+        await query(`
+          INSERT INTO subscriptions (
+            user_id, plan, model_limit, status, payment_provider, payment_id, 
+            starts_at, expires_at
+          ) VALUES ($1, $2, $3, 'active', 'nowpayments', $4, NOW(), NOW() + INTERVAL '30 days')
+        `, [payment.user_id, payment.plan, planConfig.modelLimit, payment_id]);
+        
+        // Clear models for fresh start
+        await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
+        console.log(`Cleared models for user ${payment.user_id} (first paid subscription)`);
+      }
 
       console.log(`Subscription activated: ${payment.plan} for user ${payment.user_id}`);
     }
