@@ -174,6 +174,33 @@ const initDatabase = async () => {
     `);
     console.log('✅ Table "promo_code_uses" ready');
 
+    // Migration: Clean up model_fans_history duplicates and add unique constraint
+    console.log('🔄 Cleaning up model_fans_history duplicates...');
+    
+    // Delete all duplicates, keeping only the latest record for each model
+    await pool.query(`
+      DELETE FROM model_fans_history a
+      USING model_fans_history b
+      WHERE a.id < b.id 
+        AND a.model_username = b.model_username
+    `);
+    console.log('✅ Duplicates removed from model_fans_history');
+    
+    // Add unique constraint on model_username if not exists
+    try {
+      await pool.query(`
+        ALTER TABLE model_fans_history 
+        ADD CONSTRAINT model_fans_history_username_unique UNIQUE (model_username)
+      `);
+      console.log('✅ Added unique constraint on model_username');
+    } catch (err) {
+      if (err.code === '42710') {
+        console.log('ℹ️ Unique constraint already exists');
+      } else {
+        console.log('ℹ️ Constraint note:', err.message);
+      }
+    }
+
     console.log('🎉 Database initialization complete!');
     
   } catch (error) {

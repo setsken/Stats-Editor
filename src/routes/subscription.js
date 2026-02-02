@@ -43,7 +43,7 @@ router.get('/status', authenticateToken, async (req, res) => {
         id: subscription.id,
         plan: subscription.plan,
         planName: subscription.plan === 'trial' ? 'Trial' : 
-                  subscription.plan === 'basic' ? 'Basic ($30/mo)' : 'Pro ($50/mo)',
+                  subscription.plan === 'plus' ? 'Plus ($30/mo)' : 'Pro ($50/mo)',
         modelLimit: subscription.model_limit, // null = unlimited
         status: subscription.status,
         isActive: subscription.is_active,
@@ -69,8 +69,8 @@ router.get('/plans', async (req, res) => {
   res.json({
     plans: [
       {
-        id: 'basic',
-        name: 'Basic',
+        id: 'plus',
+        name: 'Plus',
         price: 30,
         currency: 'USD',
         modelLimit: 10,
@@ -99,20 +99,18 @@ router.get('/plans', async (req, res) => {
   });
 });
 
-// Get available cryptocurrencies for payment
+// Get available cryptocurrencies/networks for payment
 router.get('/crypto-currencies', async (req, res) => {
-  try {
-    const currencies = await nowpayments.getAvailableCurrencies();
-    
-    // Filter to popular ones
-    const popularCurrencies = ['btc', 'eth', 'ltc', 'usdt', 'usdc', 'doge', 'trx', 'bnb', 'sol', 'matic'];
-    const filtered = currencies.filter(c => popularCurrencies.includes(c.toLowerCase()));
-    
-    res.json({ currencies: filtered });
-  } catch (error) {
-    console.error('Get currencies error:', error);
-    res.status(500).json({ error: 'Failed to get available currencies' });
-  }
+  // Return USDT networks with exact prices (no fees for user)
+  res.json({ 
+    currencies: [
+      { id: 'usdttrc20', name: 'USDT', network: 'TRC20 (Tron)', symbol: 'USDT' },
+      { id: 'usdtbsc', name: 'USDT', network: 'BEP20 (BSC)', symbol: 'USDT' },
+      { id: 'usdtsol', name: 'USDT', network: 'Solana', symbol: 'USDT' },
+      { id: 'usdterc20', name: 'USDT', network: 'ERC20 (Ethereum)', symbol: 'USDT' },
+      { id: 'usdtton', name: 'USDT', network: 'TON', symbol: 'USDT' }
+    ]
+  });
 });
 
 // Get price estimate in crypto
@@ -153,7 +151,7 @@ router.post('/create-payment', authenticateToken, async (req, res) => {
     // Validate plan
     const planConfig = nowpayments.PLANS[plan];
     if (!planConfig) {
-      return res.status(400).json({ error: 'Invalid plan. Use "basic" or "pro"' });
+      return res.status(400).json({ error: 'Invalid plan. Use "plus" or "pro"' });
     }
 
     // Check if user already has active subscription

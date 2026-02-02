@@ -14,8 +14,8 @@ const api = axios.create({
 
 // Plans configuration
 const PLANS = {
-  basic: {
-    name: 'Basic',
+  plus: {
+    name: 'Plus',
     price: 30,
     modelLimit: 10,
     currency: 'USD'
