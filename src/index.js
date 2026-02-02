@@ -12,6 +12,10 @@ const fansRoutes = require('./routes/fans');
 const webhooksRoutes = require('./routes/webhooks');
 
 const app = express();
+
+// Trust proxy for Railway (required for express-rate-limit)
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 3000;
 
 // Auto-detect APP_URL on Railway
