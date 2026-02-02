@@ -15,10 +15,37 @@ const initDatabase = async () => {
         trial_started_at TIMESTAMP,
         trial_used BOOLEAN DEFAULT FALSE,
         last_login_at TIMESTAMP,
-        is_active BOOLEAN DEFAULT TRUE
+        is_active BOOLEAN DEFAULT TRUE,
+        email_verified BOOLEAN DEFAULT FALSE,
+        email_verification_code VARCHAR(10),
+        email_verification_expires TIMESTAMP,
+        password_reset_token VARCHAR(255),
+        password_reset_expires TIMESTAMP
       );
     `);
     console.log('✅ Table "users" ready');
+
+    // Add columns for existing tables (migration)
+    const columnsToAdd = [
+      { name: 'email_verified', type: 'BOOLEAN DEFAULT FALSE' },
+      { name: 'email_verification_code', type: 'VARCHAR(10)' },
+      { name: 'email_verification_expires', type: 'TIMESTAMP' },
+      { name: 'password_reset_token', type: 'VARCHAR(255)' },
+      { name: 'password_reset_expires', type: 'TIMESTAMP' }
+    ];
+
+    for (const col of columnsToAdd) {
+      try {
+        await pool.query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
+        console.log(`✅ Added column: ${col.name}`);
+      } catch (err) {
+        if (err.code === '42701') { // Column already exists
+          console.log(`ℹ️ Column ${col.name} already exists`);
+        } else {
+          console.error(`Error adding column ${col.name}:`, err.message);
+        }
+      }
+    }
 
     // Create subscriptions table
     await pool.query(`
