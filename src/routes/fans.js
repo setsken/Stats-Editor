@@ -50,10 +50,11 @@ router.post('/report', authenticateToken, async (req, res) => {
       parsedFansCount = parseFansText(fansText);
     }
 
-    // Check if we already have a recent record (within last hour) to avoid duplicates
+    // Check if we already have exact same record recently (5 min) - quick check
+    // Skip duplicate check if fans count changed
     const recent = await getOne(`
-      SELECT id, fans_count FROM model_fans_history 
-      WHERE model_username = $1 AND recorded_at > NOW() - INTERVAL '1 hour'
+      SELECT fans_count FROM model_fans_history 
+      WHERE model_username = $1 AND recorded_at > NOW() - INTERVAL '5 minutes'
       ORDER BY recorded_at DESC
       LIMIT 1
     `, [cleanUsername]);

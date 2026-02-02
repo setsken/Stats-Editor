@@ -70,10 +70,10 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting - generous limits for extension users
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 200, // 200 requests per minute
   message: { error: 'Too many requests, please try again later' }
 });
 app.use('/api/', limiter);
