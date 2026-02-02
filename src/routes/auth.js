@@ -105,8 +105,18 @@ router.post('/register', async (req, res) => {
       user = result.rows[0];
     }
 
-    // Send verification email
-    const emailSent = await sendEmail(user.email, 'Verify Your Email - Stats Editor Pro', `
+    // Log code for debugging
+    console.log(`📧 Verification code for ${user.email}: ${verificationCode}`);
+
+    // Send response IMMEDIATELY (don't wait for email)
+    res.status(201).json({
+      message: 'Verification code sent',
+      requiresVerification: true,
+      email: user.email
+    });
+
+    // Send verification email in background (fire and forget)
+    sendEmail(user.email, 'Verify Your Email - Stats Editor Pro', `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
         <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
         <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
@@ -119,15 +129,9 @@ router.post('/register', async (req, res) => {
           <p style="color: #94a3b8; font-size: 14px;">If you didn't create this account, please ignore this email.</p>
         </div>
       </div>
-    `);
+    `).catch(err => console.error('Background email error:', err));
 
-    // Log code for debugging (remove in production when email works)
-    console.log(`📧 Verification code for ${user.email}: ${verificationCode} (email sent: ${emailSent})`);
-
-    res.status(201).json({
-      message: emailSent ? 'Verification code sent to your email' : 'Account created. Check logs for verification code.',
-      requiresVerification: true,
-      email: user.email
+    return; // Already sent response
     });
 
   } catch (error) {
@@ -352,8 +356,14 @@ router.post('/forgot-password', async (req, res) => {
       [resetCode, expiresAt, user.id]
     );
 
-    // Send reset email
-    const emailSent = await sendEmail(user.email, 'Password Reset - Stats Editor Pro', `
+    // Log code for debugging
+    console.log(`📧 Reset code for ${user.email}: ${resetCode}`);
+
+    // Send response IMMEDIATELY
+    res.json({ message: 'If this email exists, a reset code has been sent' });
+
+    // Send email in background (fire and forget)
+    sendEmail(user.email, 'Password Reset - Stats Editor Pro', `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
         <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
         <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
@@ -367,12 +377,9 @@ router.post('/forgot-password', async (req, res) => {
           <p style="color: #94a3b8; font-size: 14px;">If you didn't request this, please ignore this email.</p>
         </div>
       </div>
-    `);
+    `).catch(err => console.error('Background email error:', err));
 
-    // Log code for debugging (remove in production when email works)
-    console.log(`📧 Reset code for ${user.email}: ${resetCode} (email sent: ${emailSent})`);
-
-    res.json({ message: 'If this email exists, a reset code has been sent' });
+    return; // Already sent response
 
   } catch (error) {
     console.error('Forgot password error:', error);
