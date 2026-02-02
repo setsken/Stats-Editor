@@ -78,11 +78,12 @@ router.post('/add', authenticateToken, requireSubscription, async (req, res) => 
       if (existingModel.is_deleted) {
         // Model was deleted - restore it (doesn't count as new unique)
         await query(
-          'UPDATE user_models SET is_deleted = false, deleted_at = NULL, display_name = COALESCE($3, display_name) WHERE id = $1',
-          [existingModel.id, req.user.id, displayName]
+          'UPDATE user_models SET is_deleted = false, deleted_at = NULL, display_name = COALESCE($2, display_name) WHERE id = $1',
+          [existingModel.id, displayName]
         );
 
         return res.status(200).json({
+          success: true,
           message: 'Model restored successfully',
           restored: true,
           model: {
@@ -134,6 +135,7 @@ router.post('/add', authenticateToken, requireSubscription, async (req, res) => 
     const model = result.rows[0];
 
     res.status(201).json({
+      success: true,
       message: 'Model added successfully',
       model: {
         id: model.id,
