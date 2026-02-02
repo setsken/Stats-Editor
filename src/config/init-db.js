@@ -127,7 +127,7 @@ const initDatabase = async () => {
         fans_count INTEGER,
         fans_text VARCHAR(50),
         recorded_at TIMESTAMP DEFAULT NOW(),
-        recorded_by INTEGER REFERENCES users(id)
+        recorded_by INTEGER REFERENCES users(id) ON DELETE SET NULL
       );
     `);
     console.log('✅ Table "model_fans_history" ready');
