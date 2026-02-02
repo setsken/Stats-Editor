@@ -1,9 +1,10 @@
-// Build: 2026-02-02 02:17:42
+// Build: 2026-02-02 03:30:00
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { query } = require('./config/database');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -13,6 +14,25 @@ const fansRoutes = require('./routes/fans');
 const webhooksRoutes = require('./routes/webhooks');
 
 const app = express();
+
+// Run migrations on startup
+async function runMigrations() {
+  try {
+    // Add is_deleted column to user_models if not exists
+    await query(`
+      ALTER TABLE user_models ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE
+    `).catch(() => {});
+    
+    await query(`
+      ALTER TABLE user_models ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
+    `).catch(() => {});
+    
+    console.log('✅ Migrations completed');
+  } catch (error) {
+    console.log('⚠️ Migration skipped or already applied');
+  }
+}
+runMigrations();
 
 // Trust proxy for Railway (required for express-rate-limit)
 app.set('trust proxy', 1);
