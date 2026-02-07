@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Preview — Stats Editor</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #000;
+            min-height: 100vh;
+            color: #e0e0e0;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* === Background Container with Grid === */
+        .bg-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(180deg, #0a0a12 0%, #12121a 100%);
+            z-index: 0;
+        }
+
+        .bg-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+        }
+
+        /* === Accent Glows === */
+        .accent-glow {
+            position: fixed;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(0, 180, 216, 0.15) 0%, transparent 70%);
+            top: -100px;
+            right: -100px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .accent-glow-2 {
+            position: fixed;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(0, 212, 170, 0.1) 0%, transparent 70%);
+            bottom: -100px;
+            left: -100px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* === Main Container === */
+        .preview-container {
+            position: relative;
+            z-index: 1;
+            max-width: 1340px;
+            margin: 0 auto;
+            padding: 40px 30px 60px;
+        }
+
+        /* === Header === */
+        .preview-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .preview-header__logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: #00d4ff;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .preview-header__logo svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .preview-header__title {
+            font-size: 42px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .preview-header__title span {
+            color: #00d4ff;
+        }
+
+        .preview-header__subtitle {
+            font-size: 16px;
+            color: #7a8599;
+            font-weight: 400;
+        }
+
+        /* === Mode Badges === */
+        .mode-badges {
+            display: flex;
+            justify-content: center;
+            gap: 420px;
+            margin-bottom: 24px;
+        }
+
+        .mode-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .mode-badge--original {
+            background: rgba(255, 255, 255, 0.08);
+            color: #8a96a3;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mode-badge--preview {
+            background: rgba(0, 212, 255, 0.12);
+            color: #00d4ff;
+            border: 1px solid rgba(0, 212, 255, 0.25);
+        }
+
+        /* === Charts Grid === */
+        .charts-comparison {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        /* === Arrow Separator === */
+        .arrow-separator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .arrow-separator svg {
+            width: 36px;
+            height: 36px;
+            color: #00d4ff;
+            filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4));
+        }
+
+        .arrow-separator__label {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            color: #00d4ff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        /* === Chart Card === */
+        .chart-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 28px;
+            width: 580px;
+            box-shadow: 
+                0 4px 24px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 255, 255, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 8px 40px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .chart-card--preview {
+            box-shadow: 
+                0 4px 24px rgba(0, 212, 255, 0.1),
+                0 0 0 1px rgba(0, 212, 255, 0.15);
+        }
+
+        .chart-card--preview:hover {
+            box-shadow: 
+                0 8px 40px rgba(0, 212, 255, 0.15),
+                0 0 0 1px rgba(0, 212, 255, 0.25);
+        }
+
+        /* === Chart Card Header === */
+        .chart-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .chart-card__title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .chart-card__subtitle {
+            font-size: 12px;
+            color: #8a96a3;
+            margin-top: 2px;
+        }
+
+        .chart-card__amount {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .chart-card__amount--up {
+            color: #10b981;
+        }
+
+        .chart-card__collapse-icon {
+            color: #8a96a3;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        /* === Chart Area (placeholder) === */
+        .chart-area {
+            width: 100%;
+            min-height: 460px;
+            background: #ffffff;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-area img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .chart-area canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* === Date Range === */
+        .date-range {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: #f7f8fa;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #5a6577;
+        }
+
+        .date-range__icon {
+            width: 20px;
+            height: 20px;
+            color: #00a0e3;
+        }
+
+        .date-range span {
+            color: #00a0e3;
+            font-weight: 600;
+        }
+
+        /* === Stats Table === */
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .stats-table tr {
+            border-bottom: 1px solid #f0f1f4;
+        }
+
+        .stats-table tr:last-child {
+            border-bottom: none;
+            border-top: 2px solid #e5e7eb;
+        }
+
+        .stats-table td {
+            padding: 10px 0;
+            font-size: 13px;
+            color: #4a5568;
+        }
+
+        .stats-table td:first-child {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-table td:nth-child(2),
+        .stats-table td:nth-child(3) {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stats-table .label-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .stats-table .label-dot--subscriptions { background: #3b82f6; }
+        .stats-table .label-dot--tips { background: #06b6d4; }
+        .stats-table .label-dot--posts { background: #f97316; }
+        .stats-table .label-dot--messages { background: #eab308; }
+        .stats-table .label-dot--referrals { background: #a855f7; }
+        .stats-table .label-dot--streams { background: #f59e0b; }
+
+        .stats-table .total-label {
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .stats-table .gross-label {
+            color: #8a96a3;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-table .net-label {
+            color: #8a96a3;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-table .amount-gross {
+            color: #6b7280;
+        }
+
+        .stats-table .amount-net {
+            color: #1a1a2e;
+            font-weight: 600;
+        }
+
+        /* === Footer Disclaimer === */
+        .preview-disclaimer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: rgba(202, 138, 4, 0.12);
+            border: 1px solid rgba(202, 138, 4, 0.25);
+            border-radius: 10px;
+            color: #ca8a04;
+            font-size: 13px;
+            font-weight: 500;
+            max-width: 580px;
+            margin: 0 auto;
+        }
+
+        .preview-disclaimer svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        /* === Diff Highlight (for changed values) === */
+        .value-changed {
+            position: relative;
+        }
+
+        .value-changed::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #00d4ff;
+            border-radius: 1px;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 1300px) {
+            .charts-comparison {
+                flex-direction: column;
+                gap: 32px;
+            }
+
+            .arrow-separator {
+                flex-direction: row;
+                writing-mode: horizontal-tb;
+            }
+
+            .arrow-separator svg {
+                transform: rotate(90deg);
+            }
+
+            .arrow-separator__label {
+                writing-mode: horizontal-tb;
+            }
+
+            .mode-badges {
+                gap: 80px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .chart-card {
+                width: 100%;
+            }
+
+            .preview-container {
+                padding: 24px 16px 40px;
+            }
+
+            .preview-header__title {
+                font-size: 28px;
+            }
+
+            .mode-badges {
+                gap: 24px;
+            }
+        }
+
+        /* === Animations === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chart-card {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .chart-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .chart-card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .arrow-separator {
+            animation: fadeInUp 0.6s ease 0.2s forwards;
+            opacity: 0;
+        }
+
+        /* === Glow effect on preview card === */
+        .chart-card--preview::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: -1px;
+            right: -1px;
+            bottom: -1px;
+            border-radius: 17px;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .chart-card--preview > * {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-container"></div>
+<div class="accent-glow"></div>
+<div class="accent-glow-2"></div>
+
+<div class="preview-container">
+
+    <!-- Header -->
+    <div class="preview-header">
+        <div class="preview-header__logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
+                <path d="M2 17L12 22L22 17"/>
+                <path d="M2 12L12 17L22 12"/>
+            </svg>
+            Stats Editor
+        </div>
+        <h1 class="preview-header__title">Chart <span>Preview</span> Mode</h1>
+        <p class="preview-header__subtitle">See how your earnings chart could look — for screenshots & presentations</p>
+    </div>
+
+    <!-- Mode Badges -->
+    <div class="mode-badges">
+        <div class="mode-badge mode-badge--original">ORIGINAL VIEW</div>
+        <div class="mode-badge mode-badge--preview">PREVIEW MODE</div>
+    </div>
+
+    <!-- Charts Comparison -->
+    <div class="charts-comparison">
+
+        <!-- Original Chart Card -->
+        <div class="chart-card">
+            <div class="chart-card__header">
+                <div>
+                    <div class="chart-card__title">Your Chart</div>
+                    <div class="chart-card__subtitle">Current display</div>
+                </div>
+                <div class="mode-badge mode-badge--original" style="font-size: 10px; padding: 4px 12px;">ORIGINAL</div>
+            </div>
+
+            <!-- Empty area — insert your original chart here -->
+            <div class="chart-area" id="originalChart"></div>
+        </div>
+
+        <!-- Arrow Separator -->
+        <div class="arrow-separator">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+            </svg>
+            <span class="arrow-separator__label">PREVIEW</span>
+        </div>
+
+        <!-- Preview Chart Card -->
+        <div class="chart-card chart-card--preview">
+            <div class="chart-card__header">
+                <div>
+                    <div class="chart-card__title">Your Chart</div>
+                    <div class="chart-card__subtitle">Preview display</div>
+                </div>
+                <div class="mode-badge mode-badge--preview" style="font-size: 10px; padding: 4px 12px;">PREVIEW</div>
+            </div>
+
+            <!-- Empty area — insert your preview chart here -->
+            <div class="chart-area" id="previewChart"></div>
+        </div>
+
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="preview-disclaimer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        Visual preview only — changes are temporary and reset on page refresh
+    </div>
+
+</div>
+
+</body>
+</html>

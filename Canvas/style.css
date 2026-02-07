@@ -1,0 +1,76 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #eef0f3; /* Light grey background from screenshot */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+.b-chart {
+    position: relative;
+    width: 608px;
+    background-color: transparent;
+}
+
+.b-chart__wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.b-chart__double-line__main {
+    height: 112px;
+    width: 100%;
+}
+
+.b-chart__double-line__aside {
+    height: 80px;
+    width: 100%;
+}
+
+/* Tooltip Styles */
+.b-chart__tooltip {
+    position: absolute;
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 12px 14px;
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 100;
+    min-width: 160px;
+}
+
+.b-chart__tooltip__title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+    font-size: 14px;
+}
+
+.b-chart__tooltip__text {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+    color: #555;
+    font-size: 13px;
+}
+
+.b-chart__tooltip__circle {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.b-chart__tooltip__text__title {
+    margin-right: auto;
+    color: #666;
+}
+
+.b-chart__tooltip__text__value {
+    font-weight: 600;
+    color: #333;
+    margin-left: 20px;
+}

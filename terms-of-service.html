@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - OF Stats Editor</title>
+    <meta name="description" content="Terms of Service for OF Stats Editor Chrome Extension">
+    <link rel="icon" type="image/png" href="https://ofstats.pro/icons/icon48.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.7;
+            color: #e0e0e0;
+            background: #0a0a0f;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0d0d12 0%, #1a1a2e 100%);
+            border-bottom: 1px solid rgba(0, 212, 170, 0.2);
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #fff;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #00d4aa;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #0d0d12 0%, #1a1a2e 50%, #0d0d12 100%);
+            padding: 80px 20px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 212, 170, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .subtitle {
+            color: #888;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+
+        .hero .last-updated {
+            display: inline-block;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            padding: 8px 20px;
+            border-radius: 50px;
+            color: #00d4aa;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 30px;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, rgba(0, 212, 170, 0.1), rgba(0, 184, 148, 0.05));
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .summary-box::before {
+            content: '📜';
+            position: absolute;
+            top: -15px;
+            left: 30px;
+            background: #0a0a0f;
+            padding: 0 10px;
+            font-size: 1.5rem;
+        }
+
+        .summary-box h3 {
+            color: #00d4aa;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .summary-box p {
+            color: #ccc;
+            font-size: 1rem;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 107, 107, 0.05));
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 16px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+
+        .warning-box h4 {
+            color: #ff6b6b;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .warning-box p {
+            color: #ccc;
+            margin: 0;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h2 .number {
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            color: #000;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        p {
+            color: #aaa;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        ul {
+            margin: 20px 0;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        li {
+            color: #aaa;
+            margin-bottom: 12px;
+            padding-left: 28px;
+            position: relative;
+            font-size: 1rem;
+        }
+
+        li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 8px;
+            height: 8px;
+            background: #00d4aa;
+            border-radius: 50%;
+        }
+
+        li.prohibited::before {
+            background: #ff6b6b;
+        }
+
+        li strong {
+            color: #fff;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(0, 212, 170, 0.3);
+        }
+
+        .feature-card .icon {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .feature-card h4 {
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .contact-section {
+            background: linear-gradient(135deg, #1a1a2e, #0d0d12);
+            border: 1px solid rgba(0, 212, 170, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        .contact-section h2 {
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+
+        .contact-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .contact-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .contact-btn.primary {
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            color: #000;
+        }
+
+        .contact-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 212, 170, 0.3);
+        }
+
+        .contact-btn.secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .contact-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 60px;
+        }
+
+        .footer p {
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .footer a {
+            color: #00d4aa;
+            text-decoration: none;
+        }
+
+        @media (max-width: 600px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .contact-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="https://ofstats.pro" class="logo">
+                <div class="logo-icon">📊</div>
+                OF Stats Editor
+            </a>
+            <nav class="nav-links">
+                <a href="https://ofstats.pro">Home</a>
+                <a href="https://ofstats.pro/privacy-policy.html">Privacy</a>
+                <a href="https://ofstats.pro/terms-of-service.html">Terms</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>Terms of <span>Service</span></h1>
+        <p class="subtitle">OF Stats Editor - Chrome Extension</p>
+        <span class="last-updated">📅 Last Updated: February 3, 2026</span>
+    </section>
+
+    <div class="container">
+        <div class="summary-box">
+            <h3>Agreement Overview</h3>
+            <p>By installing OF Stats Editor, you agree to these terms. The extension provides visual editing of statistics displays for screenshots and marketing purposes. All edits are cosmetic only and do not affect actual data.</p>
+        </div>
+
+        <section class="section">
+            <h2><span class="number">1</span> Acceptance of Terms</h2>
+            <p>By installing, accessing, or using the OF Stats Editor Chrome extension ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, please do not install or use the Service.</p>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">2</span> Description of Service</h2>
+            <p>OF Stats Editor is a browser extension that allows users to visually customize the display of statistics on OnlyFans pages. The extension provides:</p>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="icon">💰</div>
+                    <h4>Earnings Editor</h4>
+                    <p>Visually modify displayed earnings amounts</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">👥</div>
+                    <h4>Subscriber Count</h4>
+                    <p>Customize subscriber and fan count displays</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📈</div>
+                    <h4>Chart Customization</h4>
+                    <p>Modify chart visualizations and data points</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📸</div>
+                    <h4>Screenshot Ready</h4>
+                    <p>Create professional promotional materials</p>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                <h4>⚠️ Important Disclaimer</h4>
+                <p>All edits made by this extension are <strong>purely visual and temporary</strong>. They do not modify any actual data on OnlyFans servers or affect your real statistics in any way. Refreshing the page will reset all changes.</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">3</span> Intended Use</h2>
+            <p>This extension is designed for legitimate purposes:</p>
+            <ul>
+                <li>Creating promotional screenshots and marketing materials</li>
+                <li>Demonstrating potential earnings for educational content</li>
+                <li>Personal visualization and goal-setting motivation</li>
+                <li>Creating mockups for presentations or courses</li>
+                <li>Testing UI layouts with different data scenarios</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">4</span> Prohibited Uses</h2>
+            <p>You agree <strong>NOT</strong> to use this extension for:</p>
+            <ul>
+                <li class="prohibited">Fraudulent activities or deceiving others about actual earnings</li>
+                <li class="prohibited">Misleading potential investors or business partners with fake data</li>
+                <li class="prohibited">Creating fake proof of income for loans, mortgages, or financial applications</li>
+                <li class="prohibited">Deceiving tax authorities or government agencies</li>
+                <li class="prohibited">Any illegal activities or purposes</li>
+                <li class="prohibited">Violating OnlyFans Terms of Service</li>
+                <li class="prohibited">Harming, defaming, or misleading any person or entity</li>
+            </ul>
+            <p style="color: #ff6b6b; font-size: 0.9rem; margin-top: 20px;">Violation of these terms may result in immediate termination of your account without refund.</p>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">5</span> Account & Registration</h2>
+            <p>To access premium features, you must:</p>
+            <ul>
+                <li>Create an account with a valid email address</li>
+                <li>Provide accurate and complete information</li>
+                <li>Maintain the security of your account credentials</li>
+                <li>Accept full responsibility for all activities under your account</li>
+                <li>Not share your account or license with others</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">6</span> Subscription & Payments</h2>
+            <ul>
+                <li>Premium features require a paid subscription</li>
+                <li>Subscription fees are billed according to your chosen plan (monthly/lifetime)</li>
+                <li>Payments are processed securely through our third-party payment providers</li>
+                <li>Lifetime licenses are valid indefinitely for personal use</li>
+                <li>We reserve the right to modify pricing with 30 days advance notice</li>
+                <li>Refunds are provided according to our refund policy (7-day money-back guarantee)</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">7</span> Intellectual Property</h2>
+            <p>The Service, including all content, features, functionality, code, and design, is owned by OF Stats Editor and is protected by international copyright, trademark, and other intellectual property laws. You may not:</p>
+            <ul>
+                <li>Copy, modify, or distribute the extension code</li>
+                <li>Reverse engineer or decompile the software</li>
+                <li>Create derivative works based on the extension</li>
+                <li>Use our trademarks without written permission</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">8</span> User Responsibilities</h2>
+            <p>You are solely responsible for:</p>
+            <ul>
+                <li>Using the extension in compliance with all applicable laws</li>
+                <li>Any content you create or share using the extension</li>
+                <li>Ensuring viewers understand that edited statistics are not real</li>
+                <li>Any consequences arising from misuse of the extension</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">9</span> Disclaimer of Warranties</h2>
+            <p>The Service is provided "AS IS" and "AS AVAILABLE" without warranties of any kind, express or implied. We do not guarantee:</p>
+            <ul>
+                <li>Uninterrupted or error-free operation</li>
+                <li>Compatibility with all browser versions or systems</li>
+                <li>Continued compatibility with OnlyFans website updates</li>
+                <li>That the extension will meet your specific requirements</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">10</span> Limitation of Liability</h2>
+            <p>To the maximum extent permitted by law, OF Stats Editor and its operators shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from:</p>
+            <ul>
+                <li>Your use or inability to use the Service</li>
+                <li>Any unauthorized access to your account</li>
+                <li>Any third-party conduct or content</li>
+                <li>Any content obtained from the Service</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">11</span> Termination</h2>
+            <p>We may terminate or suspend your access to the Service:</p>
+            <ul>
+                <li>Immediately for violations of these Terms</li>
+                <li>If we detect fraudulent or illegal activities</li>
+                <li>At our sole discretion with reasonable notice</li>
+                <li>If you request account deletion</li>
+            </ul>
+            <p>Upon termination, your right to use the Service will immediately cease.</p>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">12</span> Modifications</h2>
+            <p>We reserve the right to modify these Terms at any time. Changes will be posted on this page with an updated revision date. Your continued use of the Service after changes constitutes acceptance of the modified Terms.</p>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">13</span> Governing Law</h2>
+            <p>These Terms shall be governed by and construed in accordance with applicable international laws, without regard to conflict of law principles. Any disputes shall be resolved through binding arbitration.</p>
+        </section>
+
+        <section class="contact-section">
+            <h2>Questions About These Terms?</h2>
+            <p style="margin-bottom: 25px;">We're here to help clarify any concerns.</p>
+            <div class="contact-buttons">
+                <a href="mailto:support@ofstats.pro" class="contact-btn primary">
+                    📧 support@ofstats.pro
+                </a>
+                <a href="https://ofstats.pro" class="contact-btn secondary">
+                    🌐 Visit Website
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>© 2026 OF Stats Editor. All rights reserved.</p>
+        <p style="margin-top: 10px;">
+            <a href="https://ofstats.pro/privacy-policy.html">Privacy Policy</a> · 
+            <a href="https://ofstats.pro/terms-of-service.html">Terms of Service</a>
+        </p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,2740 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stats Editor — Visual Preview for OnlyFans Statistics</title>
+    <meta name="description" content="Stats Editor — visually preview your OnlyFans statistics. Create stunning mockups for screenshots & presentations. All changes are visual & temporary.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='512' y2='512' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0%25' stop-color='%231caede'/%3E%3Cstop offset='100%25' stop-color='%230c7cba'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='108' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='24' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolygon points='256,115 390,192 256,269 122,192' fill='rgba(255,255,255,0.15)'/%3E%3Cpolyline points='122,262 256,339 390,262'/%3E%3Cpolyline points='122,326 256,403 390,326'/%3E%3C/g%3E%3C/svg%3E">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --cyan: #00b4d8;
+            --cyan-dark: #0077b6;
+            --cyan-glow: rgba(0, 180, 216, 0.3);
+            --bg-dark: #0a0a12;
+            --bg-card: #12121a;
+            --text: #e0e4ea;
+            --text-muted: #7a8599;
+            --green: #10b981;
+            --pink: #ec4899;
+            --purple: #8b5cf6;
+            --yellow: #f59e0b;
+            --blue: #3b82f6;
+        }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark); color: var(--text);
+            overflow-x: hidden; line-height: 1.6;
+        }
+
+        /* ===== BACKGROUND ===== */
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0;
+            background: linear-gradient(180deg, #0a0a12 0%, #0e0e18 50%, #12121a 100%);
+        }
+        .bg-grid::before {
+            content: ''; position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+        .glow-1 {
+            position: fixed; width: 600px; height: 600px; top: -150px; right: -100px;
+            background: radial-gradient(circle, rgba(0,180,216,0.12) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+            animation: glowPulse 6s ease-in-out infinite;
+        }
+        .glow-2 {
+            position: fixed; width: 500px; height: 500px; bottom: -100px; left: -100px;
+            background: radial-gradient(circle, rgba(0,212,170,0.08) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+            animation: glowPulse 8s ease-in-out infinite 2s;
+        }
+
+        /* ===== LAYOUT ===== */
+        .page-content { position: relative; z-index: 1; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }       section { padding: 120px 0; }
+
+        /* ===== NAV ===== */
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: rgba(10,10,18,0.8);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            animation: navSlideDown 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        .nav.nav-scrolled {
+            background: rgba(10,10,18,0.95);
+            box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+            border-bottom-color: rgba(0,180,216,0.1);
+        }
+        .nav-inner {
+            max-width: 1200px; margin: 0 auto; padding: 0 24px;
+            display: flex; align-items: center; justify-content: space-between; height: 64px;
+        }
+        .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #fff; font-weight: 700; font-size: 18px; }
+        .nav-logo-icon {
+            width: 36px; height: 36px; background: linear-gradient(135deg, var(--cyan), var(--cyan-dark));
+            border-radius: 10px; display: flex; align-items: center; justify-content: center;
+        }
+        .nav-logo-icon svg { width: 20px; height: 20px; }
+        .nav-links { display: flex; gap: 28px; align-items: center; }
+        .nav-links a {
+            color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 500;
+            transition: color 0.3s, transform 0.3s; display: inline-block; position: relative;
+        }
+        .nav-links a:hover { color: #fff; transform: translateY(-1px); }
+        .nav-links a:not(.nav-cta):not(.lang-toggle)::after {
+            content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px;
+            background: var(--cyan); border-radius: 2px;
+            transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .nav-links a:not(.nav-cta):not(.lang-toggle):hover::after { width: 100%; }
+        .nav-cta {
+            background: linear-gradient(135deg, var(--cyan), var(--cyan-dark)) !important;
+            color: #fff !important; padding: 8px 20px; border-radius: 8px;
+            font-weight: 600 !important; font-size: 13px !important;
+            transition: opacity 0.2s, transform 0.2s !important;
+        }
+        .nav-cta:hover { opacity: 0.9; transform: translateY(-1px); }
+        .lang-toggle {
+            display: flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            color: #fff; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+            font-size: 13px; font-weight: 600; font-family: inherit;
+            transition: all 0.2s;
+        }
+        .lang-toggle:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+        .lang-toggle svg { width: 16px; height: 16px; color: var(--cyan); }
+
+        /* ===== HERO ===== */
+        .hero { padding: 140px 0 80px; text-align: center; }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(0,180,216,0.08); border: 1px solid rgba(0,180,216,0.2);
+            color: var(--cyan); font-size: 13px; font-weight: 600;
+            padding: 8px 20px; border-radius: 50px; margin-bottom: 28px;
+            animation: borderGlow 3s ease-in-out infinite;
+        }
+        .hero-badge svg { width: 16px; height: 16px; }
+        .hero h1 {
+            font-size: clamp(36px, 5vw, 64px); font-weight: 900; color: #fff;
+            line-height: 1.1; margin-bottom: 20px;
+        }
+        .hero h1 span { color: var(--cyan); animation: typeGlow 3s ease-in-out infinite; }
+        .hero-sub { font-size: 18px; color: var(--text-muted); max-width: 560px; margin: 0 auto 40px; line-height: 1.7; }
+        .hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 14px 32px; border-radius: 12px; font-size: 15px;
+            font-weight: 600; text-decoration: none; transition: all 0.3s;
+            cursor: pointer; border: none; font-family: inherit;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--cyan), var(--cyan-dark)); color: #fff;
+            box-shadow: 0 8px 30px var(--cyan-glow);
+            position: relative; overflow: hidden;
+        }
+        .btn-primary::after {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg); transition: 0.5s;
+            opacity: 0;
+        }
+        .btn-primary:hover::after { opacity: 1; animation: shimmer 1.5s ease forwards; }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 14px 45px var(--cyan-glow); }
+        .btn-secondary { background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        .btn svg { width: 20px; height: 20px; }
+        .hero-screenshot {
+            max-width: 960px; width: 100%; margin-top: 60px;
+            border-radius: 16px;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+            transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s ease;
+        }
+        .hero-screenshot:hover {
+            transform: translateY(-8px) scale(1.01);
+            box-shadow: 0 50px 120px rgba(0,0,0,0.6), 0 0 40px rgba(0,180,216,0.1), 0 0 0 1px rgba(0,180,216,0.15);
+        }
+
+        /* ===== SECTION DIVIDER ===== */
+        .section-divider {
+            width: 100%; max-width: 600px; margin: 0 auto;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,180,216,0.3) 30%, rgba(0,180,216,0.5) 50%, rgba(0,180,216,0.3) 70%, transparent);
+            background-size: 600px 1px;
+            animation: dividerShimmer 4s ease-in-out infinite;
+        }
+
+        /* ===== SECTION COMMON ===== */
+        .section-header { text-align: center; margin-bottom: 56px; }
+        .section-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(0,180,216,0.08); border: 1px solid rgba(0,180,216,0.2);
+            color: var(--cyan); font-size: 12px; font-weight: 600;
+            padding: 6px 16px; border-radius: 50px; margin-bottom: 16px;
+            animation: borderGlow 4s ease-in-out infinite;
+        }
+        .section-badge svg { width: 14px; height: 14px; }
+        .section-title { font-size: clamp(28px, 3.5vw, 40px); font-weight: 800; color: #fff; margin-bottom: 12px; transition: transform 0.3s; }
+        .section-title span { color: var(--cyan); animation: typeGlow 4s ease-in-out infinite; }
+        .section-sub { color: var(--text-muted); font-size: 16px; max-width: 520px; margin: 0 auto; }
+
+        /* ===== TAKE CONTROL SECTION ===== */
+        .takecontrol { padding: 120px 0 80px; }
+        .tc-inner { display: flex; gap: 60px; align-items: center; }
+        .tc-text { flex: 1; }
+        .tc-text h2 {
+            font-size: clamp(32px, 4vw, 48px); font-weight: 900; color: #fff;
+            line-height: 1.1; margin-bottom: 16px;
+        }
+        .tc-text h2 span { color: var(--cyan); animation: typeGlow 4s ease-in-out infinite 1s; }
+        .tc-text > p { color: var(--text-muted); font-size: 16px; line-height: 1.7; margin-bottom: 28px; }
+        .tc-checks { display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px; }
+        .tc-check {
+            display: flex; align-items: center; gap: 14px;
+            color: #ccc; font-size: 16px; font-weight: 500;
+        }
+        .tc-check-icon {
+            width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--cyan), var(--cyan-dark));
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s;
+        }
+        .tc-check:hover .tc-check-icon {
+            transform: scale(1.15) rotate(8deg);
+            box-shadow: 0 4px 15px var(--cyan-glow);
+        }
+        .tc-check-icon svg { width: 16px; height: 16px; }
+        .tc-stats-row {
+            display: flex; gap: 24px; margin-bottom: 32px; margin-top: 8px;
+        }
+        .tc-stat {
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .tc-stat-value {
+            font-size: 28px; font-weight: 800; color: var(--cyan);
+            line-height: 1;
+            animation: typeGlow 3s ease-in-out infinite;
+        }
+        .tc-stat-label {
+            font-size: 13px; color: var(--text-muted); font-weight: 500;
+        }
+        .tc-extra-desc {
+            color: var(--text-muted); font-size: 14px; line-height: 1.7;
+            margin-bottom: 28px; padding: 16px; border-radius: 12px;
+            background: rgba(0,180,216,0.04); border: 1px solid rgba(0,180,216,0.1);
+            transition: border-color 0.4s, box-shadow 0.4s;
+        }
+        .tc-extra-desc:hover {
+            border-color: rgba(0,180,216,0.25);
+            box-shadow: 0 6px 20px rgba(0,180,216,0.05);
+        }
+        .tc-extra-desc strong { color: #fff; font-weight: 600; }
+        .tc-visual { flex: 1; max-width: 380px; position: relative; }
+
+        /* Plugin popup mockup */
+        .popup-mock {
+            background: linear-gradient(180deg, #0a0e27 0%, #0f1535 100%);
+            border: 1px solid rgba(0,180,255,0.15);
+            border-radius: 16px; padding: 0; overflow: hidden;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 60px rgba(0,180,255,0.08);
+            position: relative;
+            animation: floatY 6s ease-in-out infinite;
+            transition: box-shadow 0.4s;
+        }
+        .popup-mock:hover {
+            box-shadow: 0 35px 90px rgba(0,0,0,0.6), 0 0 80px rgba(0,180,255,0.12);
+        }
+        .popup-mock::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 120px;
+            background: radial-gradient(ellipse at top, rgba(0,180,255,0.15) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .popup-body { padding: 10px 12px; position: relative; z-index: 1; }
+
+        /* Header */
+        .pm-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 0 6px 0; margin-bottom: 6px; position: relative; z-index: 1;
+        }
+        .pm-logo { display: flex; align-items: center; gap: 8px; }
+        .pm-logo-icon {
+            width: 34px; height: 34px; border-radius: 10px;
+            background: linear-gradient(135deg, #00b4ff, #0066ff);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 14px rgba(0,180,255,0.3);
+        }
+        .pm-logo-icon svg { width: 18px; height: 18px; }
+        .pm-logo-text { display: flex; flex-direction: column; }
+        .pm-logo-title {
+            font-size: 14px; font-weight: 700; line-height: 1.2;
+            background: linear-gradient(135deg, #00b4ff, #0066ff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .pm-logo-sub { font-size: 9px; font-weight: 700; color: #00b4ff; letter-spacing: 2px; }
+        .pm-header-right { display: flex; align-items: center; gap: 6px; }
+        .pm-toggle {
+            width: 34px; height: 18px; border-radius: 18px; position: relative;
+            background: linear-gradient(135deg, #00b4ff, #0088cc);
+            box-shadow: 0 0 8px rgba(0,180,255,0.3);
+        }
+        .pm-toggle::after {
+            content: ''; position: absolute; width: 14px; height: 14px;
+            top: 2px; right: 2px; border-radius: 50%; background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .pm-icon-btn {
+            width: 28px; height: 28px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            color: #a0aec0;
+        }
+        .pm-icon-btn svg { width: 14px; height: 14px; }
+        .pm-menu-btn { color: #a0aec0; display: flex; align-items: center; }
+        .pm-menu-btn svg { width: 14px; height: 14px; }
+
+        /* Presets bar */
+        .pm-presets {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 5px 0; margin-bottom: 6px;
+            border-bottom: 1px solid rgba(0,180,255,0.1);
+        }
+        .pm-presets-left { display: flex; align-items: center; gap: 6px; }
+        .pm-presets-left svg { width: 12px; height: 12px; color: #00b4ff; opacity: 0.7; }
+        .pm-preset-dropdown {
+            display: flex; align-items: center; gap: 6px; padding: 4px 10px;
+            background: linear-gradient(135deg, rgba(0,180,255,0.1), rgba(0,102,255,0.08));
+            border: 1px solid rgba(0,180,255,0.3); border-radius: 6px;
+            color: #fff; font-size: 10px; font-weight: 500;
+        }
+        .pm-preset-dropdown svg { width: 8px; height: 5px; color: #00b4ff; }
+        .pm-presets-right { display: flex; gap: 3px; }
+        .pm-presets-btn {
+            width: 22px; height: 22px; border-radius: 5px; display: flex;
+            align-items: center; justify-content: center; color: #64748b;
+        }
+        .pm-presets-btn svg { width: 10px; height: 10px; }
+
+        /* Model info card */
+        .pm-model {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 8px; background: #1a2150;
+            border: 1px solid rgba(0,180,255,0.2); border-radius: 10px; margin-bottom: 8px;
+        }
+        .pm-model-avatar {
+            width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+            background: #151b3d; display: flex; align-items: center; justify-content: center;
+            border: 2px solid #00b4ff;
+            box-shadow: 0 0 0 2px rgba(0,180,255,0.2), 0 0 10px rgba(0,180,255,0.3);
+        }
+        .pm-model-avatar svg { width: 20px; height: 20px; color: #00b4ff; }
+        .pm-model-details { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+        .pm-model-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+        .pm-model-name { font-size: 13px; font-weight: 600; color: #00b4ff; }
+        .pm-status {
+            display: flex; align-items: center; gap: 4px;
+            padding: 3px 8px; background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.3); border-radius: 20px;
+        }
+        .pm-status-dot {
+            width: 5px; height: 5px; background: #10b981; border-radius: 50%;
+            animation: pmPulse 2s infinite;
+        }
+        @keyframes pmPulse {
+            0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
+        }
+        .pm-status-text { font-size: 10px; font-weight: 600; color: #10b981; }
+
+        /* Section cards */
+        .pm-section {
+            background: #1a2150; position: relative;
+            border: 1px solid rgba(0,180,255,0.2);
+            border-radius: 10px; padding: 8px 10px; margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .pm-section::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at 50% 0%, rgba(0,180,255,0) 0%, transparent 100%);
+            pointer-events: none; transition: background 0.3s;
+        }
+        .pm-section:hover { border-color: rgba(0,180,255,0.4); box-shadow: 0 0 15px rgba(0,180,255,0.15); }
+        .pm-section:hover::before {
+            background: radial-gradient(ellipse at 50% 0%, rgba(0,180,255,0.06) 0%, transparent 60%);
+        }
+        .pm-section-header {
+            display: flex; align-items: center; gap: 6px;
+            padding-bottom: 5px; margin-bottom: 6px;
+            border-bottom: 1px solid rgba(0,180,255,0.2);
+            position: relative; z-index: 1;
+        }
+        .pm-section-header svg { width: 16px; height: 16px; color: #00b4ff; }
+        .pm-section-header span { font-size: 12px; font-weight: 600; color: #fff; }
+
+        /* Input fields */
+        .pm-input-group { margin-bottom: 5px; position: relative; z-index: 1; }
+        .pm-input-group:last-child { margin-bottom: 0; }
+        .pm-input-label { font-size: 10px; font-weight: 500; color: #a0aec0; margin-bottom: 4px; }
+        .pm-input-wrapper {
+            display: flex; align-items: center;
+            background: #0d1229; border: 1px solid rgba(0,180,255,0.2);
+            border-radius: 8px; overflow: hidden;
+        }
+        .pm-input-prefix {
+            display: flex; align-items: center; justify-content: center;
+            width: 30px; min-width: 30px; height: 30px;
+            background: #151b3d; color: #00b4ff;
+            font-size: 12px; font-weight: 700;
+            border-right: 1px solid rgba(0,180,255,0.2);
+            border-top-left-radius: 7px; border-bottom-left-radius: 7px;
+        }
+        .pm-input-prefix svg { width: 14px; height: 14px; color: #00b4ff; }
+        .pm-input-value {
+            flex: 1; padding: 5px 8px; color: #fff; font-size: 12px; font-weight: 500;
+            white-space: nowrap; overflow: hidden;
+        }
+        .pm-input-value.muted { color: #64748b; }
+        /* Combined input (with divider) */
+        .pm-input-combined {
+            display: flex; align-items: center;
+            background: #0d1229; border: 1px solid rgba(0,180,255,0.2);
+            border-radius: 8px; overflow: hidden;
+        }
+        .pm-input-combined .pm-input-prefix {
+            border-radius: 7px 0 0 7px;
+        }
+        .pm-input-combined .pm-input-value { flex: 3; }
+        .pm-input-divider {
+            width: 1px; height: 20px; background: rgba(0,180,255,0.2); flex-shrink: 0;
+        }
+        .pm-input-combined .pm-input-value.muted { flex: 1; text-align: center; font-size: 11px; }
+
+        /* Quick add buttons */
+        .pm-quick-btns {
+            display: flex; gap: 4px; margin-bottom: 5px;
+            margin-left: 30px; padding-left: 1px;
+        }
+        .pm-quick-btn {
+            flex: 1; height: 22px; display: flex; align-items: center; justify-content: center;
+            background: #151b3d; border: 1px solid rgba(0,180,255,0.2);
+            border-radius: 5px; color: #10b981;
+            font-size: 11px; font-weight: 600;
+        }
+
+        /* Button group */
+        .pm-btn-group { display: flex; gap: 6px; margin-top: 2px; }
+        .pm-btn-primary {
+            flex: 1; height: 32px; border: none; border-radius: 8px;
+            background: linear-gradient(135deg, #00b4ff, #0066ff);
+            color: #fff; font-weight: 600; font-size: 12px;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+            box-shadow: 0 2px 8px rgba(0,180,255,0.3);
+        }
+        .pm-btn-primary svg { width: 14px; height: 14px; }
+        .pm-btn-secondary {
+            flex: 0.5; height: 32px; border-radius: 8px;
+            background: #151b3d; border: 1px solid rgba(100,116,139,0.3);
+            color: #a0aec0; font-size: 11px; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+        }
+        .pm-btn-secondary svg { width: 14px; height: 14px; }
+
+        /* Footer */
+        .pm-footer {
+            display: flex; justify-content: center; align-items: center; gap: 6px;
+            padding-top: 6px; margin-top: 4px;
+            border-top: 1px solid rgba(0,180,255,0.15);
+        }
+        .pm-footer span { font-size: 10px; color: #64748b; }
+
+        .tc-visual .glow-accent {
+            position: absolute; top: -40px; right: -40px;
+            width: 250px; height: 250px;
+            background: radial-gradient(circle, rgba(0,180,216,0.15) 0%, transparent 70%);
+            filter: blur(30px); pointer-events: none;
+        }
+
+        /* ===== FEATURES ===== */
+        .features-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
+        }
+        .feature-card {
+            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px; padding: 32px 28px;
+            transition: border-color 0.4s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s, background 0.4s;
+        }
+        .feature-card:hover {
+            border-color: rgba(0,180,216,0.3); transform: translateY(-6px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2), 0 0 30px rgba(0,180,216,0.06);
+            background: rgba(0,180,216,0.03);
+        }
+        .feature-icon {
+            width: 48px; height: 48px; border-radius: 12px; margin-bottom: 20px;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s;
+        }
+        .feature-card:hover .feature-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+        .feature-icon svg { width: 24px; height: 24px; }
+        .feature-icon.balance { background: rgba(16,185,129,0.12); color: var(--green); }
+        .feature-icon.fans { background: rgba(236,72,153,0.12); color: var(--pink); }
+        .feature-icon.stats { background: rgba(59,130,246,0.12); color: var(--blue); }
+        .feature-icon.chart { background: rgba(139,92,246,0.12); color: var(--purple); }
+        .feature-icon.badge { background: rgba(245,158,11,0.12); color: var(--yellow); }
+        .feature-icon.safe { background: rgba(0,180,216,0.12); color: var(--cyan); }
+        .feature-card h3 { color: #fff; font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+        .feature-card p { color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+
+        /* ===== STATS BADGE SHOWCASE ===== */
+        .showcase { padding: 80px 0; }
+        .showcase-inner {
+            display: flex; gap: 60px; align-items: center;
+        }
+        .showcase-text { flex: 1; }
+        .showcase-text .section-badge { margin-bottom: 16px; }
+        .showcase-text h2 { font-size: clamp(28px, 3.5vw, 38px); font-weight: 800; color: #fff; margin-bottom: 16px; }
+        .showcase-text h2 span { color: var(--cyan); animation: typeGlow 4s ease-in-out infinite 2s; }
+        .showcase-text > p { color: var(--text-muted); font-size: 15px; line-height: 1.7; margin-bottom: 24px; }
+        .showcase-features { display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; }
+        .showcase-feat {
+            display: flex; align-items: center; gap: 12px;
+        }
+        .showcase-feat-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .showcase-feat-icon svg { width: 18px; height: 18px; }
+        .showcase-feat-icon.f1 { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+        .showcase-feat-icon.f2 { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        .showcase-feat-icon.f3 { background: linear-gradient(135deg, #00b4ff, #0088cc); }
+        .showcase-feat-icon.f4 { background: linear-gradient(135deg, #10b981, #059669); }
+        .showcase-feat span { color: #ccc; font-size: 15px; }
+        .showcase-visual { flex: 1; max-width: 560px; position: relative; }
+
+        /* Two badges side by side */
+        .badge-compare {
+            display: flex; flex-direction: column; align-items: center; gap: 20px;
+        }
+        .badge-compare-item {
+            width: 100%; max-width: 440px; position: relative;
+        }
+        .badge-swap-container {
+            position: relative; width: 100%; max-width: 440px;
+        }
+        .badge-swap-container .badge-compare-item {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .badge-swap-container .badge-compare-item.badge-active {
+            opacity: 1; transform: scale(1) translateY(0);
+        }
+        .badge-swap-container .badge-compare-item.badge-out {
+            opacity: 0; transform: scale(0.95) translateY(10px);
+            position: absolute; top: 0; left: 0; right: 0;
+            pointer-events: none;
+        }
+        .badge-compare-label {
+            text-align: center; margin-bottom: 10px;
+            font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+            padding: 4px 12px; border-radius: 6px; display: inline-block;
+            width: 100%;
+        }
+        .badge-compare-label.before { color: #ff6b6b; }
+        .badge-compare-label.after { color: var(--green); }
+
+        /* Reveal fans button */
+        .reveal-fans-btn {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-top: 20px; padding: 14px 28px;
+            background: linear-gradient(135deg, rgba(0,180,216,0.15), rgba(0,180,216,0.05));
+            border: 1px solid rgba(0,180,216,0.3);
+            border-radius: 12px; cursor: pointer; transition: all 0.3s;
+            color: #00b4ff; font-size: 14px; font-weight: 600;
+            width: 100%; max-width: 440px;
+        }
+        .reveal-fans-btn:hover {
+            background: linear-gradient(135deg, rgba(0,180,216,0.25), rgba(0,180,216,0.1));
+            border-color: rgba(0,180,216,0.5);
+            box-shadow: 0 0 25px rgba(0,180,216,0.2);
+            transform: translateY(-2px);
+        }
+        .reveal-fans-btn svg { width: 18px; height: 18px; }
+
+        /* Profile mockup for showcase */
+        .profile-mock {
+            background: linear-gradient(180deg, #1a1a2e, #0f0f1a);
+            border-radius: 12px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            transition: box-shadow 0.5s, border-color 0.5s;
+        }
+        .profile-mock:hover {
+            box-shadow: 0 25px 70px rgba(0,0,0,0.5), 0 0 30px rgba(0,180,216,0.08);
+        }
+        .profile-mock.after-mock {
+            border-color: rgba(0,180,216,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(0,180,216,0.1);
+        }
+        .profile-mock-header {
+            padding: 18px 22px; display: flex; align-items: center; gap: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            position: relative;
+        }
+        .profile-mock-header::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, #00b4ff, #ff6b9d, #00b4ff);
+        }
+        .profile-mock-avatar {
+            width: 56px; height: 56px; border-radius: 50%;
+            background: linear-gradient(135deg, #0a84ff, #00d4aa);
+            display: flex; align-items: center; justify-content: center;
+            border: 3px solid rgba(0,180,255,0.4);
+            flex-shrink: 0;
+        }
+        .profile-mock-avatar svg { width: 28px; height: 28px; }
+        .profile-mock-name { color: #fff; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .profile-mock-handle { color: #64748b; font-size: 13px; margin-top: 2px; }
+        .profile-mock-handle .at { color: #00b4ff; }
+        .profile-mock-body { padding: 16px; background: #0b0b12; }
+        .stats-badge-mock {
+            background: linear-gradient(180deg, #1e2a4a, #151b2e);
+            border: 1px solid rgba(0,180,216,0.3); border-radius: 12px;
+            padding: 16px 18px;
+            box-shadow: 0 8px 30px rgba(0,180,216,0.1);
+        }
+        .sb-header {
+            display: flex; align-items: center; gap: 6px;
+            margin-bottom: 10px; padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .sb-header svg { width: 16px; height: 16px; color: #00b4ff; }
+        .sb-header span { color: #00b4ff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .sb-row { display: flex; align-items: center; padding: 7px 0; }
+        .sb-row-icon { width: 20px; height: 20px; margin-right: 10px; display: flex; align-items: center; justify-content: center; }
+        .sb-row-icon svg { width: 16px; height: 16px; }
+        .sb-row-label { color: #888; font-size: 13px; min-width: 55px; }
+        .sb-row-value { font-size: 15px; font-weight: 700; }
+        .sb-row-value.yellow { color: #f1c40f; }
+        .sb-row-value.pink { color: #ff6b9d; }
+        .sb-row-value.blue { color: #00b4ff; }
+        .sb-row-value.green { color: #10b981; }
+        .sb-row-value.hidden-val { color: #555; font-style: italic; font-weight: 500; }
+        .sb-row-value.db-val {
+            display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+        }
+        .sb-row-value.db-val .hidden-val {
+            color: #555; font-style: italic; font-weight: 500;
+        }
+        .sb-row-value.db-val .yellow { color: #f1c40f; font-weight: 700; }
+        .db-tag {
+            font-size: 8px; font-weight: 700; text-transform: uppercase;
+            background: rgba(16,185,129,0.15); color: var(--green);
+            padding: 1px 5px; border-radius: 3px; letter-spacing: 0.3px;
+        }
+
+        /* Floating badge glow */
+        .showcase-visual .glow {
+            position: absolute; top: -30px; right: -30px;
+            width: 200px; height: 200px;
+            background: radial-gradient(circle, rgba(0,180,216,0.2) 0%, transparent 70%);
+            filter: blur(20px); pointer-events: none;
+            animation: glowPulse 4s ease-in-out infinite;
+        }
+
+        /* ===== CHART BEFORE/AFTER ===== */
+        .chart-section { padding: 120px 0; }
+        .chart-compare {
+            display: flex; gap: 24px; margin-bottom: 32px;
+        }
+        .chart-card {
+            flex: 1; background: #ffffff; border: 1px solid #e0e0e0;
+            border-radius: 16px; padding: 24px; overflow: hidden;
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s;
+        }
+        .chart-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+        }
+        .chart-card.after-card {
+            border-color: rgba(0,175,240,0.3);
+            box-shadow: 0 0 40px rgba(0,175,240,0.08);
+        }
+        .chart-card-label {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 12px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 16px; padding: 4px 12px; border-radius: 6px;
+        }
+        .chart-card-label.before { color: #ff6b6b; background: rgba(255,107,107,0.1); }
+        .chart-card-label.after { color: #10b981; background: rgba(16,185,129,0.1); }
+        .chart-card-label svg { width: 14px; height: 14px; }
+        .chart-card-amount {
+            display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+            font-size: 18px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px;
+        }
+        .chart-card-gross { font-size: 14px; font-weight: 400; color: #8a96a3; }
+        .chart-card-change { font-size: 14px; font-weight: 400; color: #f44336; }
+        .chart-card-period { font-size: 12px; color: #8a96a3; margin-bottom: 16px; }
+        .chart-bars {
+            display: none;
+        }
+        .chart-canvas-wrap {
+            position: relative; width: 100%;
+        }
+        .chart-canvas-main {
+            position: relative; width: 100%; height: 112px;
+        }
+        .chart-canvas-main canvas { width: 100%; height: 100%; }
+        .chart-canvas-aside {
+            position: relative; width: 100%; height: 115px;
+        }
+        .chart-canvas-aside canvas { width: 100%; height: 100%; }
+
+        .chart-features {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px; margin-top: 8px;
+        }
+        .chart-feat {
+            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px; padding: 20px; display: flex; gap: 14px; align-items: flex-start;
+            transition: border-color 0.4s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s, background 0.4s;
+        }
+        .chart-feat:hover {
+            border-color: rgba(0,180,216,0.3); transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.15), 0 0 20px rgba(0,180,216,0.05);
+            background: rgba(0,180,216,0.03);
+        }
+        .chart-feat-icon {
+            width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .chart-feat-icon svg { width: 18px; height: 18px; }
+        .chart-feat-icon.preset { background: rgba(139,92,246,0.12); color: var(--purple); }
+        .chart-feat-icon.auto { background: rgba(0,180,216,0.12); color: var(--cyan); }
+        .chart-feat-icon.amount { background: rgba(16,185,129,0.12); color: var(--green); }
+        .chart-feat h4 { color: #fff; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .chart-feat p { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+
+        /* ===== GROSS VALUE SECTION ===== */
+        .gross-section { padding: 120px 0; }
+        .gross-inner {
+            display: flex; gap: 56px; align-items: center;
+        }
+        .gross-mockup {
+            flex-shrink: 0; width: 440px;
+        }
+        .gross-modal {
+            background: #ffffff; border-radius: 20px; padding: 40px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06);
+            animation: floatY 7s ease-in-out infinite 1s;
+            transition: box-shadow 0.4s, transform 0.4s;
+        }
+        .gross-modal:hover {
+            box-shadow: 0 30px 90px rgba(0,0,0,0.5), 0 0 40px rgba(0,175,240,0.12);
+        }
+        .gross-modal-title {
+            font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 10px;
+        }
+        .gross-modal-desc {
+            font-size: 14px; color: #8a96a3; margin-bottom: 28px; line-height: 1.6;
+        }
+        .gross-modal-input {
+            display: flex; align-items: center; gap: 10px;
+            border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px 20px;
+            margin-bottom: 32px; background: #fff;
+        }
+        .gross-modal-input span {
+            font-size: 20px; color: #8a96a3; font-weight: 500;
+        }
+        .gross-modal-input .gross-value {
+            font-size: 20px; color: #1a1a2e; font-weight: 500;
+        }
+        .gross-modal-buttons {
+            display: flex; gap: 14px;
+        }
+        .gross-btn-cancel {
+            flex: 1; padding: 14px; border-radius: 50px;
+            border: 1px solid #e0e0e0; background: #fff;
+            font-size: 15px; font-weight: 600; color: #1a1a2e;
+            text-align: center;
+        }
+        .gross-btn-apply {
+            flex: 1; padding: 14px; border-radius: 50px;
+            border: none; background: #00aff0;
+            font-size: 15px; font-weight: 600; color: #fff;
+            text-align: center;
+        }
+        .gross-content { flex: 1; }
+        .gross-content h3 {
+            font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 16px;
+        }
+        .gross-content h3 span { color: var(--cyan); animation: typeGlow 4s ease-in-out infinite 1.5s; }
+        .gross-content > p {
+            font-size: 15px; color: var(--text-muted); line-height: 1.7; margin-bottom: 28px;
+        }
+        .gross-features {
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .gross-feat {
+            display: flex; gap: 14px; align-items: flex-start;
+            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px; padding: 14px 16px;
+            transition: border-color 0.4s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s, background 0.4s;
+        }
+        .gross-feat:hover {
+            border-color: rgba(0,180,216,0.3); transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15), 0 0 15px rgba(0,180,216,0.05);
+            background: rgba(0,180,216,0.03);
+        }
+        .gross-feat-icon {
+            width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .gross-feat-icon svg { width: 16px; height: 16px; }
+        .gross-feat-icon.calc { background: rgba(0,180,216,0.12); color: var(--cyan); }
+        .gross-feat-icon.months { background: rgba(139,92,246,0.12); color: var(--purple); }
+        .gross-feat-icon.alltime { background: rgba(16,185,129,0.12); color: var(--green); }
+        .gross-feat h4 { color: #fff; font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+        .gross-feat p { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+
+        @media (max-width: 768px) {
+            .gross-inner { flex-direction: column; }
+            .gross-mockup { width: 100%; max-width: 380px; }
+        }
+
+        /* ===== FAN TRACKING ===== */
+        .fan-tracking { background: rgba(255,255,255,0.01); }
+        .fan-cards {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
+            margin-bottom: 32px;
+        }
+        .fan-card {
+            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px; padding: 28px 24px; text-align: center;
+            transition: border-color 0.4s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s, background 0.4s;
+        }
+        .fan-card:hover {
+            border-color: rgba(0,180,216,0.3); transform: translateY(-6px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2), 0 0 30px rgba(0,180,216,0.06);
+            background: rgba(0,180,216,0.03);
+        }
+        .fan-card-icon {
+            width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 18px;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .fan-card:hover .fan-card-icon { transform: scale(1.12) rotate(-5deg); }
+        .fan-card-icon svg { width: 24px; height: 24px; }
+        .fan-card-icon.save { background: rgba(0,180,216,0.12); color: var(--cyan); }
+        .fan-card-icon.cloud { background: rgba(139,92,246,0.12); color: var(--purple); }
+        .fan-card-icon.eye { background: rgba(16,185,129,0.12); color: var(--green); }
+        .fan-card h3 { color: #fff; font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+        .fan-card p { color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+        .fan-bottom {
+            max-width: 700px; margin: 0 auto; text-align: center;
+            color: var(--text-muted); font-size: 15px; line-height: 1.7;
+            background: rgba(0,180,216,0.04); border: 1px solid rgba(0,180,216,0.1);
+            border-radius: 12px; padding: 20px 28px;
+            transition: border-color 0.4s, box-shadow 0.4s, background 0.4s;
+        }
+        .fan-bottom:hover {
+            border-color: rgba(0,180,216,0.25);
+            box-shadow: 0 8px 30px rgba(0,180,216,0.06);
+            background: rgba(0,180,216,0.06);
+        }
+        .fan-bottom svg { width: 18px; height: 18px; color: var(--cyan); vertical-align: -3px; margin-right: 6px; }
+
+        /* ===== HOW IT WORKS ===== */
+        .steps { display: flex; gap: 0; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+        .step { flex: 1; min-width: 220px; max-width: 300px; text-align: center; }
+        .step-arrow {
+            display: flex; align-items: center; justify-content: center;
+            padding-top: 14px; flex-shrink: 0; width: 48px;
+        }
+        .step-arrow svg {
+            width: 32px; height: 32px; color: var(--cyan); opacity: 0.5;
+            filter: drop-shadow(0 0 8px var(--cyan-glow));
+            animation: arrowBounce 2s ease-in-out infinite;
+        }
+        .step-number {
+            width: 56px; height: 56px; border-radius: 16px;
+            background: linear-gradient(135deg, var(--cyan), var(--cyan-dark));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; font-weight: 800; color: #fff;
+            margin: 0 auto 20px; box-shadow: 0 8px 25px var(--cyan-glow);
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s;
+        }
+        .step:hover .step-number {
+            transform: translateY(-4px) scale(1.08);
+            box-shadow: 0 12px 35px var(--cyan-glow);
+        }
+        .step h3 { color: #fff; font-size: 16px; font-weight: 700; margin-bottom: 8px; transition: color 0.3s; }
+        .step:hover h3 { color: var(--cyan); }
+        .step p { color: var(--text-muted); font-size: 14px; }
+
+        /* ===== DISCLAIMER ===== */
+        .disclaimer { padding: 10px 0 40px; }
+        .disclaimer-box {
+            max-width: 640px; margin: 0 auto;
+            background: rgba(202,138,4,0.08); border: 1px solid rgba(202,138,4,0.2);
+            border-radius: 12px; padding: 20px 28px;
+            display: flex; align-items: center; gap: 14px;
+            color: #ca8a04; font-size: 14px; font-weight: 500;
+            transition: border-color 0.4s, box-shadow 0.4s;
+        }
+        .disclaimer-box:hover {
+            border-color: rgba(202,138,4,0.4);
+            box-shadow: 0 8px 30px rgba(202,138,4,0.08);
+        }
+        .disclaimer-box svg { width: 22px; height: 22px; flex-shrink: 0; }
+
+        /* ===== CTA ===== */
+        .cta { text-align: center; padding: 60px 0 40px; }
+        .cta h2 { font-size: clamp(28px, 3.5vw, 38px); font-weight: 800; color: #fff; margin-bottom: 16px; }
+        .cta h2 span { color: var(--cyan); animation: typeGlow 3s ease-in-out infinite; }
+        .cta p { color: var(--text-muted); font-size: 16px; margin-bottom: 32px; }
+
+        /* ===== FOOTER ===== */
+        .footer { border-top: 1px solid rgba(255,255,255,0.05); padding: 32px 0; }
+        .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+        .footer-brand { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; }
+        .footer-brand svg { width: 20px; height: 20px; color: var(--cyan); }
+        .footer-links { display: flex; gap: 24px; }
+        .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.3s, transform 0.3s; display: inline-block; }
+        .footer-links a:hover { color: #fff; transform: translateY(-1px); }
+        .footer-contacts { display: flex; align-items: center; gap: 20px; margin-top: 12px; }
+        .footer-contact-link { display: flex; align-items: center; gap: 8px; color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.3s, transform 0.3s; }
+        .footer-contact-link:hover { color: var(--cyan); transform: translateY(-1px); }
+        .footer-contact-link svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInLeft { from { opacity: 0; transform: translateX(-50px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fadeInRight { from { opacity: 0; transform: translateX(50px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fadeInScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(60px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes glowPulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.08); }
+        }
+        @keyframes floatY {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+        }
+        @keyframes borderGlow {
+            0%, 100% { border-color: rgba(0,180,216,0.15); box-shadow: 0 0 0 rgba(0,180,216,0); }
+            50% { border-color: rgba(0,180,216,0.4); box-shadow: 0 0 20px rgba(0,180,216,0.08); }
+        }
+        @keyframes rotateIn { from { opacity: 0; transform: rotate(-10deg) scale(0.9); } to { opacity: 1; transform: rotate(0) scale(1); } }
+        @keyframes typeGlow {
+            0%, 100% { text-shadow: 0 0 20px rgba(0,180,216,0); }
+            50% { text-shadow: 0 0 30px rgba(0,180,216,0.3), 0 0 60px rgba(0,180,216,0.1); }
+        }
+        @keyframes dividerShimmer {
+            0% { opacity: 0.3; background-position: -600px center; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; background-position: 600px center; }
+        }
+        @keyframes navSlideDown {
+            from { opacity: 0; transform: translateY(-100%); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes arrowBounce {
+            0%, 100% { transform: translateX(0); opacity: 0.5; }
+            50% { transform: translateX(5px); opacity: 1; }
+        }
+        @keyframes countUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate { opacity: 0; animation: fadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+        .animate-d1 { animation-delay: 0.12s; }
+        .animate-d2 { animation-delay: 0.24s; }
+        .animate-d3 { animation-delay: 0.36s; }
+        .animate-d4 { animation-delay: 0.48s; }
+        .animate-d5 { animation-delay: 0.6s; }
+
+        /* Scroll-reveal animation classes */
+        .reveal {
+            opacity: 0; transform: translateY(40px);
+            transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .reveal.from-left { transform: translateX(-50px); }
+        .reveal.from-right { transform: translateX(50px); }
+        .reveal.from-scale { transform: scale(0.88); }
+        .reveal.from-bottom { transform: translateY(50px); }
+        .reveal.active {
+            opacity: 1; transform: translateY(0) translateX(0) scale(1);
+        }
+        .reveal-delay-1 { transition-delay: 0.1s; }
+        .reveal-delay-2 { transition-delay: 0.2s; }
+        .reveal-delay-3 { transition-delay: 0.3s; }
+        .reveal-delay-4 { transition-delay: 0.4s; }
+        .reveal-delay-5 { transition-delay: 0.5s; }
+        .reveal-delay-6 { transition-delay: 0.6s; }
+
+        /* Floating particles */
+        .particles {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+        }
+        .particle {
+            position: absolute; width: 3px; height: 3px;
+            background: rgba(0,180,216,0.25); border-radius: 50%;
+            animation: particleFloat linear infinite;
+        }
+        @keyframes particleFloat {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-20vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* ===== FAQ ACCORDION ===== */
+        .faq-section { padding: 120px 0; }
+        .faq-list {
+            max-width: 720px; margin: 0 auto;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .faq-item {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px;
+            overflow: hidden;
+            transition: border-color 0.4s, box-shadow 0.4s;
+        }
+        .faq-item:hover {
+            border-color: rgba(0,180,216,0.2);
+        }
+        .faq-item.open {
+            border-color: rgba(0,180,216,0.3);
+            box-shadow: 0 8px 30px rgba(0,180,216,0.06);
+        }
+        .faq-question {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 24px; cursor: pointer; gap: 16px;
+            background: none; border: none; width: 100%; text-align: left;
+            font-family: inherit; font-size: 15px; font-weight: 600;
+            color: #fff; transition: color 0.3s;
+        }
+        .faq-question:hover { color: var(--cyan); }
+        .faq-chevron {
+            width: 20px; height: 20px; flex-shrink: 0;
+            color: var(--cyan); transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .faq-item.open .faq-chevron { transform: rotate(180deg); }
+        .faq-answer {
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.22, 1, 0.36, 1), padding 0.3s;
+        }
+        .faq-item.open .faq-answer { max-height: 300px; }
+        .faq-answer-inner {
+            padding: 0 24px 20px;
+            color: var(--text-muted); font-size: 14px; line-height: 1.7;
+        }
+
+        /* ===== BURGER MENU ===== */
+        .burger-btn {
+            display: none; background: none; border: none;
+            color: #fff; cursor: pointer; padding: 4px;
+            width: 36px; height: 36px;
+            align-items: center; justify-content: center;
+        }
+        .burger-btn svg { width: 24px; height: 24px; }
+        .mobile-menu {
+            display: none; position: fixed; top: 64px; left: 0; right: 0; bottom: 0;
+            background: rgba(10,10,18,0.97); z-index: 99;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            padding: 24px;
+            flex-direction: column; gap: 8px;
+            opacity: 0; transform: translateY(-10px);
+            transition: opacity 0.3s, transform 0.3s;
+            overflow-y: auto;
+        }
+        .mobile-menu.open {
+            display: flex; opacity: 1; transform: translateY(0);
+        }
+        .mobile-menu a {
+            color: #fff; text-decoration: none; font-size: 18px; font-weight: 600;
+            padding: 14px 16px; border-radius: 12px;
+            transition: background 0.2s, color 0.2s;
+            display: block;
+        }
+        .mobile-menu a:hover { background: rgba(0,180,216,0.1); color: var(--cyan); }
+        .mobile-menu .nav-cta {
+            background: linear-gradient(135deg, var(--cyan), var(--cyan-dark)) !important;
+            color: #fff !important; text-align: center;
+            border-radius: 12px; margin-top: 8px; padding: 14px 16px;
+            font-size: 16px !important;
+        }
+
+        /* ===== SCROLL TO TOP ===== */
+        .scroll-top {
+            position: fixed; bottom: 32px; right: 32px;
+            width: 48px; height: 48px; border-radius: 14px;
+            background: linear-gradient(135deg, var(--cyan), var(--cyan-dark));
+            border: none; cursor: pointer; z-index: 90;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 20px var(--cyan-glow);
+            opacity: 0; transform: translateY(20px);
+            transition: opacity 0.3s, transform 0.3s, box-shadow 0.3s;
+            pointer-events: none;
+        }
+        .scroll-top.visible {
+            opacity: 1; transform: translateY(0); pointer-events: auto;
+        }
+        .scroll-top:hover {
+            box-shadow: 0 10px 30px var(--cyan-glow);
+            transform: translateY(-3px);
+        }
+        .scroll-top svg { width: 22px; height: 22px; color: #fff; }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .burger-btn { display: flex; }
+            .hero { padding: 120px 0 60px; }
+            .tc-inner { flex-direction: column; }
+            .tc-visual { max-width: 100%; }
+            .showcase-inner { flex-direction: column; }
+            .showcase-visual { max-width: 100%; }
+            .badge-compare { flex-direction: column; }
+            .chart-compare { flex-direction: column; }
+            .steps { flex-direction: column; align-items: center; }
+            .step-arrow { padding-top: 0; width: auto; transform: rotate(90deg); }
+            .scroll-top { bottom: 20px; right: 20px; width: 42px; height: 42px; border-radius: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="glow-1"></div>
+<div class="glow-2"></div>
+<div class="particles" id="particles"></div>
+
+<div class="page-content">
+
+<!-- ===== NAV ===== -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">
+            <div class="nav-logo-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7L12 12L22 7L12 2Z"/><path d="M2 17L12 22L22 17"/><path d="M2 12L12 17L22 12"/></svg>
+            </div>
+            Stats Editor
+        </a>
+        <div class="nav-links">
+            <a href="#features" data-i18n="nav_features">Features</a>
+            <a href="#stats-badge" data-i18n="nav_stats">Stats Badge</a>
+            <a href="#charts" data-i18n="nav_charts">Charts</a>
+            <a href="#how-it-works" data-i18n="nav_how">How it Works</a>
+            <a href="privacy-policy.html" data-i18n="nav_privacy">Privacy</a>
+            <a href="terms-of-service.html" data-i18n="nav_terms">Terms</a>
+            <button class="lang-toggle" onclick="toggleLang()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                <span class="lang-label">RU</span>
+            </button>
+            <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="nav-cta" data-i18n="nav_install">Install Extension</a>
+        </div>
+        <button class="burger-btn" id="burgerBtn" aria-label="Menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+    </div>
+</nav>
+
+<!-- Mobile menu -->
+<div class="mobile-menu" id="mobileMenu">
+    <a href="#features" data-i18n="nav_features">Features</a>
+    <a href="#stats-badge" data-i18n="nav_stats">Stats Badge</a>
+    <a href="#charts" data-i18n="nav_charts">Charts</a>
+    <a href="#how-it-works" data-i18n="nav_how">How it Works</a>
+    <a href="privacy-policy.html" data-i18n="nav_privacy">Privacy</a>
+    <a href="terms-of-service.html" data-i18n="nav_terms">Terms</a>
+    <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="nav-cta" data-i18n="nav_install">Install Extension</a>
+</div>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-badge animate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span data-i18n="hero_badge">Chrome Extension &mdash; Free to Use</span>
+        </div>
+        <h1 class="animate animate-d1" data-i18n="hero_title">Preview Your<br>Statistics <span>Instantly</span></h1>
+        <p class="hero-sub animate animate-d2" data-i18n="hero_sub">Visual editor for OnlyFans statistics.<br>Create stunning mockups for screenshots &amp; presentations.</p>
+        <div class="hero-actions animate animate-d3">
+            <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span data-i18n="hero_btn_install">Install Free Extension</span>
+            </a>
+            <a href="#features" class="btn btn-secondary"><span data-i18n="hero_btn_learn">Learn More</span></a>
+        </div>
+        <img src="for%20site.png" alt="Stats Editor Preview" class="hero-screenshot animate animate-d4">
+    </div>
+</section>
+
+<!-- ===== DIVIDER ===== -->
+<div class="section-divider"></div>
+
+<!-- ===== TAKE CONTROL ===== -->
+<section class="takecontrol" id="takecontrol">
+    <div class="container">
+        <div class="tc-inner">
+            <div class="tc-text">
+                <h2 data-i18n="tc_title">Take Control<br>Over Your <span>Stats</span></h2>
+                <p data-i18n="tc_sub">Professional tools for creators who think bigger. Manage all aspects of your statistics display with a single click.</p>
+
+                <div class="tc-stats-row">
+                    <div class="tc-stat">
+                        <span class="tc-stat-value">10+</span>
+                        <span class="tc-stat-label" data-i18n="tc_stat1_label">Editable Fields</span>
+                    </div>
+                    <div class="tc-stat">
+                        <span class="tc-stat-value" data-i18n="tc_stat2_value">1-Click</span>
+                        <span class="tc-stat-label" data-i18n="tc_stat2_label">Apply & Reset</span>
+                    </div>
+                    <div class="tc-stat">
+                        <span class="tc-stat-value">∞</span>
+                        <span class="tc-stat-label" data-i18n="tc_stat3_label">Presets</span>
+                    </div>
+                </div>
+
+                <div class="tc-checks">
+                    <div class="tc-check">
+                        <div class="tc-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                        <span data-i18n="tc_check1">Manage balances with ease.</span>
+                    </div>
+                    <div class="tc-check">
+                        <div class="tc-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                        <span data-i18n="tc_check2">Customize your followers stats</span>
+                    </div>
+                    <div class="tc-check">
+                        <div class="tc-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                        <span data-i18n="tc_check3">Apply changes safely and securely.</span>
+                    </div>
+                    <div class="tc-check">
+                        <div class="tc-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                        <span data-i18n="tc_check4">Save & load unlimited presets</span>
+                    </div>
+                    <div class="tc-check">
+                        <div class="tc-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                        <span data-i18n="tc_check5">Edit earnings, pending & complete</span>
+                    </div>
+                    <div class="tc-check">
+                        <div class="tc-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                        <span data-i18n="tc_check6">Quick-add buttons for fast edits</span>
+                    </div>
+                </div>
+
+                <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span data-i18n="tc_btn">Add to Chrome</span>
+                </a>
+            </div>
+            <div class="tc-visual">
+                <div class="glow-accent"></div>
+                <div class="popup-mock">
+                    <div class="popup-body">
+                        <!-- Header -->
+                        <div class="pm-header">
+                            <div class="pm-logo">
+                                <div class="pm-logo-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7L12 12L22 7L12 2Z"/><path d="M2 17L12 22L22 17"/><path d="M2 12L12 17L22 12"/></svg>
+                                </div>
+                                <div class="pm-logo-text">
+                                    <span class="pm-logo-title">Stats Editor</span>
+                                    <span class="pm-logo-sub">PLUS</span>
+                                </div>
+                            </div>
+                            <div class="pm-header-right">
+                                <div class="pm-toggle"></div>
+                                <div class="pm-icon-btn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                                </div>
+                                <div class="pm-icon-btn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                                </div>
+                                <div class="pm-menu-btn">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Presets Bar -->
+                        <div class="pm-presets">
+                            <div class="pm-presets-left">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+                                <div class="pm-preset-dropdown">
+                                    <span>No preset</span>
+                                    <svg viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </div>
+                            </div>
+                            <div class="pm-presets-right">
+                                <div class="pm-presets-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+                                <div class="pm-presets-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+                            </div>
+                        </div>
+
+                        <!-- Model Info -->
+                        <div class="pm-model">
+                            <div class="pm-model-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <div class="pm-model-details">
+                                <span class="pm-model-label">Current Model</span>
+                                <span class="pm-model-name">@not_detected</span>
+                            </div>
+                            <div class="pm-status">
+                                <span class="pm-status-dot"></span>
+                                <span class="pm-status-text">Active</span>
+                            </div>
+                        </div>
+
+                        <!-- Balance Settings Section -->
+                        <div class="pm-section">
+                            <div class="pm-section-header">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                                <span>Balance Settings</span>
+                            </div>
+                            <div class="pm-input-group">
+                                <div class="pm-input-label">Top Creators</div>
+                                <div class="pm-input-wrapper">
+                                    <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+                                    <span class="pm-input-value">3.5%</span>
+                                </div>
+                            </div>
+                            <div class="pm-input-group">
+                                <div class="pm-input-label">Current Balance</div>
+                                <div class="pm-input-wrapper">
+                                    <span class="pm-input-prefix">$</span>
+                                    <span class="pm-input-value">0.00</span>
+                                </div>
+                            </div>
+                            <div class="pm-input-group">
+                                <div class="pm-input-label">Pending Balance</div>
+                                <div class="pm-input-wrapper">
+                                    <span class="pm-input-prefix">$</span>
+                                    <span class="pm-input-value">0.00</span>
+                                </div>
+                            </div>
+                            <div class="pm-input-group">
+                                <div class="pm-input-label">Earnings (Pending | Complete)</div>
+                                <div class="pm-input-combined">
+                                    <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/></svg></span>
+                                    <span class="pm-input-value">Pending: 100</span>
+                                    <span class="pm-input-divider"></span>
+                                    <span class="pm-input-value muted">Complete:</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fans Settings Section -->
+                        <div class="pm-section">
+                            <div class="pm-section-header">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                                <span>Fans Settings</span>
+                            </div>
+                            <div class="pm-input-group">
+                                <div class="pm-input-label">Fans Count</div>
+                                <div class="pm-input-combined">
+                                    <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></span>
+                                    <span class="pm-input-value">5.6K</span>
+                                    <span class="pm-input-divider"></span>
+                                    <span class="pm-input-value muted">Tooltip:</span>
+                                </div>
+                            </div>
+                            <div class="pm-quick-btns">
+                                <span class="pm-quick-btn">+100</span>
+                                <span class="pm-quick-btn">+300</span>
+                                <span class="pm-quick-btn">+500</span>
+                            </div>
+                            <div class="pm-input-group">
+                                <div class="pm-input-label">Following Count</div>
+                                <div class="pm-input-combined">
+                                    <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></span>
+                                    <span class="pm-input-value">2.0K</span>
+                                    <span class="pm-input-divider"></span>
+                                    <span class="pm-input-value muted">Tooltip:</span>
+                                </div>
+                            </div>
+                            <div class="pm-quick-btns">
+                                <span class="pm-quick-btn">+100</span>
+                                <span class="pm-quick-btn">+300</span>
+                                <span class="pm-quick-btn">+500</span>
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="pm-btn-group">
+                            <div class="pm-btn-primary">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                Apply Changes
+                            </div>
+                            <div class="pm-btn-secondary">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                                Reset
+                            </div>
+                        </div>
+
+                        <!-- Footer -->
+                        <div class="pm-footer">
+                            <span>v1.0.0</span>
+                            <span>•</span>
+                            <span>Stats Editor Pro</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section class="features" id="features">
+    <div class="container">
+        <div class="section-header">
+            <div class="section-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M5 19l.5 1.5L7 21l-1.5.5L5 23l-.5-1.5L3 21l1.5-.5L5 19z"/></svg>
+                <span data-i18n="feat_badge">Features</span>
+            </div>
+            <h2 class="section-title" data-i18n="feat_title">Everything You <span>Need</span></h2>
+            <p class="section-sub" data-i18n="feat_sub">Powerful tools to visually preview and customize your statistics display</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon balance">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 10H18a2 2 0 000 4h4"/></svg>
+                </div>
+                <h3 data-i18n="feat1_title">Balance Preview</h3>
+                <p data-i18n="feat1_desc">Visually preview your current balance, pending balance, and earnings display with custom values.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon fans">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                </div>
+                <h3 data-i18n="feat2_title">Fans Count Editor</h3>
+                <p data-i18n="feat2_desc">Customize fans count appearance with quick increment buttons (+100, +300, +500) for instant preview.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon stats">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                </div>
+                <h3 data-i18n="feat3_title">Profile Stats Badge</h3>
+                <p data-i18n="feat3_desc">Display detailed profile statistics with a floating badge. See fans, likes, join date and price at a glance.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon chart">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                </div>
+                <h3 data-i18n="feat4_title">Chart Preview</h3>
+                <p data-i18n="feat4_desc">Set any amount and the plugin automatically rebuilds the chart to match your criteria. Save presets for later use.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                </div>
+                <h3 data-i18n="feat5_title">Top Creator Badge</h3>
+                <p data-i18n="feat5_desc">Set custom top creator percentage to see how it would look on your profile page.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon safe">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                </div>
+                <h3 data-i18n="feat6_title">100% Safe &amp; Visual</h3>
+                <p data-i18n="feat6_desc">All changes are purely visual and temporary. Nothing is saved or sent &mdash; resets when the extension is disabled.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== STATS BADGE SHOWCASE ===== -->
+<section class="showcase" id="stats-badge">
+    <div class="container">
+        <div class="showcase-inner">
+            <div class="showcase-text">
+                <div class="section-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span data-i18n="stats_badge">Profile Stats</span>
+                </div>
+                <h2 data-i18n="stats_title">Profile Stats <span>Badge</span></h2>
+                <p data-i18n="stats_desc">Display detailed profile statistics with a beautiful floating badge. When fans are hidden by the model, stats are pulled from our database so you always see the real count.</p>
+                <div class="showcase-features">
+                    <div class="showcase-feat">
+                        <div class="showcase-feat-icon f1">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        </div>
+                        <span data-i18n="stats_feat1">Fans count display</span>
+                    </div>
+                    <div class="showcase-feat">
+                        <div class="showcase-feat-icon f2">
+                            <svg viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
+                        </div>
+                        <span data-i18n="stats_feat2">Total likes received</span>
+                    </div>
+                    <div class="showcase-feat">
+                        <div class="showcase-feat-icon f3">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        </div>
+                        <span data-i18n="stats_feat3">Account join date</span>
+                    </div>
+                    <div class="showcase-feat">
+                        <div class="showcase-feat-icon f4">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M15 9.5c0-1.38-1.34-2.5-3-2.5s-3 1.12-3 2.5 1.34 2.5 3 2.5 3 1.12 3 2.5-1.34 2.5-3 2.5-3-1.12-3-2.5"/></svg>
+                        </div>
+                        <span data-i18n="stats_feat4">Subscription price info</span>
+                    </div>
+                </div>
+            </div>
+            <div class="showcase-visual">
+                <div class="glow"></div>
+                <div class="badge-compare">
+                    <div class="badge-swap-container">
+                        <!-- Profile mockup with normal stats -->
+                        <div class="badge-compare-item badge-active" id="badge-normal">
+                            <div class="profile-mock after-mock">
+                                <div class="profile-mock-header">
+                                    <div class="profile-mock-avatar">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    </div>
+                                    <div>
+                                        <div class="profile-mock-name">Creator
+                                            <svg viewBox="0 0 20 20" width="14" height="14"><circle cx="10" cy="10" r="10" fill="#0a84ff"/><path d="M7 10l2 2 4-4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </div>
+                                        <div class="profile-mock-handle"><span class="at">@</span>creator</div>
+                                    </div>
+                                </div>
+                                <div class="profile-mock-body">
+                                    <div class="stats-badge-mock">
+                                        <div class="sb-header">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                                            <span>PROFILE STATS</span>
+                                        </div>
+                                        <div class="sb-row">
+                                            <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#f1c40f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>
+                                            <span class="sb-row-label">Fans:</span>
+                                            <span class="sb-row-value yellow">Hidden</span>
+                                        </div>
+                                        <div class="sb-row">
+                                            <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="#ff6b9d" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></span>
+                                            <span class="sb-row-label">Likes:</span>
+                                            <span class="sb-row-value pink">14.7K</span>
+                                        </div>
+                                        <div class="sb-row">
+                                            <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                                            <span class="sb-row-label">Joined:</span>
+                                            <span class="sb-row-value blue">Nov 2019</span>
+                                        </div>
+                                        <div class="sb-row">
+                                            <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M15 9.5c0-1.38-1.34-2.5-3-2.5s-3 1.12-3 2.5 1.34 2.5 3 2.5 3 1.12 3 2.5-1.34 2.5-3 2.5-3-1.12-3-2.5"/></svg></span>
+                                            <span class="sb-row-label">Price:</span>
+                                            <span class="sb-row-value green">FREE</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Same profile mockup with hidden fans revealed from DB -->
+                        <div class="badge-compare-item badge-out" id="badge-hidden">
+                        <div class="profile-mock after-mock">
+                            <div class="profile-mock-header">
+                                <div class="profile-mock-avatar">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </div>
+                                <div>
+                                    <div class="profile-mock-name">Creator
+                                        <svg viewBox="0 0 20 20" width="14" height="14"><circle cx="10" cy="10" r="10" fill="#0a84ff"/><path d="M7 10l2 2 4-4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </div>
+                                    <div class="profile-mock-handle"><span class="at">@</span>creator</div>
+                                </div>
+                            </div>
+                            <div class="profile-mock-body">
+                                <div class="stats-badge-mock">
+                                    <div class="sb-header">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                                        <span>PROFILE STATS</span>
+                                    </div>
+                                    <div class="sb-row">
+                                        <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#f1c40f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>
+                                        <span class="sb-row-label">Fans:</span>
+                                        <span class="sb-row-value db-val">
+                                            <span class="hidden-val">Hidden</span>
+                                            <span style="color:#555; margin: 0 4px;">|</span>
+                                            <span style="color:#888; font-weight:500;">Last:</span>
+                                            <span class="yellow" style="margin-left:4px;">5.6K</span>
+                                            <span style="color:#00b4ff; font-size:10px; margin-left:4px;">02.02.26</span>
+                                        </span>
+                                    </div>
+                                    <div class="sb-row">
+                                        <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="#ff6b9d" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></span>
+                                        <span class="sb-row-label">Likes:</span>
+                                        <span class="sb-row-value pink">14.7K</span>
+                                    </div>
+                                    <div class="sb-row">
+                                        <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                                        <span class="sb-row-label">Joined:</span>
+                                        <span class="sb-row-value blue">Nov 2019</span>
+                                    </div>
+                                    <div class="sb-row">
+                                        <span class="sb-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M15 9.5c0-1.38-1.34-2.5-3-2.5s-3 1.12-3 2.5 1.34 2.5 3 2.5 3 1.12 3 2.5-1.34 2.5-3 2.5-3-1.12-3-2.5"/></svg></span>
+                                        <span class="sb-row-label">Price:</span>
+                                        <span class="sb-row-value green">FREE</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+
+                    <!-- Reveal fans button -->
+                    <div class="reveal-fans-btn" id="reveal-fans-toggle" data-i18n="badge_reveal_btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Show Hidden Fans from Database
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== FAN TRACKING ===== -->
+<section class="fan-tracking" id="fan-tracking">
+    <div class="container">
+        <div class="section-header">
+            <div class="section-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                <span data-i18n="fans_badge">Fan Tracking</span>
+            </div>
+            <h2 class="section-title" data-i18n="fans_title">Fan Database <span>Tracking</span></h2>
+            <p class="section-sub" data-i18n="fans_sub">Automatically save and track fan counts for every model you visit</p>
+        </div>
+        <div class="fan-cards">
+            <div class="fan-card">
+                <div class="fan-card-icon save">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </div>
+                <h3 data-i18n="fans1_title">Auto-Save</h3>
+                <p data-i18n="fans1_desc">Fan count is saved automatically when you visit any model's profile page.</p>
+            </div>
+            <div class="fan-card">
+                <div class="fan-card-icon cloud">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+                </div>
+                <h3 data-i18n="fans2_title">Persistent Storage</h3>
+                <p data-i18n="fans2_desc">All data is stored in cloud database and synced across devices.</p>
+            </div>
+            <div class="fan-card">
+                <div class="fan-card-icon eye">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </div>
+                <h3 data-i18n="fans3_title">Always Visible</h3>
+                <p data-i18n="fans3_desc">Fan counts are always displayed on profile pages, even after page refresh.</p>
+            </div>
+        </div>
+        <div class="fan-bottom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <span data-i18n="fans_bottom">Every time you visit a model's profile, their fan count is automatically saved to the database and will always be displayed &mdash; giving you a complete picture of any creator's audience.</span>
+        </div>
+    </div>
+</section>
+
+<!-- ===== CHART BEFORE/AFTER ===== -->
+<section class="chart-section" id="charts">
+    <div class="container">
+        <div class="section-header">
+            <div class="section-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                <span data-i18n="chart_badge">Chart Editor</span>
+            </div>
+            <h2 class="section-title" data-i18n="chart_title">Earnings Chart <span>Before &amp; After</span></h2>
+            <p class="section-sub" data-i18n="chart_sub">Set any amount and the plugin auto-rebuilds the entire chart to match</p>
+        </div>
+
+        <div class="chart-compare">
+            <!-- BEFORE -->
+            <div class="chart-card">
+                <div class="chart-card-label before">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    <span data-i18n="chart_before">Before</span>
+                </div>
+                <div class="chart-card-amount">
+                    <span id="chart-before-amt">$127.50</span>
+                    <span class="chart-card-gross" id="chart-before-gross">($159.38 Gross)</span>
+                    <span class="chart-card-change" id="chart-before-change">↘ 0.0%</span>
+                </div>
+                <div class="chart-card-period" data-i18n="chart_before_period">Last 30 days &mdash; Default view</div>
+                <div class="chart-canvas-wrap">
+                    <div class="chart-canvas-main"><canvas id="chart-before-main"></canvas></div>
+                    <div class="chart-canvas-aside"><canvas id="chart-before-aside"></canvas></div>
+                </div>
+            </div>
+
+            <!-- AFTER -->
+            <div class="chart-card after-card">
+                <div class="chart-card-label after">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span data-i18n="chart_after">After — Stats Editor</span>
+                </div>
+                <div class="chart-card-amount">
+                    <span id="chart-after-amt">$12,847.00</span>
+                    <span class="chart-card-gross" id="chart-after-gross">($16,058.75 Gross)</span>
+                    <span class="chart-card-change" id="chart-after-change">↘ 0.0%</span>
+                </div>
+                <div class="chart-card-period" data-i18n="chart_after_period">Last 30 days &mdash; Auto-generated chart</div>
+                <div class="chart-canvas-wrap">
+                    <div class="chart-canvas-main"><canvas id="chart-after-main"></canvas></div>
+                    <div class="chart-canvas-aside"><canvas id="chart-after-aside"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-features">
+            <div class="chart-feat">
+                <div class="chart-feat-icon preset">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </div>
+                <div>
+                    <h4 data-i18n="chart_feat1_title">Save Presets</h4>
+                    <p data-i18n="chart_feat1_desc">Save your chart settings as presets and load them instantly. Create multiple scenarios for different purposes.</p>
+                </div>
+            </div>
+            <div class="chart-feat">
+                <div class="chart-feat-icon auto">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>
+                </div>
+                <div>
+                    <h4 data-i18n="chart_feat2_title">Auto Chart Rebuild</h4>
+                    <p data-i18n="chart_feat2_desc">Enter any target amount and the plugin automatically generates a realistic chart that matches your criteria.</p>
+                </div>
+            </div>
+            <div class="chart-feat">
+                <div class="chart-feat-icon amount">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M15 9.5c0-1.38-1.34-2.5-3-2.5s-3 1.12-3 2.5 1.34 2.5 3 2.5 3 1.12 3 2.5-1.34 2.5-3 2.5-3-1.12-3-2.5"/></svg>
+                </div>
+                <div>
+                    <h4 data-i18n="chart_feat3_title">Any Amount</h4>
+                    <p data-i18n="chart_feat3_desc">Set absolutely any earnings amount — from $100 to $100,000+. The chart adapts to display it naturally.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== CUSTOM GROSS VALUE ===== -->
+<section class="gross-section" id="gross">
+    <div class="container">
+        <div class="section-header">
+            <div class="section-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M15 9.5c0-1.38-1.34-2.5-3-2.5s-3 1.12-3 2.5 1.34 2.5 3 2.5 3 1.12 3 2.5-1.34 2.5-3 2.5-3-1.12-3-2.5"/></svg>
+                <span data-i18n="gross_badge">Gross Editor</span>
+            </div>
+            <h2 class="section-title" data-i18n="gross_title">Custom Gross <span>All Time</span></h2>
+            <p class="section-sub" data-i18n="gross_sub">Set any Gross amount and the plugin recalculates everything automatically</p>
+        </div>
+
+        <div class="gross-inner">
+            <div class="gross-mockup">
+                <div class="gross-modal">
+                    <div class="gross-modal-title" data-i18n="gross_modal_title">Set Custom Gross Value</div>
+                    <div class="gross-modal-desc" data-i18n="gross_modal_desc">Enter the Gross amount. Net and all months will be calculated automatically.</div>
+                    <div class="gross-modal-input">
+                        <span>$</span>
+                        <span class="gross-value" id="gross-demo-value">25,000.00</span>
+                    </div>
+                    <div class="gross-modal-buttons">
+                        <div class="gross-btn-cancel" data-i18n="gross_btn_cancel">Cancel</div>
+                        <div class="gross-btn-apply" data-i18n="gross_btn_apply">Apply</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="gross-content">
+                <h3 data-i18n="gross_heading">One Number — <span>Full Control</span></h3>
+                <p data-i18n="gross_desc">The All Time Earnings chart on OnlyFans shows your total income since day one. With the Gross Editor, you simply enter your desired Gross amount and the plugin handles the rest — calculating the Net value (after platform fees) and distributing earnings naturally across all months to create a realistic-looking history.</p>
+                <div class="gross-features">
+                    <div class="gross-feat">
+                        <div class="gross-feat-icon calc">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+                        </div>
+                        <div>
+                            <h4 data-i18n="gross_feat1_title">Auto Net Calculation</h4>
+                            <p data-i18n="gross_feat1_desc">Enter Gross — Net is calculated automatically based on the OnlyFans commission rate (20%).</p>
+                        </div>
+                    </div>
+                    <div class="gross-feat">
+                        <div class="gross-feat-icon months">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        </div>
+                        <div>
+                            <h4 data-i18n="gross_feat2_title">Monthly Distribution</h4>
+                            <p data-i18n="gross_feat2_desc">The total amount is distributed across all months of your account history with natural variation — no two months are the same.</p>
+                        </div>
+                    </div>
+                    <div class="gross-feat">
+                        <div class="gross-feat-icon alltime">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                        </div>
+                        <div>
+                            <h4 data-i18n="gross_feat3_title">All Time Chart</h4>
+                            <p data-i18n="gross_feat3_desc">The All Time earnings chart rebuilds completely — each month shows a realistic bar that matches the total you set.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section class="how-it-works" id="how-it-works">
+    <div class="container">
+        <div class="section-header">
+            <div class="section-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+                <span data-i18n="how_badge">How it Works</span>
+            </div>
+            <h2 class="section-title" data-i18n="how_title">Get Started in <span>3 Steps</span></h2>
+        </div>
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3 data-i18n="step1_title">Install Extension</h3>
+                <p data-i18n="step1_desc">Add Stats Editor to Chrome from the Web Store. It's free and takes seconds.</p>
+            </div>
+            <div class="step-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3 data-i18n="step2_title">Open Statistics Page</h3>
+                <p data-i18n="step2_desc">Navigate to your OnlyFans statistics or profile page as usual.</p>
+            </div>
+            <div class="step-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3 data-i18n="step3_title">Preview &amp; Screenshot</h3>
+                <p data-i18n="step3_desc">Click the extension icon, set your values, and take screenshots instantly.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== DISCLAIMER ===== -->
+<div class="disclaimer">
+    <div class="container">
+        <div class="disclaimer-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span data-i18n="disc">Visual preview only &mdash; does NOT change real data. All changes reset when the extension is disabled.</span>
+        </div>
+    </div>
+</div>
+
+<!-- ===== FAQ ===== -->
+<section class="faq-section" id="faq">
+    <div class="container">
+        <div class="section-header">
+            <div class="section-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span data-i18n="faq_badge">FAQ</span>
+            </div>
+            <h2 class="section-title" data-i18n="faq_title">Frequently Asked <span>Questions</span></h2>
+            <p class="section-sub" data-i18n="faq_sub">Everything you need to know about Stats Editor</p>
+        </div>
+        <div class="faq-list">
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q1">Is Stats Editor safe to use?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a1">Yes, completely safe. Stats Editor only changes the visual appearance of the page in your browser. It does NOT modify any real data on OnlyFans servers. All changes are temporary and reset when you reload the page or disable the extension.</div></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q2">Can OnlyFans detect the extension?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a2">The extension operates purely on the client side, modifying only the visual DOM in your browser. No requests are sent to OnlyFans, and no server-side data is altered. It works like any other browser extension that modifies page appearance.</div></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q3">Is the extension free?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a3">The extension is free to install and try. Upon registration you get 7 days free to test all features. To continue using all features like statistics editing, chart customization, and fan graph editing, you can choose between our Plus ($30/mo) or Pro ($50/mo) plan.</div></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q4">How do I pay?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a4">We accept cryptocurrency payments (USDT) for maximum privacy and security. Simply choose your plan inside the extension, and you'll be guided through a quick and easy payment process. No personal data required.</div></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q5">What browsers are supported?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a5">Stats Editor works on all Chromium-based browsers: Google Chrome, Microsoft Edge, Brave, Opera, and others that support Chrome extensions from the Web Store.</div></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q6">Can I cancel anytime?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a6">Yes! There are no long-term contracts. Your subscription is active for the paid period, and you can choose not to renew at any time. No questions asked.</div></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q7">What exactly can I edit?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a7">You can edit the stats badge (subscribers, likes, etc.), earnings charts and graphs, gross value, fan database numbers, and more. All changes are visual only and appear exclusively in your browser.</div></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question">
+                    <span data-i18n="faq_q8">Can I use it on multiple accounts?</span>
+                    <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer"><div class="faq-answer-inner" data-i18n="faq_a8">Yes! The Plus plan supports up to 10 models, while the Pro plan supports up to 50. You can switch between accounts seamlessly and apply different presets to each one.</div></div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="cta">
+    <div class="container">
+        <h2 data-i18n="cta_title">Ready to <span>Preview</span> Your Stats?</h2>
+        <p data-i18n="cta_sub">Install Stats Editor and create stunning mockups in seconds.</p>
+        <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="cta_btn">Install Free &mdash; Chrome Web Store</span>
+        </a>
+    </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+    <div class="container">
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7L12 12L22 7L12 2Z"/><path d="M2 17L12 22L22 17"/><path d="M2 12L12 17L22 12"/></svg>
+                <span data-i18n="footer_copy">&copy; 2026 Stats Editor. All rights reserved.</span>
+            </div>
+            <div class="footer-links">
+                <a href="privacy-policy.html" data-i18n="footer_privacy">Privacy Policy</a>
+                <a href="terms-of-service.html" data-i18n="footer_terms">Terms of Service</a>
+            </div>
+            <div class="footer-contacts">
+                <a href="mailto:support@ofstats.pro" class="footer-contact-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4l-10 8L2 4"/></svg>
+                    support@ofstats.pro
+                </a>
+                <a href="https://t.me/kiiiitttt2812" target="_blank" class="footer-contact-link">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0h-.056zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                    Telegram
+                </a>
+            </div>
+        </div>
+    </div>
+</footer>
+
+</div>
+
+<!-- Scroll to top button -->
+<button class="scroll-top" id="scrollTopBtn" aria-label="Scroll to top">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+
+<!-- ===== Chart.js CDN ===== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+<!-- ===== i18n + ANIMATIONS ===== -->
+<script>
+const T = {
+    en: {
+        nav_features: 'Features',
+        nav_stats: 'Stats Badge',
+        nav_charts: 'Charts',
+        nav_how: 'How it Works',
+        nav_privacy: 'Privacy',
+        nav_terms: 'Terms',
+        nav_install: 'Install Extension',
+        hero_badge: 'Chrome Extension \u2014 Free to Use',
+        hero_title: 'Preview Your<br>Statistics <span>Instantly</span>',
+        hero_sub: 'Visual editor for OnlyFans statistics.<br>Create stunning mockups for screenshots & presentations.',
+        hero_btn_install: 'Install Free Extension',
+        hero_btn_learn: 'Learn More',
+        tc_title: 'Take Control<br>Over Your <span>Stats</span>',
+        tc_sub: 'Professional tools for creators who think bigger. Manage all aspects of your statistics display with a single click.',
+        tc_check1: 'Manage balances with ease.',
+        tc_check2: 'Customize your followers stats',
+        tc_check3: 'Apply changes safely and securely.',
+        tc_check4: 'Save & load unlimited presets',
+        tc_check5: 'Edit earnings, pending & complete',
+        tc_check6: 'Quick-add buttons for fast edits',
+        tc_stat1_label: 'Editable Fields',
+        tc_stat2_value: '1-Click',
+        tc_stat2_label: 'Apply & Reset',
+        tc_stat3_label: 'Presets',
+        tc_btn: 'Add to Chrome',
+        feat_badge: 'Features',
+        feat_title: 'Everything You <span>Need</span>',
+        feat_sub: 'Powerful tools to visually preview and customize your statistics display',
+        feat1_title: 'Balance Preview',
+        feat1_desc: 'Visually preview your current balance, pending balance, and earnings display with custom values.',
+        feat2_title: 'Fans Count Editor',
+        feat2_desc: 'Customize fans count appearance with quick increment buttons (+100, +300, +500) for instant preview.',
+        feat3_title: 'Profile Stats Badge',
+        feat3_desc: 'Display detailed profile statistics with a floating badge. See fans, likes, join date and price at a glance.',
+        feat4_title: 'Chart Preview',
+        feat4_desc: 'Set any amount and the plugin automatically rebuilds the chart to match your criteria. Save presets for later use.',
+        feat5_title: 'Top Creator Badge',
+        feat5_desc: 'Set custom top creator percentage to see how it would look on your profile page.',
+        feat6_title: '100% Safe & Visual',
+        feat6_desc: 'All changes are purely visual and temporary. Nothing is saved or sent \u2014 resets when the extension is disabled.',
+        stats_badge: 'Profile Stats',
+        stats_title: 'Profile Stats <span>Badge</span>',
+        stats_desc: 'Display detailed profile statistics with a beautiful floating badge. When fans are hidden by the model, stats are pulled from our database so you always see the real count.',
+        stats_feat1: 'Fans count display',
+        stats_feat2: 'Total likes received',
+        stats_feat3: 'Account join date',
+        stats_feat4: 'Subscription price info',
+        badge_reveal_btn: 'Show Hidden Fans from Database',
+        chart_badge: 'Chart Editor',
+        chart_title: 'Earnings Chart <span>Before & After</span>',
+        chart_sub: 'Set any amount and the plugin auto-rebuilds the entire chart to match',
+        chart_before: 'Before',
+        chart_after: 'After \u2014 Stats Editor',
+        chart_before_period: 'Last 30 days \u2014 Default view',
+        chart_after_period: 'Last 30 days \u2014 Auto-generated chart',
+        chart_feat1_title: 'Save Presets',
+        chart_feat1_desc: 'Save your chart settings as presets and load them instantly. Create multiple scenarios for different purposes.',
+        chart_feat2_title: 'Auto Chart Rebuild',
+        chart_feat2_desc: 'Enter any target amount and the plugin automatically generates a realistic chart that matches your criteria.',
+        chart_feat3_title: 'Any Amount',
+        chart_feat3_desc: 'Set absolutely any earnings amount \u2014 from $100 to $100,000+. The chart adapts to display it naturally.',
+        gross_badge: 'Gross Editor',
+        gross_title: 'Custom Gross <span>All Time</span>',
+        gross_sub: 'Set any Gross amount and the plugin recalculates everything automatically',
+        gross_modal_title: 'Set Custom Gross Value',
+        gross_modal_desc: 'Enter the Gross amount. Net and all months will be calculated automatically.',
+        gross_btn_cancel: 'Cancel',
+        gross_btn_apply: 'Apply',
+        gross_heading: 'One Number \u2014 <span>Full Control</span>',
+        gross_desc: 'The All Time Earnings chart on OnlyFans shows your total income since day one. With the Gross Editor, you simply enter your desired Gross amount and the plugin handles the rest \u2014 calculating the Net value (after platform fees) and distributing earnings naturally across all months to create a realistic-looking history.',
+        gross_feat1_title: 'Auto Net Calculation',
+        gross_feat1_desc: 'Enter Gross \u2014 Net is calculated automatically based on the OnlyFans commission rate (20%).',
+        gross_feat2_title: 'Monthly Distribution',
+        gross_feat2_desc: 'The total amount is distributed across all months of your account history with natural variation \u2014 no two months are the same.',
+        gross_feat3_title: 'All Time Chart',
+        gross_feat3_desc: 'The All Time earnings chart rebuilds completely \u2014 each month shows a realistic bar that matches the total you set.',
+        fans_badge: 'Fan Tracking',
+        fans_title: 'Fan Database <span>Tracking</span>',
+        fans_sub: 'Automatically save and track fan counts for every model you visit',
+        fans1_title: 'Auto-Save',
+        fans1_desc: "Fan count is saved automatically when you visit any model's profile page.",
+        fans2_title: 'Persistent Storage',
+        fans2_desc: 'All data is stored in cloud database and synced across devices.',
+        fans3_title: 'Always Visible',
+        fans3_desc: 'Fan counts are always displayed on profile pages, even after page refresh.',
+        fans_bottom: "Every time you visit a model's profile, their fan count is automatically saved to the database and will always be displayed \u2014 giving you a complete picture of any creator's audience.",
+        how_badge: 'How it Works',
+        how_title: 'Get Started in <span>3 Steps</span>',
+        step1_title: 'Install Extension',
+        step1_desc: "Add Stats Editor to Chrome from the Web Store. It's free and takes seconds.",
+        step2_title: 'Open Statistics Page',
+        step2_desc: 'Navigate to your OnlyFans statistics or profile page as usual.',
+        step3_title: 'Preview & Screenshot',
+        step3_desc: 'Click the extension icon, set your values, and take screenshots instantly.',
+        disc: 'Visual preview only \u2014 does NOT change real data. All changes reset when the extension is disabled.',
+        cta_title: 'Ready to <span>Preview</span> Your Stats?',
+        cta_sub: 'Install Stats Editor and create stunning mockups in seconds.',
+        cta_btn: 'Install Free \u2014 Chrome Web Store',
+        footer_copy: '\u00A9 2026 Stats Editor. All rights reserved.',
+        footer_privacy: 'Privacy Policy',
+        footer_terms: 'Terms of Service',
+        faq_badge: 'FAQ',
+        faq_title: 'Frequently Asked <span>Questions</span>',
+        faq_sub: 'Everything you need to know about Stats Editor',
+        faq_q1: 'Is Stats Editor safe to use?',
+        faq_a1: 'Yes, completely safe. Stats Editor only changes the visual appearance of the page in your browser. It does NOT modify any real data on OnlyFans servers. All changes are temporary and reset when you reload the page or disable the extension.',
+        faq_q2: 'Can OnlyFans detect the extension?',
+        faq_a2: 'The extension operates purely on the client side, modifying only the visual DOM in your browser. No requests are sent to OnlyFans, and no server-side data is altered. It works like any other browser extension that modifies page appearance.',
+        faq_q3: 'Is the extension free?',
+        faq_a3: 'The extension is free to install and try. Upon registration you get 7 days free to test all features. To continue using all features like statistics editing, chart customization, and fan graph editing, you can choose between our Plus ($30/mo) or Pro ($50/mo) plan.',
+        faq_q4: 'How do I pay?',
+        faq_a4: 'We accept cryptocurrency payments (USDT) for maximum privacy and security. Simply choose your plan inside the extension, and you\'ll be guided through a quick and easy payment process. No personal data required.',
+        faq_q5: 'What browsers are supported?',
+        faq_a5: 'Stats Editor works on all Chromium-based browsers: Google Chrome, Microsoft Edge, Brave, Opera, and others that support Chrome extensions from the Web Store.',
+        faq_q6: 'Can I cancel anytime?',
+        faq_a6: 'Yes! There are no long-term contracts. Your subscription is active for the paid period, and you can choose not to renew at any time. No questions asked.',
+        faq_q7: 'What exactly can I edit?',
+        faq_a7: 'You can edit the stats badge (subscribers, likes, etc.), earnings charts and graphs, gross value, fan database numbers, and more. All changes are visual only and appear exclusively in your browser.',
+        faq_q8: 'Can I use it on multiple accounts?',
+        faq_a8: 'Yes! The Plus plan supports up to 10 models, while the Pro plan supports up to 50. You can switch between accounts seamlessly and apply different presets to each one.'
+    },
+    ru: {
+        nav_features: '\u0412\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438',
+        nav_stats: '\u0411\u0435\u0439\u0434\u0436 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438',
+        nav_charts: '\u0413\u0440\u0430\u0444\u0438\u043A\u0438',
+        nav_how: '\u041A\u0430\u043A \u044D\u0442\u043E \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442',
+        nav_privacy: '\u041F\u0440\u0438\u0432\u0430\u0442\u043D\u043E\u0441\u0442\u044C',
+        nav_terms: '\u0423\u0441\u043B\u043E\u0432\u0438\u044F',
+        nav_install: '\u0423\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C',
+        hero_badge: '\u0420\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435 Chrome \u2014 \u0411\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E',
+        hero_title: '\u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0432\u0430\u0448\u0435\u0439<br>\u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438 <span>\u041C\u0433\u043D\u043E\u0432\u0435\u043D\u043D\u043E</span>',
+        hero_sub: '\u0412\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u044B\u0439 \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438 OnlyFans.<br>\u0421\u043E\u0437\u0434\u0430\u0432\u0430\u0439\u0442\u0435 \u043A\u0440\u0430\u0441\u0438\u0432\u044B\u0435 \u043F\u0440\u0435\u0432\u044C\u044E \u0434\u043B\u044F \u0441\u043A\u0440\u0438\u043D\u0448\u043E\u0442\u043E\u0432 \u0438 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439.',
+        hero_btn_install: '\u0423\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E',
+        hero_btn_learn: '\u0423\u0437\u043D\u0430\u0442\u044C \u0431\u043E\u043B\u044C\u0448\u0435',
+        tc_title: '\u041F\u043E\u043B\u043D\u044B\u0439 \u043A\u043E\u043D\u0442\u0440\u043E\u043B\u044C<br>\u043D\u0430\u0434 \u0432\u0430\u0448\u0435\u0439 <span>\u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u043E\u0439</span>',
+        tc_sub: '\u041F\u0440\u043E\u0444\u0435\u0441\u0441\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0435 \u0438\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u044B \u0434\u043B\u044F \u043A\u0440\u0438\u0435\u0439\u0442\u043E\u0440\u043E\u0432, \u043A\u043E\u0442\u043E\u0440\u044B\u0435 \u043C\u044B\u0441\u043B\u044F\u0442 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u043D\u043E. \u0423\u043F\u0440\u0430\u0432\u043B\u044F\u0439\u0442\u0435 \u0432\u0441\u0435\u043C\u0438 \u0430\u0441\u043F\u0435\u043A\u0442\u0430\u043C\u0438 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438 \u043E\u0434\u043D\u0438\u043C \u043A\u043B\u0438\u043A\u043E\u043C.',
+        tc_check1: '\u0423\u043F\u0440\u0430\u0432\u043B\u044F\u0439\u0442\u0435 \u0431\u0430\u043B\u0430\u043D\u0441\u0430\u043C\u0438 \u043B\u0435\u0433\u043A\u043E.',
+        tc_check2: '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0443 \u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A\u043E\u0432',
+        tc_check3: '\u041F\u0440\u0438\u043C\u0435\u043D\u044F\u0439\u0442\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E.',
+        tc_check4: '\u0421\u043E\u0445\u0440\u0430\u043D\u044F\u0439\u0442\u0435 \u0438 \u0437\u0430\u0433\u0440\u0443\u0436\u0430\u0439\u0442\u0435 \u043F\u0440\u0435\u0441\u0435\u0442\u044B \u0431\u0435\u0437 \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D\u0438\u0439',
+        tc_check5: '\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u0443\u0439\u0442\u0435 \u0434\u043E\u0445\u043E\u0434\u044B, \u043E\u0436\u0438\u0434\u0430\u0435\u043C\u044B\u0435 \u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435',
+        tc_check6: '\u041A\u043D\u043E\u043F\u043A\u0438 \u0431\u044B\u0441\u0442\u0440\u043E\u0433\u043E \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u044F \u0434\u043B\u044F \u043C\u0433\u043D\u043E\u0432\u0435\u043D\u043D\u044B\u0445 \u043F\u0440\u0430\u0432\u043E\u043A',
+        tc_stat1_label: '\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u0443\u0435\u043C\u044B\u0445 \u043F\u043E\u043B\u0435\u0439',
+        tc_stat2_value: '1 \u043A\u043B\u0438\u043A',
+        tc_stat2_label: '\u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C \u0438 \u0441\u0431\u0440\u043E\u0441',
+        tc_stat3_label: '\u041F\u0440\u0435\u0441\u0435\u0442\u044B',
+        tc_btn: '\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0432 Chrome',
+        feat_badge: '\u0412\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438',
+        feat_title: '\u0412\u0441\u0451 \u0447\u0442\u043E \u0432\u0430\u043C <span>\u043D\u0443\u0436\u043D\u043E</span>',
+        feat_sub: '\u041C\u043E\u0449\u043D\u044B\u0435 \u0438\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u044B \u0434\u043B\u044F \u0432\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430 \u0438 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438',
+        feat1_title: '\u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0431\u0430\u043B\u0430\u043D\u0441\u0430',
+        feat1_desc: '\u0412\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u044B\u0439 \u043F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0442\u0435\u043A\u0443\u0449\u0435\u0433\u043E \u0431\u0430\u043B\u0430\u043D\u0441\u0430, \u043E\u0436\u0438\u0434\u0430\u0435\u043C\u043E\u0433\u043E \u0431\u0430\u043B\u0430\u043D\u0441\u0430 \u0438 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u0434\u043E\u0445\u043E\u0434\u043E\u0432 \u0441 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C\u0441\u043A\u0438\u043C\u0438 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F\u043C\u0438.',
+        feat2_title: '\u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043B-\u0432\u0430 \u0444\u0430\u043D\u043E\u0432',
+        feat2_desc: '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u043A\u043E\u043B-\u0432\u0430 \u0444\u0430\u043D\u043E\u0432 \u0441 \u043A\u043D\u043E\u043F\u043A\u0430\u043C\u0438 \u0431\u044B\u0441\u0442\u0440\u043E\u0433\u043E \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F (+100, +300, +500) \u0434\u043B\u044F \u043C\u0433\u043D\u043E\u0432\u0435\u043D\u043D\u043E\u0433\u043E \u043F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430.',
+        feat3_title: '\u0411\u0435\u0439\u0434\u0436 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438 \u043F\u0440\u043E\u0444\u0438\u043B\u044F',
+        feat3_desc: '\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0439\u0442\u0435 \u0434\u0435\u0442\u0430\u043B\u044C\u043D\u0443\u044E \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0443 \u043F\u0440\u043E\u0444\u0438\u043B\u044F \u0441 \u043F\u043B\u0430\u0432\u0430\u044E\u0449\u0438\u043C \u0431\u0435\u0439\u0434\u0436\u0435\u043C. \u0424\u0430\u043D\u044B, \u043B\u0430\u0439\u043A\u0438, \u0434\u0430\u0442\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u0438 \u0446\u0435\u043D\u0430 \u2014 \u0432\u0441\u0451 \u0432 \u043E\u0434\u043D\u043E\u043C \u043C\u0435\u0441\u0442\u0435.',
+        feat4_title: '\u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432',
+        feat4_desc: '\u0417\u0430\u0434\u0430\u0439\u0442\u0435 \u043B\u044E\u0431\u0443\u044E \u0441\u0443\u043C\u043C\u0443 \u0438 \u043F\u043B\u0430\u0433\u0438\u043D \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043F\u0435\u0440\u0435\u0441\u0442\u0440\u043E\u0438\u0442 \u0433\u0440\u0430\u0444\u0438\u043A \u043F\u043E\u0434 \u0432\u0430\u0448\u0438 \u043A\u0440\u0438\u0442\u0435\u0440\u0438\u0438. \u0421\u043E\u0445\u0440\u0430\u043D\u044F\u0439\u0442\u0435 \u043F\u0440\u0435\u0441\u0435\u0442\u044B.',
+        feat5_title: '\u0411\u0435\u0439\u0434\u0436 Top Creator',
+        feat5_desc: '\u0423\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0435 \u0441\u0432\u043E\u0439 \u043F\u0440\u043E\u0446\u0435\u043D\u0442 Top Creator \u0447\u0442\u043E\u0431\u044B \u0443\u0432\u0438\u0434\u0435\u0442\u044C \u043A\u0430\u043A \u044D\u0442\u043E \u0431\u0443\u0434\u0435\u0442 \u0432\u044B\u0433\u043B\u044F\u0434\u0435\u0442\u044C \u043D\u0430 \u0432\u0430\u0448\u0435\u0439 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435.',
+        feat6_title: '100% \u0411\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E',
+        feat6_desc: '\u0412\u0441\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0447\u0438\u0441\u0442\u043E \u0432\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u044B\u0435 \u0438 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u044B\u0435. \u041D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u044F\u0435\u0442\u0441\u044F \u0438 \u043D\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u2014 \u0441\u0431\u0440\u043E\u0441 \u043F\u0440\u0438 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0438 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F.',
+        stats_badge: '\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0430 \u043F\u0440\u043E\u0444\u0438\u043B\u044F',
+        stats_title: '\u0411\u0435\u0439\u0434\u0436 <span>\u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438</span> \u043F\u0440\u043E\u0444\u0438\u043B\u044F',
+        stats_desc: '\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0439\u0442\u0435 \u0434\u0435\u0442\u0430\u043B\u044C\u043D\u0443\u044E \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0443 \u043F\u0440\u043E\u0444\u0438\u043B\u044F. \u041A\u043E\u0433\u0434\u0430 \u0444\u0430\u043D\u044B \u0441\u043A\u0440\u044B\u0442\u044B \u043C\u043E\u0434\u0435\u043B\u044C\u044E, \u0434\u0430\u043D\u043D\u044B\u0435 \u043F\u043E\u0434\u0442\u044F\u0433\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u0438\u0437 \u043D\u0430\u0448\u0435\u0439 \u0431\u0430\u0437\u044B \u0434\u0430\u043D\u043D\u044B\u0445 \u2014 \u0432\u044B \u0432\u0441\u0435\u0433\u0434\u0430 \u0432\u0438\u0434\u0438\u0442\u0435 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u0435 \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E.',
+        stats_feat1: '\u041A\u043E\u043B-\u0432\u043E \u0444\u0430\u043D\u043E\u0432',
+        stats_feat2: '\u041E\u0431\u0449\u0435\u0435 \u043A\u043E\u043B-\u0432\u043E \u043B\u0430\u0439\u043A\u043E\u0432',
+        stats_feat3: '\u0414\u0430\u0442\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438',
+        stats_feat4: '\u0426\u0435\u043D\u0430 \u043F\u043E\u0434\u043F\u0438\u0441\u043A\u0438',
+        badge_reveal_btn: '\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0441\u043A\u0440\u044B\u0442\u044B\u0445 \u0444\u0430\u043D\u043E\u0432 \u0438\u0437 \u0431\u0430\u0437\u044B \u0434\u0430\u043D\u043D\u044B\u0445',
+        chart_badge: '\u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432',
+        chart_title: '\u0413\u0440\u0430\u0444\u0438\u043A \u0434\u043E\u0445\u043E\u0434\u043E\u0432 <span>\u0414\u043E \u0438 \u041F\u043E\u0441\u043B\u0435</span>',
+        chart_sub: '\u0417\u0430\u0434\u0430\u0439\u0442\u0435 \u043B\u044E\u0431\u0443\u044E \u0441\u0443\u043C\u043C\u0443 \u0438 \u043F\u043B\u0430\u0433\u0438\u043D \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043F\u0435\u0440\u0435\u0441\u0442\u0440\u043E\u0438\u0442 \u0432\u0435\u0441\u044C \u0433\u0440\u0430\u0444\u0438\u043A',
+        chart_before: '\u0414\u043E',
+        chart_after: '\u041F\u043E\u0441\u043B\u0435 \u2014 Stats Editor',
+        chart_before_period: '\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 30 \u0434\u043D\u0435\u0439 \u2014 \u041E\u0431\u044B\u0447\u043D\u044B\u0439 \u0432\u0438\u0434',
+        chart_after_period: '\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 30 \u0434\u043D\u0435\u0439 \u2014 \u0410\u0432\u0442\u043E-\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u0433\u0440\u0430\u0444\u0438\u043A\u0430',
+        chart_feat1_title: '\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u043F\u0440\u0435\u0441\u0435\u0442\u043E\u0432',
+        chart_feat1_desc: '\u0421\u043E\u0445\u0440\u0430\u043D\u044F\u0439\u0442\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432 \u043A\u0430\u043A \u043F\u0440\u0435\u0441\u0435\u0442\u044B \u0438 \u0437\u0430\u0433\u0440\u0443\u0436\u0430\u0439\u0442\u0435 \u0438\u0445 \u043C\u0433\u043D\u043E\u0432\u0435\u043D\u043D\u043E. \u0421\u043E\u0437\u0434\u0430\u0432\u0430\u0439\u0442\u0435 \u0440\u0430\u0437\u043D\u044B\u0435 \u0441\u0446\u0435\u043D\u0430\u0440\u0438\u0438 \u0434\u043B\u044F \u0440\u0430\u0437\u043D\u044B\u0445 \u0446\u0435\u043B\u0435\u0439.',
+        chart_feat2_title: '\u0410\u0432\u0442\u043E-\u043F\u0435\u0440\u0435\u0441\u0442\u0440\u043E\u0435\u043D\u0438\u0435 \u0433\u0440\u0430\u0444\u0438\u043A\u0430',
+        chart_feat2_desc: '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043B\u044E\u0431\u0443\u044E \u0446\u0435\u043B\u0435\u0432\u0443\u044E \u0441\u0443\u043C\u043C\u0443 \u0438 \u043F\u043B\u0430\u0433\u0438\u043D \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u0443\u0435\u0442 \u0440\u0435\u0430\u043B\u0438\u0441\u0442\u0438\u0447\u043D\u044B\u0439 \u0433\u0440\u0430\u0444\u0438\u043A \u043F\u043E\u0434 \u0432\u0430\u0448\u0438 \u043A\u0440\u0438\u0442\u0435\u0440\u0438\u0438.',
+        chart_feat3_title: '\u041B\u044E\u0431\u0430\u044F \u0441\u0443\u043C\u043C\u0430',
+        chart_feat3_desc: '\u0417\u0430\u0434\u0430\u0439\u0442\u0435 \u0430\u0431\u0441\u043E\u043B\u044E\u0442\u043D\u043E \u043B\u044E\u0431\u0443\u044E \u0441\u0443\u043C\u043C\u0443 \u0434\u043E\u0445\u043E\u0434\u043E\u0432 \u2014 \u043E\u0442 $100 \u0434\u043E $100,000+. \u0413\u0440\u0430\u0444\u0438\u043A \u0430\u0434\u0430\u043F\u0442\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u0434\u043B\u044F \u0435\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0433\u043E \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F.',
+        gross_badge: '\u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 Gross',
+        gross_title: '\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C\u0441\u043A\u0438\u0439 Gross <span>All Time</span>',
+        gross_sub: '\u0417\u0430\u0434\u0430\u0439\u0442\u0435 \u043B\u044E\u0431\u0443\u044E \u0441\u0443\u043C\u043C\u0443 Gross \u0438 \u043F\u043B\u0430\u0433\u0438\u043D \u043F\u0435\u0440\u0435\u0441\u0447\u0438\u0442\u0430\u0435\u0442 \u0432\u0441\u0451 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438',
+        gross_modal_title: '\u0423\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C Gross',
+        gross_modal_desc: '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043C\u043C\u0443 Gross. Net \u0438 \u0432\u0441\u0435 \u043C\u0435\u0441\u044F\u0446\u044B \u0431\u0443\u0434\u0443\u0442 \u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u043D\u044B \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438.',
+        gross_btn_cancel: '\u041E\u0442\u043C\u0435\u043D\u0430',
+        gross_btn_apply: '\u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C',
+        gross_heading: '\u041E\u0434\u043D\u043E \u0447\u0438\u0441\u043B\u043E \u2014 <span>\u043F\u043E\u043B\u043D\u044B\u0439 \u043A\u043E\u043D\u0442\u0440\u043E\u043B\u044C</span>',
+        gross_desc: '\u0413\u0440\u0430\u0444\u0438\u043A All Time Earnings \u043D\u0430 OnlyFans \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 \u043E\u0431\u0449\u0438\u0439 \u0434\u043E\u0445\u043E\u0434 \u0441 \u043C\u043E\u043C\u0435\u043D\u0442\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438. \u0421 \u043F\u043E\u043C\u043E\u0449\u044C\u044E Gross Editor \u0432\u044B \u043F\u0440\u043E\u0441\u0442\u043E \u0432\u0432\u043E\u0434\u0438\u0442\u0435 \u0436\u0435\u043B\u0430\u0435\u043C\u0443\u044E \u0441\u0443\u043C\u043C\u0443 Gross, \u0430 \u043F\u043B\u0430\u0433\u0438\u043D \u0441\u0430\u043C \u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0435\u0442 Net (\u0437\u0430 \u0432\u044B\u0447\u0435\u0442\u043E\u043C \u043A\u043E\u043C\u0438\u0441\u0441\u0438\u0438) \u0438 \u0435\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u043E \u0440\u0430\u0441\u043F\u0440\u0435\u0434\u0435\u043B\u0438\u0442 \u0434\u043E\u0445\u043E\u0434 \u043F\u043E \u0432\u0441\u0435\u043C \u043C\u0435\u0441\u044F\u0446\u0430\u043C \u0434\u043B\u044F \u0440\u0435\u0430\u043B\u0438\u0441\u0442\u0438\u0447\u043D\u043E\u0439 \u0438\u0441\u0442\u043E\u0440\u0438\u0438.',
+        gross_feat1_title: '\u0410\u0432\u0442\u043E-\u0440\u0430\u0441\u0447\u0451\u0442 Net',
+        gross_feat1_desc: '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 Gross \u2014 Net \u0440\u0430\u0441\u0441\u0447\u0438\u0442\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043D\u0430 \u043E\u0441\u043D\u043E\u0432\u0435 \u043A\u043E\u043C\u0438\u0441\u0441\u0438\u0438 OnlyFans (20%).',
+        gross_feat2_title: '\u0420\u0430\u0441\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C',
+        gross_feat2_desc: '\u041E\u0431\u0449\u0430\u044F \u0441\u0443\u043C\u043C\u0430 \u0440\u0430\u0441\u043F\u0440\u0435\u0434\u0435\u043B\u044F\u0435\u0442\u0441\u044F \u043F\u043E \u0432\u0441\u0435\u043C \u043C\u0435\u0441\u044F\u0446\u0430\u043C \u0438\u0441\u0442\u043E\u0440\u0438\u0438 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 \u0441 \u0435\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0439 \u0432\u0430\u0440\u0438\u0430\u0446\u0438\u0435\u0439 \u2014 \u043D\u0435\u0442 \u0434\u0432\u0443\u0445 \u043E\u0434\u0438\u043D\u0430\u043A\u043E\u0432\u044B\u0445 \u043C\u0435\u0441\u044F\u0446\u0435\u0432.',
+        gross_feat3_title: '\u0413\u0440\u0430\u0444\u0438\u043A All Time',
+        gross_feat3_desc: '\u0413\u0440\u0430\u0444\u0438\u043A All Time \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E \u043F\u0435\u0440\u0435\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u2014 \u043A\u0430\u0436\u0434\u044B\u0439 \u043C\u0435\u0441\u044F\u0446 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 \u0440\u0435\u0430\u043B\u0438\u0441\u0442\u0438\u0447\u043D\u044B\u0439 \u0441\u0442\u043E\u043B\u0431\u0438\u043A, \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u0437\u0430\u0434\u0430\u043D\u043D\u043E\u0439 \u0441\u0443\u043C\u043C\u0435.',
+        fans_badge: '\u041E\u0442\u0441\u043B\u0435\u0436\u0438\u0432\u0430\u043D\u0438\u0435 \u0444\u0430\u043D\u043E\u0432',
+        fans_title: '\u0411\u0430\u0437\u0430 \u0434\u0430\u043D\u043D\u044B\u0445 <span>\u0444\u0430\u043D\u043E\u0432</span>',
+        fans_sub: '\u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u043E\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0438 \u043E\u0442\u0441\u043B\u0435\u0436\u0438\u0432\u0430\u043D\u0438\u0435 \u043A\u043E\u043B-\u0432\u0430 \u0444\u0430\u043D\u043E\u0432 \u043A\u0430\u0436\u0434\u043E\u0439 \u043F\u043E\u0441\u0435\u0449\u0451\u043D\u043D\u043E\u0439 \u043C\u043E\u0434\u0435\u043B\u0438',
+        fans1_title: '\u0410\u0432\u0442\u043E-\u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435',
+        fans1_desc: '\u041A\u043E\u043B-\u0432\u043E \u0444\u0430\u043D\u043E\u0432 \u0441\u043E\u0445\u0440\u0430\u043D\u044F\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043F\u0440\u0438 \u043F\u043E\u0441\u0435\u0449\u0435\u043D\u0438\u0438 \u043F\u0440\u043E\u0444\u0438\u043B\u044F \u043B\u044E\u0431\u043E\u0439 \u043C\u043E\u0434\u0435\u043B\u0438.',
+        fans2_title: '\u041F\u043E\u0441\u0442\u043E\u044F\u043D\u043D\u043E\u0435 \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435',
+        fans2_desc: '\u0412\u0441\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0445\u0440\u0430\u043D\u044F\u0442\u0441\u044F \u0432 \u043E\u0431\u043B\u0430\u0447\u043D\u043E\u0439 \u0431\u0430\u0437\u0435 \u0434\u0430\u043D\u043D\u044B\u0445 \u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u043C\u0435\u0436\u0434\u0443 \u0443\u0441\u0442\u0440\u043E\u0439\u0441\u0442\u0432\u0430\u043C\u0438.',
+        fans3_title: '\u0412\u0441\u0435\u0433\u0434\u0430 \u0432\u0438\u0434\u043D\u043E',
+        fans3_desc: '\u041A\u043E\u043B-\u0432\u043E \u0444\u0430\u043D\u043E\u0432 \u0432\u0441\u0435\u0433\u0434\u0430 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0435\u0442\u0441\u044F \u043D\u0430 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445 \u043F\u0440\u043E\u0444\u0438\u043B\u0435\u0439, \u0434\u0430\u0436\u0435 \u043F\u043E\u0441\u043B\u0435 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B.',
+        fans_bottom: '\u041A\u0430\u0436\u0434\u044B\u0439 \u0440\u0430\u0437 \u043A\u043E\u0433\u0434\u0430 \u0432\u044B \u043F\u043E\u0441\u0435\u0449\u0430\u0435\u0442\u0435 \u043F\u0440\u043E\u0444\u0438\u043B\u044C \u043C\u043E\u0434\u0435\u043B\u0438, \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0435\u0451 \u0444\u0430\u043D\u043E\u0432 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u044F\u0435\u0442\u0441\u044F \u0432 \u0431\u0430\u0437\u0443 \u0434\u0430\u043D\u043D\u044B\u0445 \u0438 \u0432\u0441\u0435\u0433\u0434\u0430 \u0431\u0443\u0434\u0435\u0442 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0442\u044C\u0441\u044F \u2014 \u0434\u0430\u0432\u0430\u044F \u0432\u0430\u043C \u043F\u043E\u043B\u043D\u0443\u044E \u043A\u0430\u0440\u0442\u0438\u043D\u0443 \u0430\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u0438 \u043B\u044E\u0431\u043E\u0433\u043E \u0441\u043E\u0437\u0434\u0430\u0442\u0435\u043B\u044F.',
+        how_badge: '\u041A\u0430\u043A \u044D\u0442\u043E \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442',
+        how_title: '\u041D\u0430\u0447\u043D\u0438\u0442\u0435 \u0437\u0430 <span>3 \u0448\u0430\u0433\u0430</span>',
+        step1_title: '\u0423\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0435 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435',
+        step1_desc: '\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 Stats Editor \u0432 Chrome \u0438\u0437 Web Store. \u0411\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E \u0438 \u0437\u0430\u0439\u043C\u0451\u0442 \u0441\u0435\u043A\u0443\u043D\u0434\u044B.',
+        step2_title: '\u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0443',
+        step2_desc: '\u041F\u0435\u0440\u0435\u0439\u0434\u0438\u0442\u0435 \u043D\u0430 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0443 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438 \u0438\u043B\u0438 \u043F\u0440\u043E\u0444\u0438\u043B\u044F OnlyFans \u043A\u0430\u043A \u043E\u0431\u044B\u0447\u043D\u043E.',
+        step3_title: '\u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0438 \u0441\u043A\u0440\u0438\u043D\u0448\u043E\u0442',
+        step3_desc: '\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u0438\u043A\u043E\u043D\u043A\u0443 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F, \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F \u0438 \u043C\u0433\u043D\u043E\u0432\u0435\u043D\u043D\u043E \u0441\u0434\u0435\u043B\u0430\u0439\u0442\u0435 \u0441\u043A\u0440\u0438\u043D\u0448\u043E\u0442.',
+        disc: '\u0422\u043E\u043B\u044C\u043A\u043E \u0432\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u044B\u0439 \u043F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u2014 \u0440\u0435\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u041D\u0415 \u0438\u0437\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F. \u0412\u0441\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0441\u0431\u0440\u0430\u0441\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u043F\u0440\u0438 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0438 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F.',
+        cta_title: '\u0413\u043E\u0442\u043E\u0432\u044B <span>\u0443\u0432\u0438\u0434\u0435\u0442\u044C</span> \u0432\u0430\u0448\u0443 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0443?',
+        cta_sub: '\u0423\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0435 Stats Editor \u0438 \u0441\u043E\u0437\u0434\u0430\u0432\u0430\u0439\u0442\u0435 \u043A\u0440\u0430\u0441\u0438\u0432\u044B\u0435 \u043F\u0440\u0435\u0432\u044C\u044E \u0437\u0430 \u0441\u0435\u043A\u0443\u043D\u0434\u044B.',
+        cta_btn: '\u0423\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E \u2014 Chrome Web Store',
+        footer_copy: '\u00A9 2026 Stats Editor. \u0412\u0441\u0435 \u043F\u0440\u0430\u0432\u0430 \u0437\u0430\u0449\u0438\u0449\u0435\u043D\u044B.',
+        footer_privacy: '\u041F\u043E\u043B\u0438\u0442\u0438\u043A\u0430 \u043A\u043E\u043D\u0444\u0438\u0434\u0435\u043D\u0446\u0438\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u0438',
+        footer_terms: '\u0423\u0441\u043B\u043E\u0432\u0438\u044F \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043D\u0438\u044F',
+        faq_badge: '\u0412\u043E\u043F\u0440\u043E\u0441\u044B',
+        faq_title: '\u0427\u0430\u0441\u0442\u043E \u0437\u0430\u0434\u0430\u0432\u0430\u0435\u043C\u044B\u0435 <span>\u0432\u043E\u043F\u0440\u043E\u0441\u044B</span>',
+        faq_sub: '\u0412\u0441\u0451 \u0447\u0442\u043E \u043D\u0443\u0436\u043D\u043E \u0437\u043D\u0430\u0442\u044C \u043E Stats Editor',
+        faq_q1: '\u0411\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E \u043B\u0438 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C Stats Editor?',
+        faq_a1: '\u0414\u0430, \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E. Stats Editor \u043C\u0435\u043D\u044F\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0432\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u043E\u0435 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B \u0432 \u0432\u0430\u0448\u0435\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435. \u041D\u0438\u043A\u0430\u043A\u0438\u0435 \u0440\u0435\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u043D\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430\u0445 OnlyFans \u041D\u0415 \u0438\u0437\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F. \u0412\u0441\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u044B\u0435 \u0438 \u0441\u0431\u0440\u0430\u0441\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u043F\u0440\u0438 \u043F\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0435.',
+        faq_q2: '\u041C\u043E\u0436\u0435\u0442 \u043B\u0438 OnlyFans \u043E\u0431\u043D\u0430\u0440\u0443\u0436\u0438\u0442\u044C \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435?',
+        faq_a2: '\u0420\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0438\u0441\u043A\u043B\u044E\u0447\u0438\u0442\u0435\u043B\u044C\u043D\u043E \u043D\u0430 \u0441\u0442\u043E\u0440\u043E\u043D\u0435 \u043A\u043B\u0438\u0435\u043D\u0442\u0430, \u0438\u0437\u043C\u0435\u043D\u044F\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0432\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u044B\u0439 DOM \u0432 \u0432\u0430\u0448\u0435\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435. \u041D\u0438\u043A\u0430\u043A\u0438\u0445 \u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432 \u043D\u0430 OnlyFans \u043D\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F, \u0441\u0435\u0440\u0432\u0435\u0440\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u043D\u0435 \u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F.',
+        faq_q3: '\u0420\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435 \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E\u0435?',
+        faq_a3: '\u0420\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435 \u043C\u043E\u0436\u043D\u043E \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u0438 \u043F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E. \u041F\u0440\u0438 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E 7 \u0434\u043D\u0435\u0439 \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E \u0434\u043B\u044F \u0442\u0435\u0441\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F \u0432\u0441\u0435\u0445 \u0444\u0443\u043D\u043A\u0446\u0438\u0439. \u0414\u043B\u044F \u0434\u0430\u043B\u044C\u043D\u0435\u0439\u0448\u0435\u0433\u043E \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043D\u0438\u044F \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u043F\u043B\u0430\u043D\u044B Plus ($30/\u043C\u0435\u0441) \u0438\u043B\u0438 Pro ($50/\u043C\u0435\u0441).',
+        faq_q4: '\u041A\u0430\u043A \u043E\u043F\u043B\u0430\u0442\u0438\u0442\u044C?',
+        faq_a4: '\u041C\u044B \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u043C \u043E\u043F\u043B\u0430\u0442\u0443 \u043A\u0440\u0438\u043F\u0442\u043E\u0432\u0430\u043B\u044E\u0442\u043E\u0439 (USDT) \u0434\u043B\u044F \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0439 \u043A\u043E\u043D\u0444\u0438\u0434\u0435\u043D\u0446\u0438\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u0438 \u0438 \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E\u0441\u0442\u0438. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u043B\u0430\u043D \u0432\u043D\u0443\u0442\u0440\u0438 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F \u0438 \u0441\u043B\u0435\u0434\u0443\u0439\u0442\u0435 \u043F\u0440\u043E\u0441\u0442\u043E\u0439 \u0438\u043D\u0441\u0442\u0440\u0443\u043A\u0446\u0438\u0438. \u041B\u0438\u0447\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u043D\u0435 \u0442\u0440\u0435\u0431\u0443\u044E\u0442\u0441\u044F.',
+        faq_q5: '\u041A\u0430\u043A\u0438\u0435 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u044B \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u044E\u0442\u0441\u044F?',
+        faq_a5: 'Stats Editor \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0432\u043E \u0432\u0441\u0435\u0445 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430\u0445 \u043D\u0430 \u0431\u0430\u0437\u0435 Chromium: Google Chrome, Microsoft Edge, Brave, Opera \u0438 \u0434\u0440\u0443\u0433\u0438\u0445, \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u044E\u0449\u0438\u0445 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F \u0438\u0437 Web Store.',
+        faq_q6: '\u041C\u043E\u0436\u043D\u043E \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u044C \u0432 \u043B\u044E\u0431\u043E\u0435 \u0432\u0440\u0435\u043C\u044F?',
+        faq_a6: '\u0414\u0430! \u041D\u0438\u043A\u0430\u043A\u0438\u0445 \u0434\u043E\u043B\u0433\u043E\u0441\u0440\u043E\u0447\u043D\u044B\u0445 \u043A\u043E\u043D\u0442\u0440\u0430\u043A\u0442\u043E\u0432. \u041F\u043E\u0434\u043F\u0438\u0441\u043A\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u0430 \u043D\u0430 \u043E\u043F\u043B\u0430\u0447\u0435\u043D\u043D\u044B\u0439 \u043F\u0435\u0440\u0438\u043E\u0434, \u0432\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u043D\u0435 \u043F\u0440\u043E\u0434\u043B\u0435\u0432\u0430\u0442\u044C \u0435\u0451 \u0432 \u043B\u044E\u0431\u043E\u0439 \u043C\u043E\u043C\u0435\u043D\u0442. \u0411\u0435\u0437 \u0432\u043E\u043F\u0440\u043E\u0441\u043E\u0432.',
+        faq_q7: '\u0427\u0442\u043E \u0438\u043C\u0435\u043D\u043D\u043E \u043C\u043E\u0436\u043D\u043E \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C?',
+        faq_a7: '\u0412\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0431\u0435\u0439\u0434\u0436 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438 (\u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A\u0438, \u043B\u0430\u0439\u043A\u0438 \u0438 \u0442.\u0434.), \u0433\u0440\u0430\u0444\u0438\u043A\u0438 \u0434\u043E\u0445\u043E\u0434\u043E\u0432, \u0433\u0440\u043E\u0441\u0441-\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F, \u0447\u0438\u0441\u043B\u0430 \u0431\u0430\u0437\u044B \u0444\u0430\u043D\u043E\u0432 \u0438 \u043C\u043D\u043E\u0433\u043E\u0435 \u0434\u0440\u0443\u0433\u043E\u0435. \u0412\u0441\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0432\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u044B\u0435 \u0438 \u0432\u0438\u0434\u043D\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u0432 \u0432\u0430\u0448\u0435\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.',
+        faq_q8: '\u041C\u043E\u0436\u043D\u043E \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C \u043D\u0430 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u0438\u0445 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430\u0445?',
+        faq_a8: '\u0414\u0430! \u041F\u043B\u0430\u043D Plus \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u0434\u043E 10 \u043C\u043E\u0434\u0435\u043B\u0435\u0439, \u0430 Pro \u2014 \u0434\u043E 50. \u0412\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0430\u0442\u044C\u0441\u044F \u043C\u0435\u0436\u0434\u0443 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430\u043C\u0438 \u0438 \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u0442\u044C \u0440\u0430\u0437\u043D\u044B\u0435 \u043F\u0440\u0435\u0441\u0435\u0442\u044B \u043A \u043A\u0430\u0436\u0434\u043E\u043C\u0443.'
+    }
+};
+
+let currentLang = localStorage.getItem('ofstats_lang') || 'en';
+
+function setLang(lang) {
+    currentLang = lang;
+    document.documentElement.setAttribute('data-lang', lang);
+    document.documentElement.lang = lang;
+    const t = T[lang];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t[key] !== undefined) el.innerHTML = t[key];
+    });
+    document.querySelector('.lang-label').textContent = lang === 'en' ? 'RU' : 'EN';
+    localStorage.setItem('ofstats_lang', lang);
+}
+
+function toggleLang() {
+    setLang(currentLang === 'en' ? 'ru' : 'en');
+}
+
+// Init language
+setLang(currentLang);
+
+// Toggle badge reveal with animation
+const revealBtn = document.getElementById('reveal-fans-toggle');
+const badgeNormal = document.getElementById('badge-normal');
+const badgeHidden = document.getElementById('badge-hidden');
+let badgeRevealed = false;
+if (revealBtn) {
+    revealBtn.addEventListener('click', () => {
+        badgeRevealed = !badgeRevealed;
+        if (badgeRevealed) {
+            badgeNormal.classList.remove('badge-active');
+            badgeNormal.classList.add('badge-out');
+            badgeHidden.classList.remove('badge-out');
+            badgeHidden.classList.add('badge-active');
+        } else {
+            badgeHidden.classList.remove('badge-active');
+            badgeHidden.classList.add('badge-out');
+            badgeNormal.classList.remove('badge-out');
+            badgeNormal.classList.add('badge-active');
+        }
+    });
+}
+
+// Scroll animations - enhanced reveal system
+const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+        if (e.isIntersecting) {
+            e.target.classList.add('active');
+            // Stagger children if they have data-stagger
+            if (e.target.hasAttribute('data-stagger')) {
+                const children = e.target.querySelectorAll('.reveal');
+                children.forEach((child, i) => {
+                    child.style.transitionDelay = (i * 0.12) + 's';
+                    requestAnimationFrame(() => child.classList.add('active'));
+                });
+            }
+        }
+    });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+// Apply reveal classes with different directions
+function setupReveal(selector, direction, staggerDelay) {
+    document.querySelectorAll(selector).forEach((el, i) => {
+        el.classList.add('reveal');
+        if (direction) el.classList.add(direction);
+        if (staggerDelay) el.classList.add('reveal-delay-' + Math.min(i + 1, 6));
+        revealObserver.observe(el);
+    });
+}
+
+// Section headers - fade up
+document.querySelectorAll('.section-header').forEach(el => {
+    el.classList.add('reveal');
+    revealObserver.observe(el);
+});
+
+// tc-inner: left text slides from left, right visual from right
+document.querySelectorAll('.tc-text').forEach(el => {
+    el.classList.add('reveal', 'from-left');
+    revealObserver.observe(el);
+});
+document.querySelectorAll('.tc-visual').forEach(el => {
+    el.classList.add('reveal', 'from-right');
+    revealObserver.observe(el);
+});
+
+// Feature cards - staggered
+setupReveal('.feature-card', 'from-bottom', true);
+
+// Showcase: text left, visual right
+document.querySelectorAll('.showcase-text').forEach(el => {
+    el.classList.add('reveal', 'from-left');
+    revealObserver.observe(el);
+});
+document.querySelectorAll('.showcase-visual').forEach(el => {
+    el.classList.add('reveal', 'from-right');
+    revealObserver.observe(el);
+});
+
+// Badge compare - scale
+setupReveal('.badge-compare', 'from-scale', false);
+
+// Fan cards - staggered
+setupReveal('.fan-card', 'from-bottom', true);
+setupReveal('.fan-bottom', '', false);
+
+// Chart cards - left/right
+document.querySelectorAll('.chart-card').forEach((el, i) => {
+    el.classList.add('reveal', i === 0 ? 'from-left' : 'from-right');
+    revealObserver.observe(el);
+});
+setupReveal('.chart-feat', 'from-bottom', true);
+
+// Gross section - mockup left, content right
+document.querySelectorAll('.gross-mockup').forEach(el => {
+    el.classList.add('reveal', 'from-left');
+    revealObserver.observe(el);
+});
+document.querySelectorAll('.gross-content').forEach(el => {
+    el.classList.add('reveal', 'from-right');
+    revealObserver.observe(el);
+});
+setupReveal('.gross-feat', 'from-bottom', true);
+
+// Steps - staggered
+setupReveal('.step', 'from-bottom', true);
+setupReveal('.step-arrow', 'from-scale', true);
+
+// Disclaimer
+setupReveal('.disclaimer-box', 'from-scale', false);
+
+// CTA
+document.querySelectorAll('.cta').forEach(el => {
+    el.classList.add('reveal');
+    revealObserver.observe(el);
+});
+
+// Nav scroll effect
+let lastScrollY = 0;
+window.addEventListener('scroll', () => {
+    const nav = document.querySelector('.nav');
+    if (window.scrollY > 60) {
+        nav.classList.add('nav-scrolled');
+    } else {
+        nav.classList.remove('nav-scrolled');
+    }
+    lastScrollY = window.scrollY;
+}, { passive: true });
+
+// Parallax glow orbs on scroll
+window.addEventListener('scroll', () => {
+    const s = window.scrollY * 0.05;
+    const g1 = document.querySelector('.glow-1');
+    const g2 = document.querySelector('.glow-2');
+    if (g1) g1.style.transform = 'translateY(' + s + 'px)';
+    if (g2) g2.style.transform = 'translateY(' + (-s * 0.7) + 'px)';
+}, { passive: true });
+
+// Generate floating particles
+(function() {
+    const container = document.getElementById('particles');
+    if (!container) return;
+    const count = 18;
+    for (let i = 0; i < count; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const size = Math.random() * 3 + 1.5;
+        p.style.width = size + 'px';
+        p.style.height = size + 'px';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.animationDuration = (Math.random() * 20 + 15) + 's';
+        p.style.animationDelay = (Math.random() * 15) + 's';
+        p.style.opacity = Math.random() * 0.4 + 0.1;
+        container.appendChild(p);
+    }
+})();
+
+// ===== FAQ Accordion =====
+document.querySelectorAll('.faq-question').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const item = btn.closest('.faq-item');
+        const wasOpen = item.classList.contains('open');
+        // Close all
+        document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+        // Toggle current
+        if (!wasOpen) item.classList.add('open');
+    });
+});
+
+// ===== Burger Menu =====
+const burgerBtn = document.getElementById('burgerBtn');
+const mobileMenu = document.getElementById('mobileMenu');
+if (burgerBtn && mobileMenu) {
+    burgerBtn.addEventListener('click', () => {
+        const isOpen = mobileMenu.classList.toggle('open');
+        burgerBtn.innerHTML = isOpen
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+    });
+    // Close on link click
+    mobileMenu.querySelectorAll('a').forEach(a => {
+        a.addEventListener('click', () => {
+            mobileMenu.classList.remove('open');
+            burgerBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+        });
+    });
+}
+
+// ===== Scroll to Top =====
+const scrollTopBtn = document.getElementById('scrollTopBtn');
+if (scrollTopBtn) {
+    window.addEventListener('scroll', () => {
+        if (window.scrollY > 500) {
+            scrollTopBtn.classList.add('visible');
+        } else {
+            scrollTopBtn.classList.remove('visible');
+        }
+    }, { passive: true });
+    scrollTopBtn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+}
+
+// ===== Add reveal to new sections =====
+setupReveal('.faq-item', 'from-bottom', true);
+
+// ===== OnlyFans-style Earnings Canvas Charts (Chart.js) =====
+(function() {
+    // Generate date labels: 30 days starting Jan 9, 2026
+    var startDate = new Date('2026-01-09');
+    var labels = [];
+    for (var i = 0; i < 30; i++) {
+        var d = new Date(startDate);
+        d.setDate(startDate.getDate() + i);
+        labels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
+    }
+
+    // Before data — low earnings (random)
+    function randRange(min, max) { return Math.round((Math.random() * (max - min) + min) * 100) / 100; }
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    var earningsBefore = []; var countBefore = [];
+    for (var j = 0; j < 30; j++) { earningsBefore.push(randRange(0.5, 7)); countBefore.push(randInt(1, 3)); }
+
+    // After data — high earnings (random)
+    var earningsAfter = []; var countAfter = [];
+    for (var j = 0; j < 30; j++) { earningsAfter.push(randRange(200, 800)); countAfter.push(randInt(3, 12)); }
+
+    // Calculate totals and update card headers
+    function formatMoney(n) {
+        return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+    var beforeTotal = earningsBefore.reduce(function(a, b) { return a + b; }, 0);
+    var afterTotal = earningsAfter.reduce(function(a, b) { return a + b; }, 0);
+    var beforeGross = beforeTotal * 1.25;
+    var afterGross = afterTotal * 1.25;
+    var beforeChange = (Math.random() * 30 + 5).toFixed(1);
+    var afterChange = (Math.random() * 30 + 5).toFixed(1);
+
+    document.getElementById('chart-before-amt').textContent = formatMoney(beforeTotal);
+    document.getElementById('chart-before-gross').textContent = '(' + formatMoney(beforeGross) + ' Gross)';
+    document.getElementById('chart-before-change').textContent = '\u2198 ' + beforeChange + '%';
+    document.getElementById('chart-after-amt').textContent = formatMoney(afterTotal);
+    document.getElementById('chart-after-gross').textContent = '(' + formatMoney(afterGross) + ' Gross)';
+    document.getElementById('chart-after-change').textContent = '\u2198 ' + afterChange + '%';
+
+    // Random value for Gross modal demo
+    var grossDemoVal = randInt(10000, 150000);
+    var grossDemoEl = document.getElementById('gross-demo-value');
+    if (grossDemoEl) grossDemoEl.textContent = grossDemoVal.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+    function calcEarningsStep(max) {
+        if (max <= 50) return 50;
+        if (max <= 200) return 100;
+        if (max <= 600) return 200;
+        if (max <= 900) return 300;
+        return Math.ceil(max / 3 / 100) * 100;
+    }
+
+    // drawGridPlugin — matches chart-drawer.js style
+    // Calculates vertical line positions directly (no _gridLineItems offset hack)
+    function createGridPlugin(isMain, earningsStep, earningsMax, countStep, countMax, chartStartDate) {
+        return {
+            id: 'drawGridPlugin' + (isMain ? 'Main' : 'Aside'),
+            beforeDraw: function(chart) {
+                var ctx = chart.ctx;
+                var chartArea = chart.chartArea;
+                var yScale = chart.scales.y;
+                var rightEdge = chart.width;
+                // 4 vertical lines dividing chart into 5 equal sections
+                var chartW = chartArea.right - chartArea.left;
+                var vertLines = [1, 2, 3, 4].map(function(n) {
+                    return chartArea.left + chartW * (n / 5);
+                });
+
+                var gridColorLight = 'rgba(224, 224, 224, 0.3)';
+                var gridColorSolid = 'rgba(224, 224, 224, 0.3)';
+                var gridColorHorizontal = '#cdd3d9';
+
+                ctx.save();
+
+                // Right vertical separator
+                ctx.beginPath();
+                ctx.moveTo(chartArea.right, chartArea.top);
+                ctx.lineTo(chartArea.right, chartArea.bottom);
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = gridColorLight;
+                ctx.stroke();
+
+                // Bottom horizontal line
+                ctx.beginPath();
+                ctx.moveTo(chartArea.left, chartArea.bottom);
+                ctx.lineTo(rightEdge, chartArea.bottom);
+                ctx.lineWidth = isMain ? 1 : 0.5;
+                ctx.strokeStyle = gridColorHorizontal;
+                ctx.stroke();
+
+                if (isMain) {
+                    // Separator line below main chart
+                    ctx.beginPath();
+                    ctx.moveTo(chartArea.left, chartArea.bottom + 8);
+                    ctx.lineTo(rightEdge, chartArea.bottom + 8);
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeStyle = gridColorHorizontal;
+                    ctx.stroke();
+
+                    // Vertical grid lines
+                    vertLines.forEach(function(lineX) {
+                        ctx.beginPath();
+                        ctx.moveTo(lineX, chartArea.top);
+                        ctx.lineTo(lineX, chartArea.bottom);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = gridColorLight;
+                        ctx.stroke();
+                        // Short tick below
+                        ctx.beginPath();
+                        ctx.moveTo(lineX, chartArea.bottom + 2);
+                        ctx.lineTo(lineX, chartArea.bottom + 12);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = gridColorSolid;
+                        ctx.stroke();
+                    });
+                }
+
+                if (!isMain) {
+                    // Vertical grid lines + long ticks below
+                    vertLines.forEach(function(lineX) {
+                        ctx.beginPath();
+                        ctx.moveTo(lineX, chartArea.top);
+                        ctx.lineTo(lineX, chartArea.bottom);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = gridColorLight;
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(lineX, chartArea.bottom + 2);
+                        ctx.lineTo(lineX, chartArea.bottom + 33);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = gridColorSolid;
+                        ctx.stroke();
+                    });
+
+                    // Right edge tick
+                    ctx.beginPath();
+                    ctx.moveTo(chartArea.right, chartArea.bottom + 2);
+                    ctx.lineTo(chartArea.right, chartArea.bottom + 30);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = gridColorSolid;
+                    ctx.stroke();
+
+                    // Date labels below aside chart — 5 labels, centered in each section
+                    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                    ctx.fillStyle = '#000';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+
+                    // 5 section midpoints: between left edge & line1, line1 & line2, etc.
+                    var sectionEdges = [chartArea.left, vertLines[0], vertLines[1], vertLines[2], vertLines[3], chartArea.right];
+                    var dateOffsets = [0, 7, 14, 21, 28];
+                    for (var di = 0; di < 5; di++) {
+                        var cx = (sectionEdges[di] + sectionEdges[di + 1]) / 2;
+                        var dd = new Date(chartStartDate);
+                        dd.setDate(chartStartDate.getDate() + dateOffsets[di]);
+                        var line1 = dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ',';
+                        var line2 = dd.getFullYear().toString();
+                        ctx.fillText(line1, cx, chartArea.bottom + 6);
+                        ctx.fillText(line2, cx, chartArea.bottom + 18);
+                    }
+                }
+
+                // Y-axis labels
+                if (yScale && yScale.ticks) {
+                    ctx.font = '450 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                    ctx.fillStyle = '#000';
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+
+                    yScale.ticks.forEach(function(tick) {
+                        var y = yScale.getPixelForValue(tick.value);
+                        // Horizontal grid extension
+                        ctx.beginPath();
+                        ctx.moveTo(chartArea.right, y);
+                        ctx.lineTo(rightEdge, y);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = gridColorLight;
+                        ctx.stroke();
+
+                        if (tick.value !== 0) {
+                            var label = isMain ? '$' + tick.value : tick.value;
+                            ctx.fillText(label, rightEdge - 2, y + 10);
+                        }
+                    });
+                }
+
+                ctx.restore();
+            }
+        };
+    }
+
+    // Shared chart element/interaction options (matching plugin commonOptions)
+    var sharedElements = {
+        point: { radius: 0, hoverRadius: 0, hitRadius: 0 },
+        line: { tension: 0, borderWidth: 2 }
+    };
+
+    function createMainChart(canvasId, earningsData, sd) {
+        var canvas = document.getElementById(canvasId);
+        if (!canvas) return null;
+        var maxE = Math.max.apply(null, earningsData);
+        var eStep = calcEarningsStep(maxE);
+        var eMax = Math.ceil(maxE / eStep) * eStep;
+        if (eMax < eStep * 3) eMax = eStep * 3;
+
+        return new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: earningsData,
+                    borderColor: '#00aff0',
+                    backgroundColor: 'rgba(41, 182, 246, 0.1)',
+                    fill: true,
+                    clip: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                layout: { padding: { left: 0, right: 60, top: 0, bottom: 8 } },
+                interaction: { mode: 'index', intersect: true },
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                elements: sharedElements,
+                scales: {
+                    x: {
+                        display: true, offset: false, bounds: 'data',
+                        grid: { display: false, drawBorder: false, drawOnChartArea: false, drawTicks: false },
+                        ticks: { display: false, callback: function(val, i) { return (i % 7 === 0) ? '' : null; } }
+                    },
+                    y: {
+                        position: 'right', min: 0, max: eMax,
+                        border: { display: false },
+                        grid: { color: 'rgba(224, 224, 224, 0.3)', drawBorder: false, drawTicks: false },
+                        ticks: { display: false, stepSize: eStep, autoSkip: false, maxTicksLimit: 4 }
+                    }
+                }
+            },
+            plugins: [createGridPlugin(true, eStep, eMax, 0, 0, sd)]
+        });
+    }
+
+    function createAsideChart(canvasId, countData, sd) {
+        var canvas = document.getElementById(canvasId);
+        if (!canvas) return null;
+        var maxC = Math.max.apply(null, countData);
+        var cStep = 10;
+        var cMax = Math.max(20, Math.ceil(maxC / cStep) * cStep);
+        if (maxC <= 5) { cStep = 2; cMax = Math.max(6, Math.ceil(maxC / cStep) * cStep); }
+
+        return new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: countData,
+                    borderColor: '#8a96a3',
+                    backgroundColor: 'rgba(144, 164, 174, 0.15)',
+                    fill: true,
+                    clip: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                layout: { padding: { left: 0, right: 60, top: 8, bottom: 45 } },
+                interaction: { mode: 'index', intersect: true },
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                elements: sharedElements,
+                scales: {
+                    x: {
+                        display: true, offset: false,
+                        grid: { display: false, drawBorder: false, drawOnChartArea: false, drawTicks: false },
+                        ticks: { display: false, callback: function(val, i) { return (i % 7 === 0) ? '' : null; } }
+                    },
+                    y: {
+                        position: 'right', min: 0, max: cMax,
+                        border: { display: false },
+                        grid: { color: 'rgba(224, 224, 224, 0.3)', drawBorder: false, drawTicks: false },
+                        ticks: { display: false, stepSize: cStep, autoSkip: false, maxTicksLimit: 3 }
+                    }
+                }
+            },
+            plugins: [createGridPlugin(false, 0, 0, cStep, cMax, sd)]
+        });
+    }
+
+    // Create all 4 charts
+    createMainChart('chart-before-main', earningsBefore, startDate);
+    createAsideChart('chart-before-aside', countBefore, startDate);
+    createMainChart('chart-after-main', earningsAfter, startDate);
+    createAsideChart('chart-after-aside', countAfter, startDate);
+})();
+</script>
+
+</body>
+</html>
