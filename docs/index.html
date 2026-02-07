@@ -1077,6 +1077,16 @@
             border-radius: 12px; margin-top: 8px; padding: 14px 16px;
             font-size: 16px !important;
         }
+        .mobile-menu .mobile-lang-toggle {
+            display: flex; align-items: center; gap: 10px;
+            color: #fff; font-size: 18px; font-weight: 600;
+            padding: 14px 16px; border-radius: 12px;
+            background: none; border: none; cursor: pointer;
+            font-family: inherit; width: 100%; text-align: left;
+            transition: background 0.2s, color 0.2s;
+        }
+        .mobile-menu .mobile-lang-toggle:hover { background: rgba(0,180,216,0.1); color: var(--cyan); }
+        .mobile-menu .mobile-lang-toggle svg { width: 22px; height: 22px; flex-shrink: 0; }
 
         /* ===== SCROLL TO TOP ===== */
         .scroll-top {
@@ -1111,7 +1121,8 @@
             .badge-compare { flex-direction: column; }
             .chart-compare { flex-direction: column; }
             .steps { flex-direction: column; align-items: center; }
-            .step-arrow { padding-top: 0; width: auto; transform: rotate(90deg); }
+            .step-arrow { padding-top: 0; width: auto; }
+            .step-arrow svg { transform: rotate(90deg); }
             .scroll-top { bottom: 20px; right: 20px; width: 42px; height: 42px; border-radius: 12px; }
         }
     </style>
@@ -1161,6 +1172,10 @@
     <a href="#how-it-works" data-i18n="nav_how">How it Works</a>
     <a href="privacy-policy.html" data-i18n="nav_privacy">Privacy</a>
     <a href="terms-of-service.html" data-i18n="nav_terms">Terms</a>
+    <button class="mobile-lang-toggle" onclick="toggleLang(); document.getElementById('mobileMenu').classList.remove('open');">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+        <span class="mobile-lang-label">RU</span>
+    </button>
     <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="nav-cta" data-i18n="nav_install">Install Extension</a>
 </div>
 
@@ -2224,6 +2239,8 @@ function setLang(lang) {
         if (t[key] !== undefined) el.innerHTML = t[key];
     });
     document.querySelector('.lang-label').textContent = lang === 'en' ? 'RU' : 'EN';
+    const mobileLbl = document.querySelector('.mobile-lang-label');
+    if (mobileLbl) mobileLbl.textContent = lang === 'en' ? 'RU' : 'EN';
     localStorage.setItem('ofstats_lang', lang);
 }
 
