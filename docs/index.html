@@ -23,7 +23,7 @@
             --yellow: #f59e0b;
             --blue: #3b82f6;
         }
-        html { scroll-behavior: smooth; }
+        html { scroll-behavior: smooth; overflow-x: hidden; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-dark); color: var(--text);
@@ -56,7 +56,7 @@
         }
 
         /* ===== LAYOUT ===== */
-        .page-content { position: relative; z-index: 1; }
+        .page-content { position: relative; z-index: 1; overflow-x: hidden; }
         .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }       section { padding: 120px 0; }
 
         /* ===== NAV ===== */
@@ -1048,8 +1048,20 @@
         }
 
         /* ===== BURGER MENU ===== */
+        .mobile-nav-actions {
+            display: none; align-items: center; gap: 8px;
+        }
+        .mobile-lang-btn {
+            display: flex; align-items: center; gap: 5px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            color: #fff; padding: 5px 10px; border-radius: 8px; cursor: pointer;
+            font-size: 12px; font-weight: 600; font-family: inherit;
+            transition: all 0.2s;
+        }
+        .mobile-lang-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+        .mobile-lang-btn svg { width: 16px; height: 16px; }
         .burger-btn {
-            display: none; background: none; border: none;
+            display: flex; background: none; border: none;
             color: #fff; cursor: pointer; padding: 4px;
             width: 36px; height: 36px;
             align-items: center; justify-content: center;
@@ -1081,16 +1093,7 @@
             border-radius: 12px; margin-top: 8px; padding: 14px 16px;
             font-size: 16px !important;
         }
-        .mobile-menu .mobile-lang-toggle {
-            display: flex; align-items: center; gap: 10px;
-            color: #fff; font-size: 18px; font-weight: 600;
-            padding: 14px 16px; border-radius: 12px;
-            background: none; border: none; cursor: pointer;
-            font-family: inherit; width: 100%; text-align: left;
-            transition: background 0.2s, color 0.2s;
-        }
-        .mobile-menu .mobile-lang-toggle:hover { background: rgba(0,180,216,0.1); color: var(--cyan); }
-        .mobile-menu .mobile-lang-toggle svg { width: 22px; height: 22px; flex-shrink: 0; }
+
 
         /* ===== SCROLL TO TOP ===== */
         .scroll-top {
@@ -1116,7 +1119,7 @@
         /* ===== RESPONSIVE ===== */
         @media (max-width: 768px) {
             .nav-links { display: none; }
-            .burger-btn { display: flex; }
+            .mobile-nav-actions { display: flex; }
             .hero { padding: 120px 0 60px; }
             .tc-inner { flex-direction: column; }
             .tc-visual { max-width: 100%; }
@@ -1162,9 +1165,15 @@
             </button>
             <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="nav-cta" data-i18n="nav_install">Install Extension</a>
         </div>
-        <button class="burger-btn" id="burgerBtn" aria-label="Menu">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
+        <div class="mobile-nav-actions">
+            <button class="mobile-lang-btn" onclick="toggleLang()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                <span class="mobile-lang-label">RU</span>
+            </button>
+            <button class="burger-btn" id="burgerBtn" aria-label="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+        </div>
     </div>
 </nav>
 
@@ -1176,10 +1185,6 @@
     <a href="#how-it-works" data-i18n="nav_how">How it Works</a>
     <a href="privacy-policy.html" data-i18n="nav_privacy">Privacy</a>
     <a href="terms-of-service.html" data-i18n="nav_terms">Terms</a>
-    <button class="mobile-lang-toggle" onclick="toggleLang(); document.getElementById('mobileMenu').classList.remove('open');">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-        <span class="mobile-lang-label">RU</span>
-    </button>
     <a href="https://chromewebstore.google.com/detail/of-stats-editor/YOUR_EXTENSION_ID" target="_blank" class="nav-cta" data-i18n="nav_install">Install Extension</a>
 </div>
 
@@ -2426,19 +2431,20 @@ document.querySelectorAll('.faq-question').forEach(btn => {
 // ===== Burger Menu =====
 const burgerBtn = document.getElementById('burgerBtn');
 const mobileMenu = document.getElementById('mobileMenu');
+const burgerSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+const closeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+function closeMenu() {
+    mobileMenu.classList.remove('open');
+    burgerBtn.innerHTML = burgerSvg;
+}
 if (burgerBtn && mobileMenu) {
     burgerBtn.addEventListener('click', () => {
         const isOpen = mobileMenu.classList.toggle('open');
-        burgerBtn.innerHTML = isOpen
-            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
-            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+        burgerBtn.innerHTML = isOpen ? closeSvg : burgerSvg;
     });
     // Close on link click
     mobileMenu.querySelectorAll('a').forEach(a => {
-        a.addEventListener('click', () => {
-            mobileMenu.classList.remove('open');
-            burgerBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
-        });
+        a.addEventListener('click', closeMenu);
     });
 }
 
