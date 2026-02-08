@@ -402,23 +402,26 @@
         }
         .pm-input-value.muted { color: #64748b; }
 
-        /* Tooltip on hover */
-        .pm-input-group { position: relative; }
-        .pm-tooltip {
-            position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-            background: linear-gradient(135deg, #1a2150, #0f1535);
-            border: 1px solid rgba(0,180,255,0.4); border-radius: 8px;
-            padding: 8px 12px; color: #fff; font-size: 11px; font-weight: 500;
-            white-space: nowrap; z-index: 50; pointer-events: none;
-            opacity: 0; transition: opacity 0.25s;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 12px rgba(0,180,255,0.15);
-            line-height: 1.4;
+        /* Hover info bar */
+        .pm-hover-info {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 10px; margin-bottom: 6px;
+            background: linear-gradient(135deg, rgba(0,180,255,0.12), rgba(0,102,255,0.08));
+            border: 1px solid rgba(0,180,255,0.25); border-radius: 8px;
+            font-size: 10px; font-weight: 500; color: #7dd3fc;
+            line-height: 1.3; min-height: 28px;
+            opacity: 0; transform: translateY(-3px);
+            transition: opacity 0.2s, transform 0.2s;
+            position: relative; z-index: 1;
+            pointer-events: none;
         }
-        .pm-tooltip::after {
-            content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-            border: 6px solid transparent; border-top-color: rgba(0,180,255,0.4);
+        .pm-hover-info.visible { opacity: 1; transform: translateY(0); }
+        .pm-hover-info svg { width: 12px; height: 12px; flex-shrink: 0; color: #00b4ff; }
+        .pm-input-group[data-tip-en] { cursor: default; }
+        .pm-input-group[data-tip-en]:hover .pm-input-wrapper,
+        .pm-input-group[data-tip-en]:hover .pm-input-combined {
+            border-color: rgba(0,180,255,0.5); box-shadow: 0 0 10px rgba(0,180,255,0.15);
         }
-        .pm-input-group:hover .pm-tooltip { opacity: 1; }
 
         /* Combined input (with divider) */
         .pm-input-combined {
@@ -1334,6 +1337,12 @@
                             </div>
                         </div>
 
+                        <!-- Hover info bar -->
+                        <div class="pm-hover-info" id="pmHoverInfo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                            <span id="pmHoverText"></span>
+                        </div>
+
                         <!-- Model Info -->
                         <div class="pm-model">
                             <div class="pm-model-avatar" data-avatar="pm">
@@ -1355,7 +1364,6 @@
                                 <span>Balance Settings</span>
                             </div>
                             <div class="pm-input-group" data-tip-en="Edit your Top Creators percentage ranking" data-tip-ru="Изменить процент в рейтинге Топ Создателей">
-                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Top Creators</div>
                                 <div class="pm-input-wrapper">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
@@ -1363,7 +1371,6 @@
                                 </div>
                             </div>
                             <div class="pm-input-group" data-tip-en="Change your current available balance" data-tip-ru="Изменить текущий доступный баланс">
-                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Current Balance</div>
                                 <div class="pm-input-wrapper">
                                     <span class="pm-input-prefix">$</span>
@@ -1371,7 +1378,6 @@
                                 </div>
                             </div>
                             <div class="pm-input-group" data-tip-en="Change your pending balance amount" data-tip-ru="Изменить сумму ожидающего баланса">
-                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Pending Balance</div>
                                 <div class="pm-input-wrapper">
                                     <span class="pm-input-prefix">$</span>
@@ -1379,7 +1385,6 @@
                                 </div>
                             </div>
                             <div class="pm-input-group" data-tip-en="Edit pending & completed earnings amounts" data-tip-ru="Изменить суммы ожидающих и завершённых доходов">
-                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Earnings (Pending | Complete)</div>
                                 <div class="pm-input-combined">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/></svg></span>
@@ -1397,7 +1402,6 @@
                                 <span>Fans Settings</span>
                             </div>
                             <div class="pm-input-group" data-tip-en="Change your total fans/subscribers count" data-tip-ru="Изменить общее количество фанатов/подписчиков">
-                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Fans Count</div>
                                 <div class="pm-input-combined">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></span>
@@ -1412,7 +1416,6 @@
                                 <span class="pm-quick-btn">+500</span>
                             </div>
                             <div class="pm-input-group" data-tip-en="Change your following count" data-tip-ru="Изменить количество подписок">
-                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Following Count</div>
                                 <div class="pm-input-combined">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></span>
@@ -2278,11 +2281,6 @@ function setLang(lang) {
     const mobileLbl = document.querySelector('.mobile-lang-label');
     if (mobileLbl) mobileLbl.textContent = lang === 'en' ? 'RU' : 'EN';
     localStorage.setItem('ofstats_lang', lang);
-    // Update tooltips
-    document.querySelectorAll('.pm-input-group[data-tip-en]').forEach(g => {
-        const tip = g.querySelector('.pm-tooltip');
-        if (tip) tip.textContent = g.getAttribute('data-tip-' + lang) || '';
-    });
 }
 
 function toggleLang() {
@@ -2292,23 +2290,53 @@ function toggleLang() {
 // Init language
 setLang(currentLang);
 
-// ===== Random Female Avatars =====
+// ===== Random Female Model Avatars =====
 (function() {
-    // Using randomuser.me API for random female portraits
+    var portraits = [
+        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1524638431109-93d95c968227?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1519699047748-de8e457a634e?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1506863530036-1efeddceb993?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?w=150&h=150&fit=crop&crop=face',
+        'https://images.unsplash.com/photo-1514846326710-096e4a8035e0?w=150&h=150&fit=crop&crop=face'
+    ];
+    // Shuffle and pick unique
+    var shuffled = portraits.sort(function() { return 0.5 - Math.random(); });
     var avatarSlots = document.querySelectorAll('[data-avatar]');
-    var ids = [];
-    avatarSlots.forEach(function() { ids.push(Math.floor(Math.random() * 100)); });
     avatarSlots.forEach(function(slot, i) {
         var img = document.createElement('img');
-        img.alt = 'Avatar';
+        img.alt = 'Model';
         img.loading = 'lazy';
-        img.src = 'https://randomuser.me/api/portraits/women/' + ids[i] + '.jpg';
-        img.onerror = function() {
-            // Fallback to pravatar
-            img.src = 'https://i.pravatar.cc/150?img=' + (ids[i] % 70 + 1);
-        };
+        img.src = shuffled[i % shuffled.length];
         slot.innerHTML = '';
         slot.appendChild(img);
+    });
+})();
+
+// ===== Hover Info Bar for Plugin Fields =====
+(function() {
+    var infoBar = document.getElementById('pmHoverInfo');
+    var infoText = document.getElementById('pmHoverText');
+    if (!infoBar || !infoText) return;
+    var fields = document.querySelectorAll('.pm-input-group[data-tip-en]');
+    fields.forEach(function(field) {
+        field.addEventListener('mouseenter', function() {
+            var tip = field.getAttribute('data-tip-' + currentLang) || field.getAttribute('data-tip-en');
+            infoText.textContent = tip;
+            infoBar.classList.add('visible');
+        });
+        field.addEventListener('mouseleave', function() {
+            infoBar.classList.remove('visible');
+        });
     });
 })();
 
