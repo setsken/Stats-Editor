@@ -332,8 +332,10 @@
             background: #151b3d; display: flex; align-items: center; justify-content: center;
             border: 2px solid #00b4ff;
             box-shadow: 0 0 0 2px rgba(0,180,255,0.2), 0 0 10px rgba(0,180,255,0.3);
+            overflow: hidden;
         }
         .pm-model-avatar svg { width: 20px; height: 20px; color: #00b4ff; }
+        .pm-model-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .pm-model-details { flex: 1; display: flex; flex-direction: column; gap: 1px; }
         .pm-model-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
         .pm-model-name { font-size: 13px; font-weight: 600; color: #00b4ff; }
@@ -399,6 +401,25 @@
             white-space: nowrap; overflow: hidden;
         }
         .pm-input-value.muted { color: #64748b; }
+
+        /* Tooltip on hover */
+        .pm-input-group { position: relative; }
+        .pm-tooltip {
+            position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #1a2150, #0f1535);
+            border: 1px solid rgba(0,180,255,0.4); border-radius: 8px;
+            padding: 8px 12px; color: #fff; font-size: 11px; font-weight: 500;
+            white-space: nowrap; z-index: 50; pointer-events: none;
+            opacity: 0; transition: opacity 0.25s;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 12px rgba(0,180,255,0.15);
+            line-height: 1.4;
+        }
+        .pm-tooltip::after {
+            content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            border: 6px solid transparent; border-top-color: rgba(0,180,255,0.4);
+        }
+        .pm-input-group:hover .pm-tooltip { opacity: 1; }
+
         /* Combined input (with divider) */
         .pm-input-combined {
             display: flex; align-items: center;
@@ -594,9 +615,10 @@
             background: linear-gradient(135deg, #0a84ff, #00d4aa);
             display: flex; align-items: center; justify-content: center;
             border: 3px solid rgba(0,180,255,0.4);
-            flex-shrink: 0;
+            flex-shrink: 0; overflow: hidden;
         }
         .profile-mock-avatar svg { width: 28px; height: 28px; }
+        .profile-mock-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .profile-mock-name { color: #fff; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
         .profile-mock-handle { color: #64748b; font-size: 13px; margin-top: 2px; }
         .profile-mock-handle .at { color: #00b4ff; }
@@ -1130,6 +1152,8 @@
             .steps { flex-direction: column; align-items: center; }
             .step-arrow { padding-top: 0; width: auto; }
             .step-arrow svg { transform: rotate(90deg); animation-name: arrowBounceDown; }
+            .popup-mock { margin: 0 -8px; }
+            .popup-body { padding: 10px 16px; }
             .scroll-top { bottom: 20px; right: 20px; width: 42px; height: 42px; border-radius: 12px; }
         }
     </style>
@@ -1312,12 +1336,11 @@
 
                         <!-- Model Info -->
                         <div class="pm-model">
-                            <div class="pm-model-avatar">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            <div class="pm-model-avatar" data-avatar="pm">
                             </div>
                             <div class="pm-model-details">
                                 <span class="pm-model-label">Current Model</span>
-                                <span class="pm-model-name">@not_detected</span>
+                                <span class="pm-model-name">@model_name/span>
                             </div>
                             <div class="pm-status">
                                 <span class="pm-status-dot"></span>
@@ -1331,28 +1354,32 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                                 <span>Balance Settings</span>
                             </div>
-                            <div class="pm-input-group">
+                            <div class="pm-input-group" data-tip-en="Edit your Top Creators percentage ranking" data-tip-ru="Изменить процент в рейтинге Топ Создателей">
+                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Top Creators</div>
                                 <div class="pm-input-wrapper">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
                                     <span class="pm-input-value">3.5%</span>
                                 </div>
                             </div>
-                            <div class="pm-input-group">
+                            <div class="pm-input-group" data-tip-en="Change your current available balance" data-tip-ru="Изменить текущий доступный баланс">
+                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Current Balance</div>
                                 <div class="pm-input-wrapper">
                                     <span class="pm-input-prefix">$</span>
                                     <span class="pm-input-value">0.00</span>
                                 </div>
                             </div>
-                            <div class="pm-input-group">
+                            <div class="pm-input-group" data-tip-en="Change your pending balance amount" data-tip-ru="Изменить сумму ожидающего баланса">
+                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Pending Balance</div>
                                 <div class="pm-input-wrapper">
                                     <span class="pm-input-prefix">$</span>
                                     <span class="pm-input-value">0.00</span>
                                 </div>
                             </div>
-                            <div class="pm-input-group">
+                            <div class="pm-input-group" data-tip-en="Edit pending & completed earnings amounts" data-tip-ru="Изменить суммы ожидающих и завершённых доходов">
+                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Earnings (Pending | Complete)</div>
                                 <div class="pm-input-combined">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/></svg></span>
@@ -1369,7 +1396,8 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                                 <span>Fans Settings</span>
                             </div>
-                            <div class="pm-input-group">
+                            <div class="pm-input-group" data-tip-en="Change your total fans/subscribers count" data-tip-ru="Изменить общее количество фанатов/подписчиков">
+                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Fans Count</div>
                                 <div class="pm-input-combined">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></span>
@@ -1383,7 +1411,8 @@
                                 <span class="pm-quick-btn">+300</span>
                                 <span class="pm-quick-btn">+500</span>
                             </div>
-                            <div class="pm-input-group">
+                            <div class="pm-input-group" data-tip-en="Change your following count" data-tip-ru="Изменить количество подписок">
+                                <div class="pm-tooltip"></div>
                                 <div class="pm-input-label">Following Count</div>
                                 <div class="pm-input-combined">
                                     <span class="pm-input-prefix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></span>
@@ -1528,8 +1557,7 @@
                         <div class="badge-compare-item badge-active" id="badge-normal">
                             <div class="profile-mock after-mock">
                                 <div class="profile-mock-header">
-                                    <div class="profile-mock-avatar">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    <div class="profile-mock-avatar" data-avatar="profile1">
                                     </div>
                                     <div>
                                         <div class="profile-mock-name">Creator
@@ -1573,8 +1601,7 @@
                         <div class="badge-compare-item badge-out" id="badge-hidden">
                         <div class="profile-mock after-mock">
                             <div class="profile-mock-header">
-                                <div class="profile-mock-avatar">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                <div class="profile-mock-avatar" data-avatar="profile2">
                                 </div>
                                 <div>
                                     <div class="profile-mock-name">Creator
@@ -2251,6 +2278,11 @@ function setLang(lang) {
     const mobileLbl = document.querySelector('.mobile-lang-label');
     if (mobileLbl) mobileLbl.textContent = lang === 'en' ? 'RU' : 'EN';
     localStorage.setItem('ofstats_lang', lang);
+    // Update tooltips
+    document.querySelectorAll('.pm-input-group[data-tip-en]').forEach(g => {
+        const tip = g.querySelector('.pm-tooltip');
+        if (tip) tip.textContent = g.getAttribute('data-tip-' + lang) || '';
+    });
 }
 
 function toggleLang() {
@@ -2259,6 +2291,26 @@ function toggleLang() {
 
 // Init language
 setLang(currentLang);
+
+// ===== Random Female Avatars =====
+(function() {
+    // Using randomuser.me API for random female portraits
+    var avatarSlots = document.querySelectorAll('[data-avatar]');
+    var ids = [];
+    avatarSlots.forEach(function() { ids.push(Math.floor(Math.random() * 100)); });
+    avatarSlots.forEach(function(slot, i) {
+        var img = document.createElement('img');
+        img.alt = 'Avatar';
+        img.loading = 'lazy';
+        img.src = 'https://randomuser.me/api/portraits/women/' + ids[i] + '.jpg';
+        img.onerror = function() {
+            // Fallback to pravatar
+            img.src = 'https://i.pravatar.cc/150?img=' + (ids[i] % 70 + 1);
+        };
+        slot.innerHTML = '';
+        slot.appendChild(img);
+    });
+})();
 
 // Toggle badge reveal with animation
 const revealBtn = document.getElementById('reveal-fans-toggle');
