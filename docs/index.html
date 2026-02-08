@@ -1147,11 +1147,14 @@
             .mobile-nav-actions { display: flex; }
             .hero { padding: 120px 0 60px; }
             .tc-inner { flex-direction: column; }
+            .container { padding: 0 12px; }
             .tc-visual { max-width: 100%; padding: 0; }
-            .popup-mock { margin: 0 -16px; border-radius: 12px; }
-            .popup-body { padding: 12px 18px; }
+            .popup-mock { margin: 0; border-radius: 12px; }
+            .popup-body { padding: 12px 14px; }
             .showcase-inner { flex-direction: column; }
             .showcase-visual { max-width: 100%; }
+            .badge-swap-container { max-width: 100%; }
+            .badge-compare-item { max-width: 100%; }
             .badge-compare { flex-direction: column; }
             .chart-compare { flex-direction: column; }
             .steps { flex-direction: column; align-items: center; }
@@ -2301,17 +2304,24 @@ setLang(currentLang);
         'icons/ready/6.jpg',
         'icons/ready/7.jpg'
     ];
-    // Shuffle and pick unique
+    // Shuffle
     var shuffled = portraits.sort(function() { return 0.5 - Math.random(); });
-    var avatarSlots = document.querySelectorAll('[data-avatar]');
-    avatarSlots.forEach(function(slot, i) {
+    // Assign: pm gets one, both profile badges get the same one
+    var pmSlot = document.querySelector('[data-avatar="pm"]');
+    var p1Slot = document.querySelector('[data-avatar="profile1"]');
+    var p2Slot = document.querySelector('[data-avatar="profile2"]');
+    function setAvatar(slot, src) {
+        if (!slot) return;
         var img = document.createElement('img');
         img.alt = 'Model';
         img.loading = 'lazy';
-        img.src = shuffled[i % shuffled.length];
+        img.src = src;
         slot.innerHTML = '';
         slot.appendChild(img);
-    });
+    }
+    setAvatar(pmSlot, shuffled[0]);
+    setAvatar(p1Slot, shuffled[1 % shuffled.length]);
+    setAvatar(p2Slot, shuffled[1 % shuffled.length]); // same as profile1
 })();
 
 // ===== Hover Info Bar for Plugin Fields =====
