@@ -1147,7 +1147,9 @@
             .mobile-nav-actions { display: flex; }
             .hero { padding: 120px 0 60px; }
             .tc-inner { flex-direction: column; }
-            .tc-visual { max-width: 100%; }
+            .tc-visual { max-width: 100%; padding: 0; }
+            .popup-mock { margin: 0 -16px; border-radius: 12px; }
+            .popup-body { padding: 12px 18px; }
             .showcase-inner { flex-direction: column; }
             .showcase-visual { max-width: 100%; }
             .badge-compare { flex-direction: column; }
@@ -1155,8 +1157,6 @@
             .steps { flex-direction: column; align-items: center; }
             .step-arrow { padding-top: 0; width: auto; }
             .step-arrow svg { transform: rotate(90deg); animation-name: arrowBounceDown; }
-            .popup-mock { margin: 0 -8px; }
-            .popup-body { padding: 10px 16px; }
             .scroll-top { bottom: 20px; right: 20px; width: 42px; height: 42px; border-radius: 12px; }
         }
     </style>
@@ -2293,21 +2293,13 @@ setLang(currentLang);
 // ===== Random Female Model Avatars =====
 (function() {
     var portraits = [
-        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1524638431109-93d95c968227?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1519699047748-de8e457a634e?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1506863530036-1efeddceb993?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?w=150&h=150&fit=crop&crop=face',
-        'https://images.unsplash.com/photo-1514846326710-096e4a8035e0?w=150&h=150&fit=crop&crop=face'
+        'icons/ready/1.jpg',
+        'icons/ready/2.jpg',
+        'icons/ready/3.jpg',
+        'icons/ready/4.jpg',
+        'icons/ready/5.jpg',
+        'icons/ready/6.jpg',
+        'icons/ready/7.jpg'
     ];
     // Shuffle and pick unique
     var shuffled = portraits.sort(function() { return 0.5 - Math.random(); });
@@ -2328,16 +2320,29 @@ setLang(currentLang);
     var infoText = document.getElementById('pmHoverText');
     if (!infoBar || !infoText) return;
     var fields = document.querySelectorAll('.pm-input-group[data-tip-en]');
+    var activeField = null;
+    function showTip(field) {
+        var tip = field.getAttribute('data-tip-' + currentLang) || field.getAttribute('data-tip-en');
+        infoText.textContent = tip;
+        infoBar.classList.add('visible');
+        activeField = field;
+    }
+    function hideTip() {
+        infoBar.classList.remove('visible');
+        activeField = null;
+    }
     fields.forEach(function(field) {
-        field.addEventListener('mouseenter', function() {
-            var tip = field.getAttribute('data-tip-' + currentLang) || field.getAttribute('data-tip-en');
-            infoText.textContent = tip;
-            infoBar.classList.add('visible');
-        });
-        field.addEventListener('mouseleave', function() {
-            infoBar.classList.remove('visible');
-        });
+        field.addEventListener('mouseenter', function() { showTip(field); });
+        field.addEventListener('mouseleave', hideTip);
+        field.addEventListener('touchstart', function(e) {
+            if (activeField === field) { hideTip(); return; }
+            showTip(field);
+        }, { passive: true });
     });
+    // Hide when tapping outside
+    document.addEventListener('touchstart', function(e) {
+        if (activeField && !activeField.contains(e.target)) hideTip();
+    }, { passive: true });
 })();
 
 // Toggle badge reveal with animation
