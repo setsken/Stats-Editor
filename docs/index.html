@@ -84,78 +84,6 @@
             border-bottom-color: rgba(0,180,216,0.1);
         }
 
-        /* ===== GARLAND ===== */
-        .garland {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 0;
-            pointer-events: none;
-            z-index: 99;
-        }
-        .garland-wire {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 32px;
-        }
-        .garland-bulb {
-            position: absolute;
-            width: 10px;
-            height: 14px;
-            border-radius: 50% 50% 50% 50% / 35% 35% 65% 65%;
-            top: 8px;
-            animation: garlandGlow 2s ease-in-out infinite alternate;
-        }
-        /* Socket cap */
-        .garland-bulb::before {
-            content: '';
-            position: absolute;
-            top: -4px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 6px;
-            height: 5px;
-            background: linear-gradient(180deg, #888 0%, #555 100%);
-            border-radius: 2px 2px 0 0;
-        }
-        /* Glow halo */
-        .garland-bulb::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: inherit;
-            opacity: 0.45;
-            filter: blur(8px);
-        }
-        .garland-bulb.c1 { background: radial-gradient(circle at 35% 35%, #ff8a9e, #ff2d55); box-shadow: 0 3px 12px rgba(255,45,85,0.7), 0 0 4px rgba(255,45,85,0.4); }
-        .garland-bulb.c2 { background: radial-gradient(circle at 35% 35%, #ffec80, #ffcc00); box-shadow: 0 3px 12px rgba(255,204,0,0.7), 0 0 4px rgba(255,204,0,0.4); }
-        .garland-bulb.c3 { background: radial-gradient(circle at 35% 35%, #90e89c, #34c759); box-shadow: 0 3px 12px rgba(52,199,89,0.7), 0 0 4px rgba(52,199,89,0.4); }
-        .garland-bulb.c4 { background: radial-gradient(circle at 35% 35%, #7abfff, #007aff); box-shadow: 0 3px 12px rgba(0,122,255,0.7), 0 0 4px rgba(0,122,255,0.4); }
-        .garland-bulb.c5 { background: radial-gradient(circle at 35% 35%, #ffa0cf, #ff2d95); box-shadow: 0 3px 12px rgba(255,45,149,0.7), 0 0 4px rgba(255,45,149,0.4); }
-        .garland-bulb.c6 { background: radial-gradient(circle at 35% 35%, #c9a0ff, #8b5cf6); box-shadow: 0 3px 12px rgba(139,92,246,0.7), 0 0 4px rgba(139,92,246,0.4); }
-        /* Highlight spot on each bulb */
-        .garland-spot {
-            position: absolute;
-            width: 4px;
-            height: 3px;
-            background: rgba(255,255,255,0.7);
-            border-radius: 50%;
-            top: 3px;
-            left: 3px;
-        }
-        @keyframes garlandGlow {
-            0% { opacity: 0.5; transform: scale(0.92); }
-            50% { opacity: 0.85; transform: scale(1.02); }
-            100% { opacity: 1; transform: scale(1); }
-        }
 
         /* ===== SNOWFALL ===== */
         .snowfall {
@@ -1291,10 +1219,6 @@
             .step-arrow svg { transform: rotate(90deg); animation-name: arrowBounceDown; }
             .scroll-top { bottom: 20px; right: 20px; width: 42px; height: 42px; border-radius: 12px; }
             /* Winter mobile fixes */
-            .garland-bulb { width: 9px; height: 13px; }
-            .garland-bulb::before { width: 5px; height: 4px; top: -3px; }
-            .garland-bulb::after { width: 22px; height: 22px; filter: blur(6px); }
-            .garland-wire { height: 24px; }
             .snowflake:nth-child(n+16) { display: none; }
             .snowflake { font-size: 8px !important; opacity: 0.3 !important; }
             .loading-overlay { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
@@ -1637,7 +1561,6 @@
             </button>
         </div>
     </div>
-    <div class="garland" id="garland"></div>
 </nav>
 
 <!-- Mobile menu -->
@@ -3399,76 +3322,6 @@ setupReveal('.faq-item', 'from-bottom', true);
     });
 })();
 
-// ===== Garland Lights =====
-(function() {
-    var garland = document.getElementById('garland');
-    if (!garland) return;
-    var colors = ['c1','c2','c3','c4','c5','c6'];
-    var isMobile = window.innerWidth <= 768;
-    var bulbCount = isMobile ? 10 : 40;
-    var svgNS = 'http://www.w3.org/2000/svg';
-    var svg = document.createElementNS(svgNS, 'svg');
-    svg.setAttribute('class', 'garland-wire');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('viewBox', '0 0 1000 ' + (isMobile ? '24' : '32'));
-    // Wire function: catenary droop between anchor points
-    function wireY(x) {
-        if (isMobile) {
-            // Minimal sag on mobile — almost straight wire with subtle wave
-            return 3 + Math.sin(x / 1000 * Math.PI * 6) * 3 + Math.sin(x / 1000 * Math.PI * 2) * 1.5;
-        }
-        return 3 + Math.sin(x / 1000 * Math.PI * 10) * 7 + Math.sin(x / 1000 * Math.PI * 2) * 3;
-    }
-    // Main wire
-    var pts = [];
-    for (var i = 0; i <= 200; i++) {
-        var x = i * 5;
-        var y = wireY(x);
-        pts.push((i === 0 ? 'M' : 'L') + x + ' ' + y);
-    }
-    var path = document.createElementNS(svgNS, 'path');
-    path.setAttribute('d', pts.join(' '));
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', 'rgba(255,255,255,0.12)');
-    path.setAttribute('stroke-width', '1.8');
-    svg.appendChild(path);
-    // Second twisted wire for detail
-    var pts2 = [];
-    for (var i2 = 0; i2 <= 200; i2++) {
-        var x2 = i2 * 5;
-        var y2 = wireY(x2) + Math.sin(i2 * 0.8) * 1.2;
-        pts2.push((i2 === 0 ? 'M' : 'L') + x2 + ' ' + y2);
-    }
-    var path2 = document.createElementNS(svgNS, 'path');
-    path2.setAttribute('d', pts2.join(' '));
-    path2.setAttribute('fill', 'none');
-    path2.setAttribute('stroke', 'rgba(255,255,255,0.06)');
-    path2.setAttribute('stroke-width', '1');
-    svg.appendChild(path2);
-    garland.appendChild(svg);
-    // Create bulbs
-    for (var j = 0; j < bulbCount; j++) {
-        var bulb = document.createElement('div');
-        var colorClass = colors[j % colors.length];
-        bulb.className = 'garland-bulb ' + colorClass;
-        // Highlight spot inside bulb
-        var spot = document.createElement('div');
-        spot.className = 'garland-spot';
-        bulb.appendChild(spot);
-        var pct = ((j + 0.5) / bulbCount) * 100;
-        bulb.style.left = pct + '%';
-        var bx = pct / 100 * 1000;
-        var by = wireY(bx);
-        bulb.style.top = (by + 2) + 'px';
-        // Slight random rotation for natural look
-        var rot = (Math.random() - 0.5) * 14;
-        bulb.style.setProperty('--rot', rot + 'deg');
-        bulb.style.transform = 'rotate(' + rot + 'deg)';
-        bulb.style.animationDelay = (Math.random() * 3).toFixed(2) + 's';
-        bulb.style.animationDuration = (1.2 + Math.random() * 2).toFixed(2) + 's';
-        garland.appendChild(bulb);
-    }
-})();
 
 // ===== Snowfall =====
 (function() {
