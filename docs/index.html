@@ -3405,19 +3405,19 @@ setupReveal('.faq-item', 'from-bottom', true);
     if (!garland) return;
     var colors = ['c1','c2','c3','c4','c5','c6'];
     var isMobile = window.innerWidth <= 768;
-    var bulbCount = isMobile ? 18 : 40;
+    var bulbCount = isMobile ? 10 : 40;
     var svgNS = 'http://www.w3.org/2000/svg';
     var svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('class', 'garland-wire');
     svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('viewBox', '0 0 1000 ' + (isMobile ? '36' : '32'));
+    svg.setAttribute('viewBox', '0 0 1000 ' + (isMobile ? '20' : '32'));
     // Wire function: catenary droop between anchor points
     function wireY(x) {
         if (isMobile) {
             // Fewer wider waves with bigger droop for natural look on narrow screens
-            return 4 + Math.sin(x / 1000 * Math.PI * 6) * 10 + Math.sin(x / 1000 * Math.PI * 2) * 5;
+            return 4 + Math.sin(x / 1000 * Math.PI * 3) * 10 + Math.sin(x / 1000 * Math.PI * 2) * 5;
         }
-        return 3 + Math.sin(x / 1000 * Math.PI * 10) * 7 + Math.sin(x / 1000 * Math.PI * 2) * 3;
+        return 3 + Math.sin(x / 1000 * Math.PI * 4) * 7 + Math.sin(x / 1000 * Math.PI * 2) * 3;
     }
     // Main wire
     var pts = [];
