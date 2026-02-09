@@ -1294,7 +1294,7 @@
             .garland-bulb { width: 9px; height: 13px; }
             .garland-bulb::before { width: 5px; height: 4px; top: -3px; }
             .garland-bulb::after { width: 22px; height: 22px; filter: blur(6px); }
-            .garland-wire { height: 36px; }
+            .garland-wire { height: 24px; }
             .snowflake:nth-child(n+16) { display: none; }
             .snowflake { font-size: 8px !important; opacity: 0.3 !important; }
             .loading-overlay { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
@@ -3410,12 +3410,12 @@ setupReveal('.faq-item', 'from-bottom', true);
     var svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('class', 'garland-wire');
     svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('viewBox', '0 0 1000 ' + (isMobile ? '36' : '32'));
+    svg.setAttribute('viewBox', '0 0 1000 ' + (isMobile ? '24' : '32'));
     // Wire function: catenary droop between anchor points
     function wireY(x) {
         if (isMobile) {
-            // Fewer wider waves with bigger droop for natural look on narrow screens
-            return 4 + Math.sin(x / 1000 * Math.PI * 6) * 10 + Math.sin(x / 1000 * Math.PI * 2) * 5;
+            // Minimal sag on mobile — almost straight wire with subtle wave
+            return 3 + Math.sin(x / 1000 * Math.PI * 6) * 3 + Math.sin(x / 1000 * Math.PI * 2) * 1.5;
         }
         return 3 + Math.sin(x / 1000 * Math.PI * 10) * 7 + Math.sin(x / 1000 * Math.PI * 2) * 3;
     }
