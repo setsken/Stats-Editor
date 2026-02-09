@@ -6,6 +6,7 @@
 
 ```
 backend-updates/auth.js → of-stats-backend/src/routes/auth.js
+backend-updates/presets.js → of-stats-backend/src/routes/presets.js
 backend-updates/database.js → of-stats-backend/src/config/database.js
 backend-updates/package.json → of-stats-backend/package.json
 backend-updates/migrate-fans.js → of-stats-backend/src/config/migrate-fans.js
@@ -139,6 +140,52 @@ https://stats-editor-production.up.railway.app/api/auth/login
 2. **Forgot Password** - код для сброса пароля
 
 Если SMTP не настроен, система работает без email (пишет в логи).
+
+---
+
+## ☁️ Облачная синхронизация пресетов
+
+### Шаг: Подключить роут в index.js
+
+В файле `of-stats-backend/src/index.js` добавьте:
+
+```javascript
+// После строки с auth роутом:
+const presetsRouter = require('./routes/presets');
+app.use('/api/presets', presetsRouter);
+```
+
+### Таблица `user_presets`
+| Поле | Тип | Описание |
+|------|-----|----------|
+| id | SERIAL | Primary key |
+| user_id | INTEGER | FK → users |
+| name | VARCHAR(100) | Имя пресета (уникально для каждого юзера) |
+| preset_data | JSONB | Все настройки пресета (JSON) |
+| active | BOOLEAN | Активный ли пресет |
+| created_at | TIMESTAMP | Когда создан |
+| updated_at | TIMESTAMP | Последнее обновление |
+
+Таблица создаётся автоматически при старте через `initDatabase()`.
+
+### API Endpoints
+
+| Метод | URL | Описание |
+|-------|-----|----------|
+| GET | `/api/presets` | Получить все пресеты пользователя |
+| PUT | `/api/presets/sync` | Полная синхронизация (отправить все пресеты) |
+| PUT | `/api/presets/:name` | Сохранить/обновить один пресет |
+| PUT | `/api/presets/active/:name` | Установить активный пресет |
+| DELETE | `/api/presets/:name` | Удалить пресет |
+
+### Как работает синхронизация
+
+1. При открытии попапа — загружаются локальные пресеты (мгновенно)
+2. Фоном идёт запрос на сервер за серверными пресетами
+3. Если сервер имеет пресеты — они становятся основными (cloud-first)
+4. Если сервер пустой, а локальные есть — пушатся на сервер
+5. При сохранении/удалении пресета — изменения записываются локально И отправляются на сервер
+6. Максимум 50 пресетов на пользователя
 
 ---
 

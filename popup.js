@@ -3816,9 +3816,10 @@ function setupEventListeners() {
 
 let activePresetName = '';
 
-// Load presets from storage
+// Load presets from storage (local first, then sync from server)
 async function loadPresets() {
   try {
+    // 1. Load from local storage first (instant)
     const result = await chrome.storage.local.get(['ofStatsPresets', 'ofStatsActivePreset']);
     currentPresets = result.ofStatsPresets || {};
     activePresetName = result.ofStatsActivePreset || '';
@@ -3828,19 +3829,85 @@ async function loadPresets() {
     if (activePresetName && currentPresets[activePresetName]) {
       presetSelect.value = activePresetName;
       deletePresetBtn.disabled = false;
-      // Update custom dropdown to show selected preset
       updateCustomDropdownSelection();
     }
+
+    // 2. Sync from server in background (non-blocking)
+    syncPresetsFromServer();
   } catch (error) {
     logError('Error loading presets:', error);
     currentPresets = {};
   }
 }
 
-// Save presets to storage
+// Sync presets FROM server and merge with local
+async function syncPresetsFromServer() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getPresets' });
+    if (!response || !response.success) {
+      log('OF Stats: Could not load presets from server:', response?.error);
+      return;
+    }
+
+    const serverPresets = response.presets || {};
+    const serverActive = response.activePreset || '';
+    const serverCount = Object.keys(serverPresets).length;
+    const localCount = Object.keys(currentPresets).length;
+
+    // If server has presets and local is empty — use server data
+    // If local has presets and server is empty — push to server
+    // If both have data — server is source of truth (cloud-first)
+    if (serverCount > 0) {
+      currentPresets = serverPresets;
+      activePresetName = serverActive;
+      
+      // Save to local storage for offline access
+      await chrome.storage.local.set({
+        ofStatsPresets: currentPresets,
+        ofStatsActivePreset: activePresetName
+      });
+      
+      // Update UI
+      updatePresetSelect();
+      if (activePresetName && currentPresets[activePresetName]) {
+        presetSelect.value = activePresetName;
+        deletePresetBtn.disabled = false;
+        updateCustomDropdownSelection();
+      }
+      
+      log('OF Stats: Presets loaded from server (' + serverCount + ' presets)');
+    } else if (localCount > 0) {
+      // Local has presets but server is empty — push local to server
+      await syncPresetsToServer();
+      log('OF Stats: Local presets pushed to server (' + localCount + ' presets)');
+    }
+  } catch (error) {
+    log('OF Stats: Preset sync error (non-critical):', error);
+  }
+}
+
+// Sync presets TO server (push current state)
+async function syncPresetsToServer() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'syncPresets',
+      presets: currentPresets,
+      activePreset: activePresetName
+    });
+    if (!response || !response.success) {
+      log('OF Stats: Could not sync presets to server:', response?.error);
+    }
+  } catch (error) {
+    log('OF Stats: Preset push error (non-critical):', error);
+  }
+}
+
+// Save presets to storage AND server
 async function savePresets() {
   try {
     await chrome.storage.local.set({ ofStatsPresets: currentPresets });
+    // Sync to server in background (non-blocking)
+    syncPresetsToServer();
     return true;
   } catch (error) {
     logError('Error saving presets:', error);
@@ -3848,11 +3915,13 @@ async function savePresets() {
   }
 }
 
-// Save active preset name
+// Save active preset name (local + server)
 async function saveActivePreset(name) {
   try {
     activePresetName = name || '';
     await chrome.storage.local.set({ ofStatsActivePreset: activePresetName });
+    // Sync active preset to server in background
+    chrome.runtime.sendMessage({ action: 'setActivePreset', name: activePresetName }).catch(() => {});
   } catch (error) {
     logError('Error saving active preset:', error);
   }

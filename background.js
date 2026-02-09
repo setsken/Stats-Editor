@@ -96,6 +96,22 @@ async function handleMessage(request, sender) {
       case 'batchGetFans':
         return await apiBatchGetFans(request.usernames);
       
+      // Presets actions (cloud sync)
+      case 'getPresets':
+        return await apiGetPresets();
+      
+      case 'syncPresets':
+        return await apiSyncPresets(request.presets, request.activePreset);
+      
+      case 'savePreset':
+        return await apiSavePreset(request.name, request.presetData, request.active);
+      
+      case 'deletePreset':
+        return await apiDeletePreset(request.name);
+      
+      case 'setActivePreset':
+        return await apiSetActivePreset(request.name);
+      
       // Side panel actions
       case 'openSidePanel':
         try {
@@ -611,6 +627,120 @@ async function apiBatchGetFans(usernames) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Batch get fans error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+// ==================== PRESETS API (Cloud Sync) ====================
+
+async function apiGetPresets() {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/presets`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    if (response.status === 401) {
+      await logout();
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+    
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Get presets error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiSyncPresets(presets, activePreset) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/presets/sync`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ presets, activePreset })
+    });
+    
+    if (response.status === 401) {
+      await logout();
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+    
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Sync presets error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiSavePreset(name, presetData, active = false) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/presets/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ presetData, active })
+    });
+    
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Save preset error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiDeletePreset(name) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/presets/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Delete preset error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiSetActivePreset(name) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/presets/active/${encodeURIComponent(name || '__none__')}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Set active preset error:', error);
     return { success: false, error: 'Network error' };
   }
 }

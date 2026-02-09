@@ -126,6 +126,20 @@ async function initDatabase() {
       )
     `);
 
+    // User presets table — stores presets per user for cloud sync
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_presets (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        preset_data JSONB NOT NULL DEFAULT '{}',
+        active BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, name)
+      )
+    `);
+
     // Create indexes
     await query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)');
@@ -133,6 +147,7 @@ async function initDatabase() {
     await query('CREATE INDEX IF NOT EXISTS idx_fans_reports_username ON fans_reports(model_username)');
     await query('CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)');
     await query('CREATE INDEX IF NOT EXISTS idx_payments_payment_id ON payments(payment_id)');
+    await query('CREATE INDEX IF NOT EXISTS idx_user_presets_user_id ON user_presets(user_id)');
 
     console.log('Database initialized successfully');
   } catch (error) {
