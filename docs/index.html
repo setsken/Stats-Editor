@@ -155,7 +155,7 @@
             width: 100%;
             height: 100%;
             pointer-events: none;
-            z-index: 0;
+            z-index: 2;
             overflow: hidden;
         }
         .snowflake {
@@ -1281,7 +1281,8 @@
             .step-arrow svg { transform: rotate(90deg); animation-name: arrowBounceDown; }
             .scroll-top { bottom: 20px; right: 20px; width: 42px; height: 42px; border-radius: 12px; }
             /* Winter mobile fixes */
-            .garland { display: none; }
+            .garland-bulb { width: 8px; height: 11px; }
+            .garland-bulb::after { width: 20px; height: 20px; }
             .snowflake:nth-child(n+16) { display: none; }
             .snowflake { font-size: 8px !important; opacity: 0.3 !important; }
             .loading-overlay { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
@@ -3388,7 +3389,8 @@ setupReveal('.faq-item', 'from-bottom', true);
     var garland = document.getElementById('garland');
     if (!garland) return;
     var colors = ['c1','c2','c3','c4','c5','c6'];
-    var bulbCount = 40;
+    var isMobile = window.innerWidth <= 768;
+    var bulbCount = isMobile ? 12 : 40;
     var svgNS = 'http://www.w3.org/2000/svg';
     var svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('class', 'garland-wire');
