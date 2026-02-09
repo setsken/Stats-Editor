@@ -155,7 +155,7 @@
             width: 100%;
             height: 100%;
             pointer-events: none;
-            z-index: 1;
+            z-index: 0;
             overflow: hidden;
         }
         .snowflake {
@@ -1280,6 +1280,11 @@
             .step-arrow { padding-top: 0; width: auto; }
             .step-arrow svg { transform: rotate(90deg); animation-name: arrowBounceDown; }
             .scroll-top { bottom: 20px; right: 20px; width: 42px; height: 42px; border-radius: 12px; }
+            /* Winter mobile fixes */
+            .garland { display: none; }
+            .snowflake:nth-child(n+16) { display: none; }
+            .snowflake { font-size: 8px !important; opacity: 0.3 !important; }
+            .loading-overlay { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
         }
 
         /* =========================================
@@ -1297,6 +1302,9 @@
             justify-content: center;
             flex-direction: column;
             transition: opacity 0.8s cubic-bezier(0.4,0,0.2,1), visibility 0.8s;
+            /* Ensure full coverage on all devices */
+            min-height: 100vh;
+            min-height: 100dvh;
         }
         .loading-overlay.hidden {
             opacity: 0;
@@ -3445,16 +3453,17 @@ setupReveal('.faq-item', 'from-bottom', true);
 (function() {
     var container = document.getElementById('snowfall');
     if (!container) return;
-    var snowCount = 50;
+    var isMobile = window.innerWidth <= 768;
+    var snowCount = isMobile ? 15 : 50;
     var flakes = ['\u2744', '\u2022', '\u2736', '\u00B7'];
     for (var i = 0; i < snowCount; i++) {
         var flake = document.createElement('div');
         flake.className = 'snowflake';
         flake.textContent = flakes[Math.floor(Math.random() * flakes.length)];
-        var size = (Math.random() * 12 + 6);
+        var size = isMobile ? (Math.random() * 8 + 4) : (Math.random() * 12 + 6);
         flake.style.fontSize = size + 'px';
         flake.style.left = (Math.random() * 100) + '%';
-        flake.style.opacity = (Math.random() * 0.5 + 0.2).toFixed(2);
+        flake.style.opacity = (isMobile ? (Math.random() * 0.3 + 0.1) : (Math.random() * 0.5 + 0.2)).toFixed(2);
         var dur = (Math.random() * 12 + 8);
         flake.style.animationDuration = dur + 's';
         flake.style.animationDelay = (Math.random() * dur).toFixed(1) + 's';
