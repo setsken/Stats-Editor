@@ -303,6 +303,59 @@ router.get('/verify', authenticateToken, async (req, res) => {
   }
 });
 
+// Support email — user sends a bug report from inside the plugin
+router.post('/support', authenticateToken, async (req, res) => {
+  try {
+    const { subject, message } = req.body;
+
+    if (!message || message.trim().length < 10) {
+      return res.status(400).json({ error: 'Message is too short' });
+    }
+
+    const userEmail = req.user.email;
+    const emailSubject = subject?.trim() || 'Bug Report — Of Stats Editor';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0d1117; color: #c9d1d9; padding: 24px; border-radius: 8px;">
+        <div style="border-bottom: 2px solid #00b4ff; padding-bottom: 16px; margin-bottom: 24px;">
+          <h2 style="margin: 0; color: #00b4ff; font-size: 18px;">📩 New Support Request — Of Stats Editor</h2>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 8px 0; color: #8b949e; width: 120px; font-size: 13px;">From (user):</td>
+            <td style="padding: 8px 0; color: #e6edf3; font-size: 13px;"><strong>${userEmail}</strong></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #8b949e; font-size: 13px;">Subject:</td>
+            <td style="padding: 8px 0; color: #e6edf3; font-size: 13px;">${emailSubject}</td>
+          </tr>
+        </table>
+        <div style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; color: #e6edf3;">${message.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+        </div>
+        <p style="color: #8b949e; font-size: 12px; margin: 0;">Reply to this user at: <a href="mailto:${userEmail}" style="color: #00b4ff;">${userEmail}</a></p>
+      </div>`;
+
+    const sent = await sendEmail(
+      'support@ofstats.pro',
+      `[Support] ${emailSubject} — ${userEmail}`,
+      html
+    );
+
+    if (sent) {
+      res.json({ success: true, message: 'Support request sent' });
+    } else {
+      // If transporter not configured, log and return success anyway (dev mode)
+      console.log('Support email (no SMTP):', { from: userEmail, subject: emailSubject, message });
+      res.json({ success: true, message: 'Support request received' });
+    }
+
+  } catch (error) {
+    console.error('Support email error:', error);
+    res.status(500).json({ error: 'Failed to send support request' });
+  }
+});
+
 // Change password
 router.post('/change-password', authenticateToken, async (req, res) => {
   try {

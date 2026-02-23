@@ -139,14 +139,14 @@ function copyDirSync(src, dest) {
 
 // ——— Build ———
 
-console.log('=== Stats Editor — Obfuscated Build ===\n');
+console.log('=== Stats Editor — Clean Build (no obfuscation) ===\n');
 
 // 1. Clean dist/
 console.log('1. Cleaning dist/ ...');
 cleanDir(DIST);
 
-// 2. Obfuscate JS files
-console.log('2. Obfuscating JS files ...');
+// 2. Copy JS files (no obfuscation — required by Chrome Web Store policy)
+console.log('2. Copying JS files ...');
 for (const file of JS_FILES) {
     const srcPath = path.join(ROOT, file);
     const destPath = path.join(DIST, file);
@@ -156,13 +156,8 @@ for (const file of JS_FILES) {
     }
     const code = fs.readFileSync(srcPath, 'utf8');
     const originalSize = Buffer.byteLength(code, 'utf8');
-
-    const obfuscated = JavaScriptObfuscator.obfuscate(code, FILE_OPTIONS[file] || OBFUSCATION_FULL);
-    const result = obfuscated.getObfuscatedCode();
-    const newSize = Buffer.byteLength(result, 'utf8');
-
-    fs.writeFileSync(destPath, result, 'utf8');
-    console.log(`   OK: ${file}  (${(originalSize/1024).toFixed(1)}KB → ${(newSize/1024).toFixed(1)}KB)`);
+    fs.writeFileSync(destPath, code, 'utf8');
+    console.log(`   OK: ${file}  (${(originalSize/1024).toFixed(1)}KB)`);
 }
 
 // 3. Copy static files
@@ -202,7 +197,7 @@ function listFiles(dir, prefix) {
 }
 listFiles(DIST, '');
 
-console.log(`\n=== BUILD COMPLETE ===`);
+console.log(`\n=== BUILD COMPLETE (clean, no obfuscation) ===`);
 console.log(`Files in dist/: ${distFiles.length}`);
 console.log(`\nNext steps:`);
 console.log(`  1. Open chrome://extensions`);
