@@ -14,6 +14,7 @@ const modelsRoutes = require('./routes/models');
 const fansRoutes = require('./routes/fans');
 const webhooksRoutes = require('./routes/webhooks');
 const promoRoutes = require('./routes/promo');
+const presetsRoutes = require('./routes/presets');
 
 const app = express();
 
@@ -108,6 +109,7 @@ app.use('/api/models', modelsRoutes);
 app.use('/api/fans', fansRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/promo', promoRoutes);
+app.use('/api/presets', presetsRoutes);
 
 // 404 handler
 app.use((req, res) => {
