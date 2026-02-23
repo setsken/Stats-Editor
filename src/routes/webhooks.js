@@ -186,12 +186,12 @@ router.post('/inbound/support', async (req, res) => {
 
     const axios = require('axios');
 
-    // Fetch full email content by ID (body is not included in webhook payload)
+    // Fetch full email content by ID via Resend Receiving API
     let html = '';
     let text = '';
     if (emailId) {
       try {
-        const fullEmail = await axios.get(`https://api.resend.com/emails/${emailId}`, {
+        const fullEmail = await axios.get(`https://api.resend.com/emails/receiving/${emailId}`, {
           headers: { 'Authorization': `Bearer ${apiKey}` }
         });
         html = fullEmail.data.html || '';
