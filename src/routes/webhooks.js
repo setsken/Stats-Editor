@@ -177,6 +177,14 @@ router.post('/inbound/support', async (req, res) => {
     const emailId = emailData.email_id;
     const from    = emailData.from    || 'unknown';
     const subject = emailData.subject || '(no subject)';
+    const toList  = Array.isArray(emailData.to) ? emailData.to : [emailData.to || ''];
+
+    // Only forward emails addressed to support@ofstats.pro
+    const isSupport = toList.some(addr => String(addr).toLowerCase().includes('support@ofstats.pro'));
+    if (!isSupport) {
+      console.log('Inbound email not for support, skipping. to:', toList);
+      return;
+    }
 
     const apiKey = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
     if (!apiKey) {
