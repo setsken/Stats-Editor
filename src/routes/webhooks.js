@@ -173,14 +173,17 @@ router.post('/inbound/support', async (req, res) => {
       ? JSON.parse(req.body)
       : (Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body);
 
-    console.log('Inbound support email webhook:', JSON.stringify(payload).slice(0, 300));
+    // Log full payload to diagnose structure
+    console.log('Inbound support payload FULL:', JSON.stringify(payload, null, 2).slice(0, 2000));
 
-    // Resend sends { type: 'email.received', data: { from, to, subject, html, text, ... } }
+    // Resend inbound: { type: 'email.received', data: { from, to, subject, html, text, ... } }
     const emailData = payload.data || payload;
     const from    = emailData.from    || 'unknown';
     const subject = emailData.subject || '(no subject)';
-    const html    = emailData.html    || emailData.text?.replace(/\n/g, '<br>') || '(empty)';
-    const text    = emailData.text    || '';
+    // Try multiple possible field names for body
+    const html    = emailData.html    || emailData.htmlBody || emailData.body_html || '';
+    const text    = emailData.text    || emailData.textBody || emailData.body_text || emailData.plain || '';
+    const bodyHtml = html || (text ? text.replace(/\n/g, '<br>') : '<i>(empty)</i>');
 
     const apiKey = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
     if (!apiKey) {
@@ -193,13 +196,13 @@ router.post('/inbound/support', async (req, res) => {
       <p><strong>From:</strong> ${from}</p>
       <p><strong>Original subject:</strong> ${subject}</p>
       <hr>
-      ${html}
+      ${bodyHtml}
     `;
 
     await axios.post('https://api.resend.com/emails', {
       from: 'support@ofstats.pro',
       to: ['setsken@gmail.com', 'denlab72305@gmail.com'],
-      subject: `[Support] ${subject}`,
+      subject: subject,
       html: forwardHtml,
       reply_to: from
     }, {
