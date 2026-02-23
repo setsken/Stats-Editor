@@ -163,4 +163,56 @@ router.post('/stripe', async (req, res) => {
   res.status(200).json({ received: true, message: 'Stripe webhooks not yet implemented' });
 });
 
+// Resend inbound email → forward to support team
+router.post('/inbound/support', async (req, res) => {
+  // Always respond 200 immediately so Resend doesn't retry
+  res.status(200).json({ received: true });
+
+  try {
+    const payload = typeof req.body === 'string'
+      ? JSON.parse(req.body)
+      : (Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body);
+
+    console.log('Inbound support email webhook:', JSON.stringify(payload).slice(0, 300));
+
+    // Resend sends { type: 'email.received', data: { from, to, subject, html, text, ... } }
+    const emailData = payload.data || payload;
+    const from    = emailData.from    || 'unknown';
+    const subject = emailData.subject || '(no subject)';
+    const html    = emailData.html    || emailData.text?.replace(/\n/g, '<br>') || '(empty)';
+    const text    = emailData.text    || '';
+
+    const apiKey = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.error('Resend API key not configured, cannot forward support email');
+      return;
+    }
+
+    const axios = require('axios');
+    const forwardHtml = `
+      <p><strong>From:</strong> ${from}</p>
+      <p><strong>Original subject:</strong> ${subject}</p>
+      <hr>
+      ${html}
+    `;
+
+    await axios.post('https://api.resend.com/emails', {
+      from: 'support@ofstats.pro',
+      to: ['setsken@gmail.com', 'denlab72305@gmail.com'],
+      subject: `[Support] ${subject}`,
+      html: forwardHtml,
+      reply_to: from
+    }, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('Support email forwarded to team from:', from);
+  } catch (err) {
+    console.error('Error forwarding support email:', err.message);
+  }
+});
+
 module.exports = router;
