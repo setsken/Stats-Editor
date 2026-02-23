@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - OF Stats Editor</title>
+    <meta name="description" content="Privacy Policy for OF Stats Editor Chrome Extension">
+    <link rel="icon" type="image/png" href="https://ofstats.pro/icons/icon48.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.7;
+            color: #e0e0e0;
+            background: #0a0a0f;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0d0d12 0%, #1a1a2e 100%);
+            border-bottom: 1px solid rgba(0, 212, 170, 0.2);
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #fff;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #00d4aa;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #0d0d12 0%, #1a1a2e 50%, #0d0d12 100%);
+            padding: 80px 20px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 212, 170, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .subtitle {
+            color: #888;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+
+        .hero .last-updated {
+            display: inline-block;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            padding: 8px 20px;
+            border-radius: 50px;
+            color: #00d4aa;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 30px;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, rgba(0, 212, 170, 0.1), rgba(0, 184, 148, 0.05));
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .summary-box::before {
+            content: '✓';
+            position: absolute;
+            top: -15px;
+            left: 30px;
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            color: #000;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .summary-box h3 {
+            color: #00d4aa;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .summary-box p {
+            color: #ccc;
+            font-size: 1rem;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h2 .number {
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            color: #000;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        p {
+            color: #aaa;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        ul {
+            margin: 20px 0;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        li {
+            color: #aaa;
+            margin-bottom: 12px;
+            padding-left: 28px;
+            position: relative;
+            font-size: 1rem;
+        }
+
+        li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 8px;
+            height: 8px;
+            background: #00d4aa;
+            border-radius: 50%;
+        }
+
+        li strong {
+            color: #fff;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .data-table th {
+            background: rgba(0, 212, 170, 0.1);
+            color: #00d4aa;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table td {
+            color: #ccc;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table .check {
+            color: #00d4aa;
+            font-weight: bold;
+        }
+
+        .data-table .cross {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+
+        .permission-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .permission-card:hover {
+            border-color: rgba(0, 212, 170, 0.3);
+            background: rgba(0, 212, 170, 0.02);
+        }
+
+        .permission-card h4 {
+            color: #00d4aa;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .permission-card p {
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .contact-section {
+            background: linear-gradient(135deg, #1a1a2e, #0d0d12);
+            border: 1px solid rgba(0, 212, 170, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        .contact-section h2 {
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+
+        .contact-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .contact-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .contact-btn.primary {
+            background: linear-gradient(135deg, #00d4aa, #00b894);
+            color: #000;
+        }
+
+        .contact-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 212, 170, 0.3);
+        }
+
+        .contact-btn.secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .contact-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 60px;
+        }
+
+        .footer p {
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .footer a {
+            color: #00d4aa;
+            text-decoration: none;
+        }
+
+        @media (max-width: 600px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .contact-buttons {
+                flex-direction: column;
+            }
+
+            .data-table {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="https://ofstats.pro" class="logo">
+                <div class="logo-icon">📊</div>
+                OF Stats Editor
+            </a>
+            <nav class="nav-links">
+                <a href="https://ofstats.pro">Home</a>
+                <a href="https://ofstats.pro/privacy-policy.html">Privacy</a>
+                <a href="https://ofstats.pro/terms-of-service.html">Terms</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>Privacy <span>Policy</span></h1>
+        <p class="subtitle">OF Stats Editor - Chrome Extension</p>
+        <span class="last-updated">📅 Last Updated: February 3, 2026</span>
+    </section>
+
+    <div class="container">
+        <div class="summary-box">
+            <h3>Quick Summary</h3>
+            <p>OF Stats Editor respects your privacy. We collect only essential data (email for authentication) needed for the extension to work. We never sell or share your personal information with third parties. All visual edits happen locally in your browser.</p>
+        </div>
+
+        <section class="section">
+            <h2><span class="number">1</span> Introduction</h2>
+            <p>This Privacy Policy describes how OF Stats Editor ("we", "our", or "the Extension") collects, uses, and protects information when you use our Chrome browser extension. By using our extension, you agree to the collection and use of information in accordance with this policy.</p>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">2</span> Data We Collect</h2>
+            <p>We collect minimal data necessary for the extension to function:</p>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Data Type</th>
+                        <th>Purpose</th>
+                        <th>Stored Where</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Email Address</strong></td>
+                        <td>Account registration & authentication</td>
+                        <td>Secure servers</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Authentication Tokens</strong></td>
+                        <td>Keep you logged in securely</td>
+                        <td>Local browser storage</td>
+                    </tr>
+                    <tr>
+                        <td><strong>License Status</strong></td>
+                        <td>Verify subscription access</td>
+                        <td>Secure servers</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Extension Settings</strong></td>
+                        <td>Remember your preferences</td>
+                        <td>Local browser storage</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">3</span> Data We DO NOT Collect</h2>
+            <p>We want to be transparent about what we never collect:</p>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Data Type</th>
+                        <th>Collected?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>OnlyFans login credentials</td>
+                        <td><span class="cross">✕ NO</span></td>
+                    </tr>
+                    <tr>
+                        <td>Actual OnlyFans statistics/earnings</td>
+                        <td><span class="cross">✕ NO</span></td>
+                    </tr>
+                    <tr>
+                        <td>Credit card or payment information</td>
+                        <td><span class="cross">✕ NO</span></td>
+                    </tr>
+                    <tr>
+                        <td>Browsing history</td>
+                        <td><span class="cross">✕ NO</span></td>
+                    </tr>
+                    <tr>
+                        <td>Location data</td>
+                        <td><span class="cross">✕ NO</span></td>
+                    </tr>
+                    <tr>
+                        <td>Personal messages or communications</td>
+                        <td><span class="cross">✕ NO</span></td>
+                    </tr>
+                    <tr>
+                        <td>Activity on other websites</td>
+                        <td><span class="cross">✕ NO</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">4</span> How We Use Your Information</h2>
+            <ul>
+                <li><strong>Authentication:</strong> Verify your identity and manage your account access</li>
+                <li><strong>License Verification:</strong> Confirm your subscription status for premium features</li>
+                <li><strong>Service Delivery:</strong> Provide the core extension functionality</li>
+                <li><strong>Communications:</strong> Send important service-related updates (no marketing spam)</li>
+                <li><strong>Improvements:</strong> Analyze anonymous usage patterns to enhance the extension</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">5</span> Chrome Extension Permissions</h2>
+            <p>Our extension requires specific permissions to function. Here's exactly why we need each one:</p>
+            
+            <div class="permission-card">
+                <h4>activeTab</h4>
+                <p>Access the OnlyFans page you're currently viewing when you click the extension icon. This allows us to modify the statistics display on that specific tab only.</p>
+            </div>
+            
+            <div class="permission-card">
+                <h4>storage</h4>
+                <p>Save your preferences, authentication tokens, and edited values locally in your browser. This data stays on your device.</p>
+            </div>
+            
+            <div class="permission-card">
+                <h4>scripting</h4>
+                <p>Inject scripts that modify the visual display of statistics on OnlyFans pages. This is the core functionality of the extension.</p>
+            </div>
+            
+            <div class="permission-card">
+                <h4>alarms</h4>
+                <p>Periodically check your license status in the background to ensure uninterrupted service without impacting browser performance.</p>
+            </div>
+            
+            <div class="permission-card">
+                <h4>Host Permission: onlyfans.com</h4>
+                <p>Required to enable the core functionality - editing statistics display on OnlyFans pages only.</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">6</span> Data Sharing</h2>
+            <p>We do <strong>NOT</strong> sell, trade, or transfer your personal information to third parties. Your data may only be disclosed:</p>
+            <ul>
+                <li>When required by law or legal process</li>
+                <li>To protect our rights or property</li>
+                <li>With your explicit consent</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">7</span> Data Security</h2>
+            <ul>
+                <li><strong>Encryption:</strong> All data transmission uses SSL/TLS encryption</li>
+                <li><strong>Secure Storage:</strong> Server data is protected with industry-standard security</li>
+                <li><strong>Access Control:</strong> Strict authentication protocols for all API requests</li>
+                <li><strong>Regular Audits:</strong> Security practices are regularly reviewed and updated</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">8</span> Your Rights (GDPR & CCPA)</h2>
+            <p>You have the right to:</p>
+            <ul>
+                <li><strong>Access:</strong> Request a copy of your personal data</li>
+                <li><strong>Correction:</strong> Request correction of inaccurate data</li>
+                <li><strong>Deletion:</strong> Request deletion of your account and associated data</li>
+                <li><strong>Portability:</strong> Receive your data in a portable format</li>
+                <li><strong>Withdrawal:</strong> Uninstall the extension at any time to stop data collection</li>
+            </ul>
+            <p>To exercise these rights, contact us at <a href="mailto:support@ofstats.pro" style="color: #00d4aa;">support@ofstats.pro</a></p>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">9</span> Children's Privacy</h2>
+            <p>Our extension is intended for users 18 years and older. We do not knowingly collect information from anyone under 18. If you believe a minor has provided us with personal information, please contact us immediately.</p>
+        </section>
+
+        <section class="section">
+            <h2><span class="number">10</span> Changes to This Policy</h2>
+            <p>We may update this Privacy Policy periodically. Changes will be posted on this page with an updated revision date. Continued use of the extension after changes constitutes acceptance of the modified policy.</p>
+        </section>
+
+        <section class="contact-section">
+            <h2>Questions or Concerns?</h2>
+            <p style="margin-bottom: 25px;">We're here to help with any privacy-related questions.</p>
+            <div class="contact-buttons">
+                <a href="mailto:support@ofstats.pro" class="contact-btn primary">
+                    📧 support@ofstats.pro
+                </a>
+                <a href="https://ofstats.pro" class="contact-btn secondary">
+                    🌐 Visit Website
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>© 2026 OF Stats Editor. All rights reserved.</p>
+        <p style="margin-top: 10px;">
+            <a href="https://ofstats.pro/privacy-policy.html">Privacy Policy</a> · 
+            <a href="https://ofstats.pro/terms-of-service.html">Terms of Service</a>
+        </p>
+    </footer>
+</body>
+</html>
