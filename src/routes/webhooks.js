@@ -173,17 +173,10 @@ router.post('/inbound/support', async (req, res) => {
       ? JSON.parse(req.body)
       : (Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body);
 
-    // Log full payload to diagnose structure
-    console.log('Inbound support payload FULL:', JSON.stringify(payload, null, 2).slice(0, 2000));
-
-    // Resend inbound: { type: 'email.received', data: { from, to, subject, html, text, ... } }
     const emailData = payload.data || payload;
+    const emailId = emailData.email_id;
     const from    = emailData.from    || 'unknown';
     const subject = emailData.subject || '(no subject)';
-    // Try multiple possible field names for body
-    const html    = emailData.html    || emailData.htmlBody || emailData.body_html || '';
-    const text    = emailData.text    || emailData.textBody || emailData.body_text || emailData.plain || '';
-    const bodyHtml = html || (text ? text.replace(/\n/g, '<br>') : '<i>(empty)</i>');
 
     const apiKey = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
     if (!apiKey) {
@@ -192,9 +185,28 @@ router.post('/inbound/support', async (req, res) => {
     }
 
     const axios = require('axios');
+
+    // Fetch full email content by ID (body is not included in webhook payload)
+    let html = '';
+    let text = '';
+    if (emailId) {
+      try {
+        const fullEmail = await axios.get(`https://api.resend.com/emails/${emailId}`, {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        html = fullEmail.data.html || '';
+        text = fullEmail.data.text || '';
+        console.log('Fetched full email body for:', emailId);
+      } catch (fetchErr) {
+        console.error('Could not fetch email body:', fetchErr.message);
+      }
+    }
+
+    const bodyHtml = html || (text ? text.replace(/\n/g, '<br>') : '<i>(no body)</i>');
+
     const forwardHtml = `
       <p><strong>From:</strong> ${from}</p>
-      <p><strong>Original subject:</strong> ${subject}</p>
+      <p><strong>Subject:</strong> ${subject}</p>
       <hr>
       ${bodyHtml}
     `;
