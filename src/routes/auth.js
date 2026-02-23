@@ -8,37 +8,34 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Email transporter
-let transporter = null;
-if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
-}
-
-// Helper to send email
+// Helper to send email via Resend HTTP API (bypasses SMTP port blocks)
 async function sendEmail(to, subject, html) {
-  if (!transporter) {
-    console.log('SMTP not configured, skipping email to:', to);
+  const apiKey = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
+  const from = process.env.SMTP_FROM || 'Stats Editor Pro <support@ofstats.pro>';
+
+  if (!apiKey) {
+    console.log('Resend API key not configured, skipping email to:', to);
     return false;
   }
+
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'Stats Editor Pro <noreply@statseditor.pro>',
-      to,
+    const axios = require('axios');
+    const response = await axios.post('https://api.resend.com/emails', {
+      from,
+      to: Array.isArray(to) ? to : [to],
       subject,
       html
+    }, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
     });
-    console.log('Email sent to:', to);
+    console.log('Email sent via Resend API to:', to, '| id:', response.data?.id);
     return true;
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('Email send error (Resend API):', error.response?.data || error.message);
     return false;
   }
 }
