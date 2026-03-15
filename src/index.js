@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { query } = require('./config/database');
+const { initFarmedDatabase } = require('./config/farmed-database');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -15,6 +16,7 @@ const fansRoutes = require('./routes/fans');
 const webhooksRoutes = require('./routes/webhooks');
 const promoRoutes = require('./routes/promo');
 const presetsRoutes = require('./routes/presets');
+const farmedModelsRoutes = require('./routes/farmed-models');
 
 const app = express();
 
@@ -36,6 +38,7 @@ async function runMigrations() {
   }
 }
 runMigrations();
+initFarmedDatabase();
 
 // Trust proxy for Railway (required for express-rate-limit)
 app.set('trust proxy', 1);
@@ -110,6 +113,7 @@ app.use('/api/fans', fansRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/promo', promoRoutes);
 app.use('/api/presets', presetsRoutes);
+app.use('/api/farmed-models', farmedModelsRoutes);
 
 // 404 handler
 app.use((req, res) => {
