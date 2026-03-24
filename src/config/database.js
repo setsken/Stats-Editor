@@ -192,6 +192,18 @@ async function initDatabase() {
       )
     `);
 
+    // Fans daily aggregated table — one row per model per day for trend charts
+    await query(`
+      CREATE TABLE IF NOT EXISTS model_fans_daily (
+        model_username VARCHAR(255) NOT NULL,
+        day DATE NOT NULL,
+        fans_count INTEGER NOT NULL,
+        reporters INTEGER DEFAULT 1,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (model_username, day)
+      )
+    `);
+
     // Create indexes
     await query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)');
@@ -200,6 +212,7 @@ async function initDatabase() {
     await query('CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)');
     await query('CREATE INDEX IF NOT EXISTS idx_payments_payment_id ON payments(payment_id)');
     await query('CREATE INDEX IF NOT EXISTS idx_user_presets_user_id ON user_presets(user_id)');
+    await query('CREATE INDEX IF NOT EXISTS idx_model_fans_daily_username ON model_fans_daily(model_username)');
 
     console.log('Database initialized successfully');
   } catch (error) {

@@ -85,9 +85,48 @@ router.post('/report', authenticateToken, async (req, res) => {
       }
     });
 
+    // Async UPSERT into model_fans_daily for trend tracking (non-critical)
+    try {
+      await query(
+        `INSERT INTO model_fans_daily (model_username, day, fans_count, reporters, updated_at)
+         VALUES ($1, CURRENT_DATE, $2, 1, NOW())
+         ON CONFLICT (model_username, day)
+         DO UPDATE SET fans_count = $2, reporters = model_fans_daily.reporters + 1, updated_at = NOW()`,
+        [cleanUsername, parsedFansCount]
+      );
+    } catch (trendErr) {
+      console.error('Fans trend UPSERT error (non-critical):', trendErr.message);
+    }
+
   } catch (error) {
     console.error('Report fans error:', error);
     res.status(500).json({ error: 'Failed to report fans' });
+  }
+});
+
+// Get fans trend (daily history) for sparkline chart — MUST be before /:username
+router.get('/trend/:username', optionalAuth, async (req, res) => {
+  try {
+    const { username } = req.params;
+    const days = Math.min(parseInt(req.query.days) || 90, 365);
+    const cleanUsername = username.trim().toLowerCase().replace('@', '');
+
+    const result = await getMany(
+      `SELECT day, fans_count FROM model_fans_daily
+       WHERE model_username = $1 AND day >= CURRENT_DATE - $2::integer
+       ORDER BY day ASC`,
+      [cleanUsername, days]
+    );
+
+    const points = result.map(r => ({
+      d: r.day.toISOString().slice(0, 10),
+      f: r.fans_count
+    }));
+
+    res.json({ username: cleanUsername, points });
+  } catch (error) {
+    console.error('Get fans trend error:', error);
+    res.status(500).json({ error: 'Failed to get fans trend' });
   }
 });
 
