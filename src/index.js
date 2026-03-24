@@ -31,6 +31,19 @@ async function runMigrations() {
     await query(`
       ALTER TABLE user_models ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
     `).catch(() => {});
+
+    // Create model_fans_daily table for trend charts
+    await query(`
+      CREATE TABLE IF NOT EXISTS model_fans_daily (
+        model_username VARCHAR(255) NOT NULL,
+        day DATE NOT NULL,
+        fans_count INTEGER NOT NULL,
+        reporters INTEGER DEFAULT 1,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (model_username, day)
+      )
+    `).catch(() => {});
+    await query('CREATE INDEX IF NOT EXISTS idx_model_fans_daily_username ON model_fans_daily(model_username)').catch(() => {});
     
     console.log('✅ Migrations completed');
   } catch (error) {
