@@ -44,6 +44,23 @@ async function runMigrations() {
       )
     `).catch(() => {});
     await query('CREATE INDEX IF NOT EXISTS idx_model_fans_daily_username ON model_fans_daily(model_username)').catch(() => {});
+
+    // Backfill model_fans_daily from model_fans_history (one-time migration)
+    try {
+      const check = await query('SELECT COUNT(*) as cnt FROM model_fans_daily');
+      if (parseInt(check.rows[0].cnt) === 0) {
+        await query(`
+          INSERT INTO model_fans_daily (model_username, day, fans_count, reporters, updated_at)
+          SELECT model_username, recorded_at::date as day, fans_count, 1, recorded_at
+          FROM model_fans_history
+          WHERE fans_count IS NOT NULL
+          ON CONFLICT (model_username, day) DO NOTHING
+        `);
+        console.log('✅ Backfilled model_fans_daily from model_fans_history');
+      }
+    } catch (e) {
+      console.log('⚠️ Backfill skipped:', e.message);
+    }
     
     console.log('✅ Migrations completed');
   } catch (error) {
