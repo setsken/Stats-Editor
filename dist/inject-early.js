@@ -1,4 +1,4 @@
-﻿// Early injection script - runs at document_start before any content renders
+// Early injection script - runs at document_start before any content renders
 (function() {
   'use strict';
   
@@ -16,6 +16,245 @@
     log('OF Stats Early: Not authenticated, plugin disabled');
     return;
   }
+
+  // ==================== i18n for Badge ====================
+  var _ofLang = localStorage.getItem('ofStatsLang') || 'ru';
+  var _lastBadgeProfileData = null;
+  var _badgeI18n = {
+    ru: {
+      // Front side
+      profileStats: 'Статистика профиля', details: 'Детали', back: 'Назад',
+      hidden: 'Скрыто', unknown: 'Неизвестно', online: 'Онлайн', free: 'FREE', open: 'Откр.', closed: 'Закр.',
+      // Grade tooltips
+      gradeTop: '🏆 TOP (80–100 баллов)\nПроверенный профиль с отличными показателями. Реальная модель с высокой активностью, органичным ростом и открытой статистикой.',
+      gradeGood: '⭐ Good (60–79 баллов)\nХороший профиль с нормальными метриками. Скорее всего реальная модель, но часть метрик скрыта или ниже идеала.',
+      gradeAverage: '📊 Average (40–59 баллов)\nСредний профиль. Много данных скрыто или метрики слабые. Может быть новичок или неактивная модель.',
+      gradeSuspicious: '⚠️ Suspicious (20–39 баллов)\nПодозрительный профиль. Обнаружены признаки фарма или накрутки. Рекомендуется осторожность.',
+      gradeFake: '🚫 Likely Fake (0–19 баллов)\nВероятно фейковый профиль. Очень низкие показатели, множество красных флагов.',
+      // Component tooltips
+      compMAT: 'Maturity — возраст аккаунта. Чем старше и активнее, тем выше балл',
+      compPOP: 'Popularity — количество фанов. Учитывает скрытость и рост',
+      compORG: 'Organicity — органичность лайков. Выявляет накрутки и ботов',
+      compACT: 'Activity — активность: посты/мес, онлайн-статус, стримы, видео',
+      compTRS: 'Transparency — прозрачность: открытые комменты, фаны, верификация',
+      // Sections
+      radarAnalysis: 'Radar Stats', xrayMode: 'X-Ray Mode',
+      warnings: '⚠ Предупреждения', achievements: '✓ Достижения',
+      verdictAI: 'Вердикт AI: ', analyzing: 'Анализ...', unavailable: 'Недоступно',
+      // X-Ray keys
+      estRevenue: 'Доход (прим.)', fansMonth: 'Фанов/мес', engagement: 'Вовлечённость',
+      content: 'Контент', likesPost: 'Лайков/Пост', videos: 'Видео', streams: 'Стримы',
+      accountAge: 'Возраст акк.', fans: 'Фаны', comments: 'Комментарии',
+      // X-Ray values
+      fansPerMonth: ' фанов/мес', postsPerMonth: ' постов/мес',
+      videoCount: ' видео', streamCount: ' стримов', fansCount: ' фанов',
+      perMonth: '/мес', likesPerFan: ' likes/fan',
+      commentsOpen: 'Открыты', commentsRestricted: 'Ограничены',
+      yearShort: 'г ', monthShort: 'мес',
+      // Flag tooltips
+      flagAbandoned: 'Заброшенный аккаунт: ',
+      flagPostsFor: ' постов за ',
+      flagMonths: ' мес.',
+      flagPostsPerMonth: ' постов/мес)',
+      flagBottedLikes: 'Подозрение на накрутку лайков: ',
+      flagLikesPerPost: ' лайков/пост при ',
+      flagPosts: ' постах',
+      flagLowContent: 'Мало контента: всего ',
+      flagSlowGrowth: 'Медленный рост: ',
+      flagFansPerMonth: ' фанов/мес за ',
+      flagBoostedLikes: 'Накрученные лайки: 100K+ лайков при аккаунте младше 3 месяцев',
+      flagBoughtFans: 'Купленные фаны: 50K+ фанов, но меньше 1K лайков',
+      flagFakeFans: 'Накрутка фанов: ',
+      flagFakeFansSuffix: ' фанов/мес — невозможно набрать органически',
+      flagSuspectGrowth: 'Подозрительный рост: ',
+      flagSuspectGrowthSuffix: ' фанов/мес — вероятна накрутка',
+      flagLowTrust: 'Низкое доверие: фаны скрыты и комментарии закрыты',
+      flagEmptyProfile: 'Пустой профиль: есть фаны, но 0 постов',
+      flagNoProfileImage: 'Нет аватарки и шапки профиля — признак фарм-аккаунта',
+      flagNoAvatar: 'Нет аватарки — подозрительно для реального профиля',
+      flagBulkPosting: 'Массовый постинг: 100+ постов/мес — признак фарма',
+      flagNewcomer: 'Новичок: аккаунту меньше 3 месяцев',
+      flagInflatedLikes: 'Вероятная накрутка лайков: ',
+      flagInflatedByTempo: ' лайков/мес за ',
+      flagInflatedByFanRatio: 'x лайков на фана при ',
+      flagInflatedByFanRatioSuffix: ' фанах',
+      flagInflatedByPostRatio: ' лайков/пост при ',
+      flagVerified: 'Верифицирован — подтвержден OnlyFans',
+      flagSocial: 'Есть ',
+      flagSocialSuffix: ' — подтверждает реальность профиля (+2 балла)',
+      flagWebsite: 'Есть внешний сайт (+1 балл)',
+      flagStreamLegend: '1000+ стримов — алмазный стример',
+      flagStreamPlatinum: '500+ стримов — платиновый стример',
+      flagStreamMaster: '100+ стримов — мастер прямых эфиров',
+      flagTopStreamer: '30+ стримов — топ-стример',
+      flagActiveStreamer: '10+ стримов — активный стример',
+      flagStreamer: '3+ стримов — проводит прямые трансляции',
+      flagDiamondOG: 'Аккаунту 6+ лет — алмазный креатор',
+      flagPlatinumOG: 'Аккаунту 4+ года — платиновый креатор',
+      flagOGCreator: 'Аккаунту 3+ года — оригинальный креатор',
+      flagVeteran: 'Аккаунту 2+ года — проверенный временем',
+      flagLegend: '500K+ фанов — легенда платформы',
+      flagIcon: '100K+ фанов — икона с огромной аудиторией',
+      flagSuperstar: '50K+ фанов — суперзвезда платформы',
+      flagStarPower: '25K+ фанов — мощная звёздная аудитория',
+      flagFanFavorite: '10K+ фанов — фаворит аудитории',
+      flagTrending: '5K+ фанов — на волне популярности',
+      flagRisingStar: '1K+ фанов — восходящая звезда',
+      flagOrganicGrowth: 'Органический рост: ~',
+      flagOrganicGrowthSuffix: ' — здоровый темп роста',
+      flagVideoDiamond: '1000+ видео — алмазный видеограф',
+      flagVideoPlatinum: '500+ видео — платиновый видеограф',
+      flagVideoMaster: '100+ видео — мастер видео',
+      flagVideoCreator: '30+ видео — активно снимает видео',
+      flagContentDiamond: '3000+ постов — алмазный объём контента',
+      flagContentPlatinum: '1000+ постов — платиновый объём контента',
+      flagContentPro: '500+ постов — профессиональный объём',
+      flagContentRich: '300+ постов — много контента',
+      flagContentMaker: '100+ постов — стабильный контент',
+      flagLikesLegend: '1M+ лайков — легендарная вовлечённость',
+      flagDiamondLikes: '500K+ лайков — алмазная вовлечённость',
+      flagPlatinumLikes: '250K+ лайков — платиновая вовлечённость',
+      flagMegaLiked: '100K+ лайков — невероятная вовлечённость',
+      flagSuperLiked: '50K+ лайков — очень высокая вовлечённость',
+      flagWellLiked: '25K+ лайков — высокая вовлечённость',
+      flagLiked: '10K+ лайков — хорошая вовлечённость',
+      flagRisingLikes: '5K+ лайков — растущая вовлечённость',
+      flagOpenBook: 'Открытый профиль: фаны видны и комментарии открыты',
+      flagFreeAccess: 'Бесплатная подписка — свободный доступ',
+      flagPremium: '/мес — премиум подписка',
+      flagHighEngage: 'Высокая вовлечённость: ',
+      flagHighEngageSuffix: ' лайков на фана',
+      flagActiveNow: 'Активна прямо сейчас: ',
+      flagActiveNowSuffix: ' постов/мес, онлайн',
+      // Fans trend
+      trendTab: 'Тренд', radarTab: 'Радар', fansTrend: 'Тренд Фанов',
+      trendGained: 'Прирост', trendPerDay: 'В день', trendReports: 'Точки',
+      trendNoData: 'Недостаточно данных',
+      // Engagement percentile (Radar tab)
+      engagementPercentileTitle: 'Перцентиль вовлечённости',
+      betterThanModels: 'Лучше, чем у ',
+      analyzedModelsSuffix: ' профилей',
+      engagementRateLabel: 'ВОВЛЕЧЁННОСТЬ',
+      vsAverageLabel: 'К СРЕДНЕМУ',
+      modelsAnalyzedLabel: 'ПРОФИЛЕЙ',
+      percentileBasis: 'на основе score, organicity и red flags',
+      // AI payload
+      aiDate: 'дата: ', aiRecentlyOnline: 'был(а) недавно', aiUnknown: 'неизвестно',
+    },
+    en: {
+      profileStats: 'Profile Stats', details: 'Details', back: 'Back',
+      hidden: 'Hidden', unknown: 'Unknown', online: 'Online', free: 'FREE', open: 'Open', closed: 'Closed',
+      gradeTop: '🏆 TOP (80–100 points)\nVerified profile with excellent metrics. Real model with high activity, organic growth and open statistics.',
+      gradeGood: '⭐ Good (60–79 points)\nGood profile with normal metrics. Likely a real model, but some metrics are hidden or below ideal.',
+      gradeAverage: '📊 Average (40–59 points)\nAverage profile. Many data hidden or metrics are weak. Could be a newcomer or inactive model.',
+      gradeSuspicious: '⚠️ Suspicious (20–39 points)\nSuspicious profile. Signs of farming or fake engagement detected. Proceed with caution.',
+      gradeFake: '🚫 Likely Fake (0–19 points)\nLikely fake profile. Very low metrics, multiple red flags.',
+      compMAT: 'Maturity — account age. The older and more active, the higher the score',
+      compPOP: 'Popularity — fan count. Considers hidden status and growth',
+      compORG: 'Organicity — like authenticity. Detects bots and fake engagement',
+      compACT: 'Activity — posts/month, online status, streams, videos',
+      compTRS: 'Transparency — open comments, visible fans, verification',
+      radarAnalysis: 'Radar Analysis', xrayMode: 'X-Ray Mode',
+      warnings: '⚠ Warnings', achievements: '✓ Achievements',
+      verdictAI: 'Verdict AI: ', analyzing: 'Analyzing...', unavailable: 'Unavailable',
+      estRevenue: 'Est. Revenue', fansMonth: 'Fans/month', engagement: 'Engagement',
+      content: 'Content', likesPost: 'Likes/Post', videos: 'Videos', streams: 'Streams',
+      accountAge: 'Account Age', fans: 'Fans', comments: 'Comments',
+      fansPerMonth: ' fans/mo', postsPerMonth: ' posts/mo',
+      videoCount: ' videos', streamCount: ' streams', fansCount: ' fans',
+      perMonth: '/mo', likesPerFan: ' likes/fan',
+      commentsOpen: 'Open', commentsRestricted: 'Restricted',
+      yearShort: 'y ', monthShort: 'mo',
+      flagAbandoned: 'Abandoned account: ',
+      flagPostsFor: ' posts in ',
+      flagMonths: ' mo.',
+      flagPostsPerMonth: ' posts/mo)',
+      flagBottedLikes: 'Suspected fake likes: ',
+      flagLikesPerPost: ' likes/post with ',
+      flagPosts: ' posts',
+      flagLowContent: 'Low content: only ',
+      flagSlowGrowth: 'Slow growth: ',
+      flagFansPerMonth: ' fans/mo in ',
+      flagBoostedLikes: 'Boosted likes: 100K+ likes on an account younger than 3 months',
+      flagBoughtFans: 'Bought fans: 50K+ fans but fewer than 1K likes',
+      flagFakeFans: 'Fake fans: ',
+      flagFakeFansSuffix: ' fans/mo — impossible to gain organically',
+      flagSuspectGrowth: 'Suspect growth: ',
+      flagSuspectGrowthSuffix: ' fans/mo — likely boosted',
+      flagLowTrust: 'Low trust: fans hidden and comments closed',
+      flagEmptyProfile: 'Empty profile: has fans but 0 posts',
+      flagNoProfileImage: 'No avatar and header image — sign of a farm account',
+      flagNoAvatar: 'No avatar — suspicious for a real profile',
+      flagBulkPosting: 'Bulk posting: 100+ posts/mo — sign of farming',
+      flagNewcomer: 'Newcomer: account is less than 3 months old',
+      flagInflatedLikes: 'Likely inflated likes: ',
+      flagInflatedByTempo: ' likes/mo in ',
+      flagInflatedByFanRatio: 'x likes per fan with ',
+      flagInflatedByFanRatioSuffix: ' fans',
+      flagInflatedByPostRatio: ' likes/post with ',
+      flagVerified: 'Verified — confirmed by OnlyFans',
+      flagSocial: 'Has ',
+      flagSocialSuffix: ' — confirms profile authenticity (+2 pts)',
+      flagWebsite: 'Has external website (+1 pt)',
+      flagStreamLegend: '1000+ streams — diamond streamer',
+      flagStreamPlatinum: '500+ streams — platinum streamer',
+      flagStreamMaster: '100+ streams — streaming master',
+      flagTopStreamer: '30+ streams — top streamer',
+      flagActiveStreamer: '10+ streams — active streamer',
+      flagStreamer: '3+ streams — does live broadcasts',
+      flagDiamondOG: 'Account 6+ years — diamond creator',
+      flagPlatinumOG: 'Account 4+ years — platinum creator',
+      flagOGCreator: 'Account 3+ years — original creator',
+      flagVeteran: 'Account 2+ years — time-tested',
+      flagLegend: '500K+ fans — platform legend',
+      flagIcon: '100K+ fans — icon with a massive audience',
+      flagSuperstar: '50K+ fans — platform superstar',
+      flagStarPower: '25K+ fans — powerful star audience',
+      flagFanFavorite: '10K+ fans — fan favorite',
+      flagTrending: '5K+ fans — riding the wave',
+      flagRisingStar: '1K+ fans — rising star',
+      flagOrganicGrowth: 'Organic growth: ~',
+      flagOrganicGrowthSuffix: ' — healthy growth rate',
+      flagVideoDiamond: '1000+ videos — diamond videographer',
+      flagVideoPlatinum: '500+ videos — platinum videographer',
+      flagVideoMaster: '100+ videos — video master',
+      flagVideoCreator: '30+ videos — actively creates video',
+      flagContentDiamond: '3000+ posts — diamond content volume',
+      flagContentPlatinum: '1000+ posts — platinum content volume',
+      flagContentPro: '500+ posts — professional volume',
+      flagContentRich: '300+ posts — rich content',
+      flagContentMaker: '100+ posts — stable content',
+      flagLikesLegend: '1M+ likes — legendary engagement',
+      flagDiamondLikes: '500K+ likes — diamond engagement',
+      flagPlatinumLikes: '250K+ likes — platinum engagement',
+      flagMegaLiked: '100K+ likes — incredible engagement',
+      flagSuperLiked: '50K+ likes — very high engagement',
+      flagWellLiked: '25K+ likes — high engagement',
+      flagLiked: '10K+ likes — good engagement',
+      flagRisingLikes: '5K+ likes — growing engagement',
+      flagOpenBook: 'Open profile: fans visible and comments open',
+      flagFreeAccess: 'Free subscription — open access',
+      flagPremium: '/mo — premium subscription',
+      flagHighEngage: 'High engagement: ',
+      flagHighEngageSuffix: ' likes per fan',
+      flagActiveNow: 'Active right now: ',
+      flagActiveNowSuffix: ' posts/mo, online',
+      // Fans trend
+      trendTab: 'Trend', radarTab: 'Radar', fansTrend: 'Fans Trend',
+      trendGained: 'Gained', trendPerDay: 'Per Day', trendReports: 'Points',
+      trendNoData: 'Not enough data',
+      // Engagement percentile (Radar tab)
+      engagementPercentileTitle: 'Engagement Percentile',
+      betterThanModels: 'Better engagement than ',
+      analyzedModelsSuffix: ' analyzed models',
+      engagementRateLabel: 'ENGAGEMENT RATE',
+      vsAverageLabel: 'VS AVERAGE',
+      modelsAnalyzedLabel: 'MODELS',
+      percentileBasis: 'based on score, organicity and red flags',
+      aiDate: 'date: ', aiRecentlyOnline: 'recently online', aiUnknown: 'unknown',
+    }
+  };
+  function t(key) { return (_badgeI18n[_ofLang] || _badgeI18n.ru)[key] || (_badgeI18n.ru)[key] || key; }
   
   // Check subscription status from localStorage
   // This is set by popup.js when subscription is checked
@@ -41,7 +280,19 @@
       cachedSettings = JSON.parse(cached);
     }
   } catch(e) {}
-  
+
+  // Pre-inject CSS to hide native .b-top-rated on statistics page immediately.
+  // Must be as early as possible (before shouldRunMainLogic return) to prevent blue flash.
+  if (cachedSettings && cachedSettings.enabled && cachedSettings.topCreators &&
+      window.location.pathname.includes('/my/statistics/statements/earnings')) {
+    if (!document.getElementById('of-stats-hide-native-top-rated')) {
+      var earlyHideStyle = document.createElement('style');
+      earlyHideStyle.id = 'of-stats-hide-native-top-rated';
+      earlyHideStyle.textContent = '.b-top-rated:not(#of-stats-top-creators-rated){display:none!important}';
+      (document.head || document.documentElement).appendChild(earlyHideStyle);
+    }
+  }
+
   // Early declaration of earningStatsData - load from localStorage IMMEDIATELY
   // This ensures preset data is available before any generation happens
   var earningStatsData = null;
@@ -173,9 +424,683 @@
         }
       }
       
+      // Check farmed model comment status
+      if (profileData.username) {
+        try {
+          const farmedData = await chrome.runtime.sendMessage({
+            action: 'checkFarmedModel',
+            username: profileData.username
+          });
+          if (farmedData && farmedData.found) {
+            profileData._farmedStatus = farmedData.status; // 'ready', 'none', or null
+            log('OF Stats: Farmed model status for @' + profileData.username + ':', farmedData.status);
+          }
+        } catch (e) {
+          log('OF Stats: Could not check farmed model:', e);
+        }
+      }
+      
+      // Social media detection happens inside displayProfileData with retry,
+      // because OF renders social links via Vue AFTER API data arrives
+      profileData._detectedSocials = [];
+      
+      // Fetch fans trend from server (non-blocking for badge render)
+      profileData._fansTrend = null;
+      if (profileData.username) {
+        try {
+          const trendData = await chrome.runtime.sendMessage({
+            action: 'getFansTrend',
+            username: profileData.username,
+            days: 90
+          });
+          if (trendData && trendData.points && trendData.points.length >= 2) {
+            profileData._fansTrend = trendData.points;
+            log('OF Stats: Fans trend loaded for @' + profileData.username + ': ' + trendData.points.length + ' points');
+          }
+        } catch (e) {
+          log('OF Stats: Could not fetch fans trend:', e);
+        }
+      }
+      
       displayProfileData(profileData);
+      _lastBadgeProfileData = profileData;
     });
     
+    // ==================== MODEL SCORE CALCULATOR ====================
+    function calculateModelScore(profileData) {
+      const result = {
+        score: 0, grade: '', gradeIcon: '', gradeColor: '',
+        components: {}, flags: [], verdict: ''
+      };
+
+      // === Account age in months ===
+      let accountMonths = 0;
+      if (profileData.joinDate) {
+        const join = new Date(profileData.joinDate);
+        const now = new Date();
+        accountMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
+      }
+
+      // === Key metrics ===
+      const fans = profileData.subscribersCount || 0;
+      const fansVisible = profileData.showSubscribersCount !== false;
+      const likes = profileData.favoritedCount || 0;
+      const posts = profileData.postsCount || 0;
+      const videos = profileData.videosCount || 0;
+      const streams = profileData.finishedStreamsCount || 0;
+      const verified = profileData.isVerified || false;
+      const websiteUrl = (profileData.website || '').toLowerCase();
+      const aboutText = (profileData.about || '').toLowerCase();
+      // Detect social media from: 1) DOM-detected links, 2) website URL, 3) about text
+      var detectedSocials = profileData._detectedSocials || [];
+      var socialMediaType = null;
+      var allDetectedSocials = [];
+      // Priority 1: DOM-detected social links (most reliable)
+      if (detectedSocials.length > 0) {
+        socialMediaType = detectedSocials[0];
+        allDetectedSocials = detectedSocials.slice();
+      }
+      // Priority 2: website URL field
+      if (!socialMediaType && websiteUrl) {
+        if (websiteUrl.indexOf('instagram.com') !== -1 || websiteUrl.indexOf('instagr.am') !== -1) socialMediaType = 'instagram';
+        else if (websiteUrl.indexOf('tiktok.com') !== -1) socialMediaType = 'tiktok';
+        else if (websiteUrl.indexOf('twitter.com') !== -1 || websiteUrl.indexOf('x.com') !== -1) socialMediaType = 'twitter';
+        else if (websiteUrl.indexOf('reddit.com') !== -1) socialMediaType = 'reddit';
+        else if (websiteUrl.indexOf('youtube.com') !== -1 || websiteUrl.indexOf('youtu.be') !== -1) socialMediaType = 'youtube';
+        if (socialMediaType && allDetectedSocials.indexOf(socialMediaType) === -1) allDetectedSocials.push(socialMediaType);
+      }
+      // Priority 3 removed: about/bio text mentions are unreliable (word "instagram" in bio ≠ linked account)
+      var hasSocialMedia = !!socialMediaType;
+      var hasWebsite = !!websiteUrl && !hasSocialMedia;
+      const hasAvatar = !!profileData.avatar;
+      const hasHeader = !!profileData.header;
+      const hasEmptyProfileLook = !hasAvatar && !hasHeader;
+      const commentsOpen = profileData._farmedStatus === 'ready';
+      const commentsClosed = profileData._farmedStatus === 'none';
+      const lastKnownFans = profileData._lastKnownFans ? (profileData._lastKnownFans.count || 0) : 0;
+      const effectiveFans = fansVisible ? fans : lastKnownFans;
+
+      // Paid account detection (needed early for anomaly thresholds)
+      const subscribePrice = profileData.subscribePrice || 0;
+      const isPaidAccount = subscribePrice > 0;
+
+      // === DERIVED METRICS ===
+      const postsPerMonth = accountMonths > 0 ? posts / accountMonths : 0;
+      const likesPerPost = posts > 0 ? likes / posts : 0;
+      const likesPerMonth = accountMonths > 0 ? likes / accountMonths : 0;
+      const fansPerMonth = accountMonths > 0 ? effectiveFans / accountMonths : 0;
+
+      // Last seen hours ago
+      let hoursSinceOnline = 9999;
+      if (profileData.lastSeen) {
+        hoursSinceOnline = (Date.now() - new Date(profileData.lastSeen).getTime()) / 3600000;
+      }
+
+      // === ANOMALY DETECTION FLAGS (used across components) ===
+      // Abandoned: very few posts for account age, or long time offline
+      const isAbandoned = accountMonths > 6 && postsPerMonth < 0.5 && posts < 20;
+      // Botted likes: absurdly high likes per post with very few posts
+      const isBottedLikes = (likesPerPost > 2000 && posts < 30) || (likesPerPost > 500 && posts < 10) || (likes > 10000 && posts < 5);
+      // Inflated likes: suspicious ratio — multiple detection methods
+      // Method 1: High likes/post with moderate post count
+      const inflatedByRatio = !isBottedLikes && likesPerPost > 200 && posts >= 10 && (
+        posts < 50 || // few posts with high ratio
+        (posts < 100 && likesPerPost > 400) || // moderate posts but extreme ratio
+        (likesPerPost > 300 && accountMonths <= 6) // any post count but new account + high ratio
+      );
+      // Method 2: Temporal anomaly — too many likes too fast for account age
+      const inflatedByTempo = !isBottedLikes && accountMonths > 0 && likes > 10000 && (
+        (accountMonths <= 6 && likesPerMonth > 5000) || // very young + fast
+        (accountMonths <= 12 && likesPerMonth > 8000) // up to 1 year, extreme tempo
+      );
+      // Method 3: Fan-relative anomaly — likes way too high relative to fan count
+      // Normal engagement: 2-5 total likes per fan over account lifetime
+      // Free accounts: fans come/go, most don't engage heavily, 2-4 expected
+      // If 8.7K fans produced 70K likes = 8x per fan = unrealistic organic engagement
+      const likesPerFan = effectiveFans > 0 ? likes / effectiveFans : 0;
+      // Paid accounts: paying fans are more loyal and like more, plus fans churn over time
+      // but likes remain — so ratio naturally grows with account age
+      var fanRatioThresholds;
+      if (isPaidAccount) {
+        // Paid: much higher thresholds — 30x per fan is normal for 4+ year paid account
+        fanRatioThresholds = {
+          young6: 15,   // <=6 months
+          mid12: 20,    // <=12 months
+          mid24: 30,    // <=24 months
+          old: 50       // any age
+        };
+      } else {
+        fanRatioThresholds = {
+          young6: 5,
+          mid12: 6,
+          mid24: 7,
+          old: 7
+        };
+      }
+      const inflatedByFanRatio = !isBottedLikes && effectiveFans > 0 && effectiveFans < 50000 && (
+        (likesPerFan > fanRatioThresholds.young6 && accountMonths <= 6) ||
+        (likesPerFan > fanRatioThresholds.mid12 && accountMonths <= 12) ||
+        (likesPerFan > fanRatioThresholds.mid24 && accountMonths <= 24) ||
+        (likesPerFan > fanRatioThresholds.old)
+      );
+      const isInflatedLikes = inflatedByRatio || inflatedByTempo || inflatedByFanRatio;
+      // Low content: very few posts for a mature account
+      const isLowContent = accountMonths > 6 && posts < 10;
+      // Slow fan growth: old account with very few fans
+      // For paid accounts, slower growth is expected — lower threshold
+      const slowGrowthThreshold = isPaidAccount ? 3 : 50;
+      const isSlowGrowth = accountMonths > 24 && effectiveFans > 0 && fansPerMonth < slowGrowthThreshold;
+
+      // Revenue-weighted fans: paid fans are worth more for scoring
+      // $25/mo × 2300 fans = $57.5K/mo → these fans are premium
+      const revenueMultiplier = isPaidAccount ? Math.min(1 + subscribePrice / 10, 5) : 1;
+      const weightedFans = Math.round(effectiveFans * revenueMultiplier);
+
+      // === A. MATURITY (0-25) ===
+      let maturity = 0;
+      if (accountMonths <= 1) maturity = 2;
+      else if (accountMonths <= 3) maturity = 5;
+      else if (accountMonths <= 6) maturity = 10;
+      else if (accountMonths <= 12) maturity = 15;
+      else if (accountMonths <= 24) maturity = 20;
+      else maturity = 25;
+      // Maturity penalty: old account with near-zero content is NOT a positive
+      if (accountMonths > 12 && posts < 5) {
+        maturity = Math.min(maturity, 10); // Old + empty = not a real benefit
+      } else if (accountMonths > 24 && postsPerMonth < 1) {
+        maturity = Math.min(maturity, 15); // Old but barely used
+      }
+      result.components.maturity = maturity;
+
+      // === B. POPULARITY (0-25) ===
+      let popularity = 0;
+      // For paid accounts, use revenue-weighted fans for scoring
+      const popFans = isPaidAccount ? weightedFans : fans;
+      if (fansVisible && fans > 0) {
+        if (popFans < 100) popularity = 3;
+        else if (popFans < 500) popularity = 7;
+        else if (popFans < 1000) popularity = 10;
+        else if (popFans < 5000) popularity = 15;
+        else if (popFans < 10000) popularity = 18;
+        else if (popFans < 50000) popularity = 22;
+        else popularity = 25;
+      } else if (!fansVisible) {
+        if (lastKnownFans > 0) {
+          if (lastKnownFans < 500) popularity = 5;
+          else if (lastKnownFans < 5000) popularity = 10;
+          else if (lastKnownFans < 20000) popularity = 14;
+          else popularity = 17;
+        } else {
+          // No fan data at all — estimate from likes and content volume
+          // 836K likes with 8K posts clearly indicates a massive audience
+          if (likes >= 500000 && posts >= 1000) popularity = 18;
+          else if (likes >= 100000 && posts >= 500) popularity = 15;
+          else if (likes >= 50000 && posts >= 200) popularity = 12;
+          else if (likes >= 10000) popularity = 10;
+          else popularity = 8;
+        }
+      }
+      // Penalty: slow fan growth for old accounts
+      if (isSlowGrowth) {
+        popularity = Math.max(0, popularity - 4);
+      }
+      // Penalty: fans but almost no content → fans may be from external promo, not OF activity
+      if (effectiveFans > 1000 && posts < 10 && accountMonths > 6) {
+        popularity = Math.max(0, popularity - 3);
+      }
+      result.components.popularity = popularity;
+
+      // === C. ORGANICITY (0-25) ===
+      let organicity = 0;
+
+      // FIRST: check for botted likes anomaly (overrides normal calculation)
+      if (isBottedLikes) {
+        // Likes are almost certainly fake — organicity near zero
+        organicity = 2;
+      } else {
+        // Normal organicity calculation
+        // Likes/month (reasonable: 200-5000/month for active accounts)
+        if (likesPerMonth > 0) {
+          if (likesPerMonth < 50) organicity += 3;
+          else if (likesPerMonth < 200) organicity += 5;
+          else if (likesPerMonth < 1000) organicity += 8;
+          else if (likesPerMonth < 5000) organicity += 10;
+          else if (likesPerMonth < 15000) organicity += 8;
+          else organicity += 4;
+        }
+
+        // Likes/post ratio — normalized by fan count for popular accounts
+        if (likesPerPost > 0 && posts > 0) {
+          // For accounts with many fans, high likes/post is expected
+          var engagePerFan = effectiveFans > 0 ? likesPerPost / effectiveFans : 0;
+          if (effectiveFans >= 50000) {
+            // Popular accounts: judge by engagement rate (likes per post / fans)
+            // 0.1-3% engagement per post is healthy for large accounts
+            if (engagePerFan < 0.001) organicity += 3; // <0.1% - low engagement
+            else if (engagePerFan < 0.005) organicity += 6; // 0.1-0.5%
+            else if (engagePerFan < 0.02) organicity += 8; // 0.5-2% - ideal
+            else if (engagePerFan < 0.05) organicity += 7; // 2-5%
+            else organicity += 5; // >5% - unusually high but not penalized
+          } else {
+            // Smaller accounts: absolute likes/post thresholds
+            if (likesPerPost < 2) organicity += 2;
+            else if (likesPerPost < 10) organicity += 5;
+            else if (likesPerPost < 50) organicity += 8;
+            else if (likesPerPost < 200) organicity += 7;
+            else if (likesPerPost < 500) organicity += 5;
+            else if (likesPerPost < 1000) organicity += 3;
+            else organicity += 1;
+          }
+        }
+
+        // Fans-to-likes balance
+        if (effectiveFans > 0 && likes > 0) {
+          const ratio = likes / effectiveFans;
+          if (isPaidAccount) {
+            // Paid accounts: high engagement from paying fans is expected and positive
+            // ratio >5 is normal (loyal paying fans like a lot)
+            if (ratio > 1 && ratio < 200) organicity += 7;
+            else if (ratio >= 0.3 && ratio <= 500) organicity += 5;
+            else organicity += 2;
+          } else {
+            if (ratio > 0.3 && ratio < 20) organicity += 7;
+            else if (ratio >= 0.1 && ratio <= 50) organicity += 4;
+            else organicity += 1;
+          }
+        } else if (likes > 0) {
+          organicity += 3;
+        }
+
+        // Cross-validation: HIGH likes/post with LOW total posts = anomaly
+        if (likesPerPost > 500 && posts < 30) {
+          organicity = Math.max(0, organicity - 8);
+        } else if (likesPerPost > 200 && posts < 15) {
+          organicity = Math.max(0, organicity - 5);
+        }
+
+        // Inflated likes penalty: suspicious ratio reduces organicity
+        if (isInflatedLikes) {
+          // Fan-ratio inflation: graduated penalty based on severity
+          if (inflatedByFanRatio) {
+            if (likesPerFan > 15) organicity = Math.max(0, organicity - 10);
+            else if (likesPerFan > 10) organicity = Math.max(0, organicity - 7);
+            else organicity = Math.max(0, organicity - 4); // borderline: mild penalty
+          } else if (likesPerPost > 400) {
+            organicity = Math.max(0, organicity - 8);
+          } else if (likesPerPost > 300) {
+            organicity = Math.max(0, organicity - 6);
+          } else {
+            organicity = Math.max(0, organicity - 4);
+          }
+        }
+      }
+
+      // Low content penalty: few posts means engagement data is unreliable
+      if (posts < 5 && accountMonths > 3) {
+        organicity = Math.min(organicity, 5);
+      } else if (posts < 15 && accountMonths > 6) {
+        organicity = Math.min(organicity, 12);
+      }
+
+      organicity = Math.min(organicity, 25);
+      result.components.organicity = organicity;
+
+      // === D. ACTIVITY (0-15) ===
+      let activity = 0;
+
+      // Posts per month
+      // For veteran models (2+ years) with lots of streams, high post rate is normal, not bulk farming
+      var isVeteranActive = accountMonths >= 24 && streams >= 30;
+      if (postsPerMonth > 0) {
+        if (postsPerMonth < 0.5) activity += 0;
+        else if (postsPerMonth < 1) activity += 1;
+        else if (postsPerMonth < 3) activity += 2;
+        else if (postsPerMonth < 10) activity += 4;
+        else if (postsPerMonth <= 50) activity += 6;
+        else if (postsPerMonth <= 100) activity += 5;
+        else if (postsPerMonth <= 200 && isVeteranActive) activity += 5; // Veteran active model — high rate is natural
+        else activity += 3; // Bulk posting
+      }
+
+      // Online status
+      if (hoursSinceOnline < 1) activity += 3;
+      else if (hoursSinceOnline < 6) activity += 2;
+      else if (hoursSinceOnline < 24) activity += 2;
+      else if (hoursSinceOnline < 72) activity += 1;
+      else if (hoursSinceOnline < 168) activity += 0;
+      if (hoursSinceOnline > 168 && accountMonths > 6 && posts > 10) {
+        activity = Math.max(0, activity - 1);
+      }
+
+      // Streams & videos — scale bonus for extremely active streamers
+      if (streams >= 500) activity += 4;
+      else if (streams >= 100) activity += 3;
+      else if (streams >= 5) activity += 3;
+      else if (streams > 0) activity += 2;
+      if (videos > 10) activity += 2;
+      else if (videos > 0) activity += 1;
+
+      // Abandoned penalty: if almost no posting over long period
+      if (isAbandoned) {
+        activity = Math.min(activity, 2);
+      }
+
+      activity = Math.min(activity, 15);
+      result.components.activity = activity;
+
+      // === E. TRANSPARENCY (0-10) ===
+      let transparency = 0;
+      // Ultra-active model indicator: diamond-level content suggests large real audience
+      var isUltraActive = (streams >= 500 || posts >= 3000) && accountMonths >= 24;
+      if (commentsOpen) transparency += 4;
+      else if (commentsClosed) {
+        // High-fan accounts often close comments to fight spam — reduced penalty
+        // Ultra-active models with diamond achievements close comments due to spam volume
+        if (effectiveFans >= 100000 || isUltraActive) transparency -= 0;
+        else if (effectiveFans >= 50000 || isPaidAccount) transparency -= 1;
+        else transparency -= 2;
+      }
+      if (fansVisible) transparency += 3;
+      else if (isUltraActive) transparency += 1; // Ultra-active models hiding fans is less concerning
+      if (verified) transparency += 3;
+      // Empty profile look: no avatar AND no header — farm account indicator
+      if (hasEmptyProfileLook) transparency -= 3;
+      else if (!hasAvatar) transparency -= 2;
+      else if (!hasHeader) transparency -= 1;
+      // Ultra-active models get trust bonus — massive content proves real engagement
+      if (isUltraActive) transparency += 2;
+      // Social media link — confirms real person with external presence
+      if (hasSocialMedia) transparency += 2;
+      else if (hasWebsite) transparency += 1;
+      transparency = Math.max(0, Math.min(transparency, 10));
+      result.components.transparency = transparency;
+
+      // === TOTAL SCORE ===
+      result.score = maturity + popularity + organicity + activity + transparency;
+
+      // === GLOBAL PENALTIES (cross-component anomalies) ===
+      // Abandoned account: moderate global penalty (component penalties already applied)
+      if (isAbandoned) {
+        result.score -= 5;
+      }
+      // Botted/farmed likes: moderate global penalty
+      if (isBottedLikes) {
+        result.score -= 5;
+      }
+      // Inflated likes: global penalty for suspicious like ratios
+      if (isInflatedLikes) {
+        result.score -= 5;
+      }
+      // Low content on mature account (only if not already penalized as abandoned)
+      if (isLowContent && !isAbandoned) {
+        result.score -= 3;
+      }
+      // No avatar AND no header — strong farm/shell account indicator
+      if (hasEmptyProfileLook) {
+        result.score -= 7;
+      } else if (!hasAvatar) {
+        result.score -= 5;
+      }
+
+      result.score = Math.max(0, Math.min(100, result.score));
+
+      // === GRADE (SVG icons) ===
+      const gradeIcons = {
+        top: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#ffd700" stroke="#ffd700" stroke-width="1"/></svg>',
+        good: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18457 2.99721 7.13633 4.39828 5.49707C5.79935 3.85782 7.69279 2.71538 9.79619 2.24015C11.8996 1.76491 14.1003 1.98234 16.07 2.86" stroke="#10b981" stroke-width="2" stroke-linecap="round" fill="none"/><polyline points="22,4 12,14.01 9,11.01" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+        average: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" stroke="#f59e0b" stroke-width="2" fill="none"/><line x1="8" y1="15" x2="16" y2="15" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="9" r="1.5" fill="#f59e0b"/><circle cx="15" cy="9" r="1.5" fill="#f59e0b"/></svg>',
+        suspicious: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M10.29 3.86L1.82 18C1.64 18.3 1.55 18.65 1.55 19C1.56 19.35 1.65 19.7 1.82 20C2 20.3 2.25 20.56 2.54 20.73C2.84 20.91 3.18 21 3.54 21H20.46C20.82 21 21.16 20.91 21.46 20.73C21.75 20.56 22 20.3 22.18 20C22.35 19.7 22.44 19.35 22.45 19C22.45 18.65 22.36 18.3 22.18 18L13.71 3.86C13.53 3.56 13.28 3.32 12.98 3.15C12.68 2.98 12.34 2.89 12 2.89C11.66 2.89 11.32 2.98 11.02 3.15C10.72 3.32 10.47 3.56 10.29 3.86Z" stroke="#ef4444" stroke-width="2" fill="none"/><line x1="12" y1="9" x2="12" y2="13" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1" fill="#ef4444"/></svg>',
+        fake: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" stroke="#dc2626" stroke-width="2" fill="none"/><line x1="15" y1="9" x2="9" y2="15" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="9" x2="15" y2="15" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>'
+      };
+      if (result.score >= 80) {
+        result.grade = 'TOP'; result.gradeIcon = gradeIcons.top; result.gradeColor = '#ffd700';
+      } else if (result.score >= 60) {
+        result.grade = 'Good'; result.gradeIcon = gradeIcons.good; result.gradeColor = '#10b981';
+      } else if (result.score >= 40) {
+        result.grade = 'Average'; result.gradeIcon = gradeIcons.average; result.gradeColor = '#f59e0b';
+      } else if (result.score >= 20) {
+        result.grade = 'Suspicious'; result.gradeIcon = gradeIcons.suspicious; result.gradeColor = '#ef4444';
+      } else {
+        result.grade = 'Likely Fake'; result.gradeIcon = gradeIcons.fake; result.gradeColor = '#dc2626';
+      }
+
+      // === Achievement SVG icons ===
+      const achIcons = {
+        warning: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+        fire: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 0-5.5 5-5.5 11a5.5 5.5 0 0 0 11 0C17.5 7 12 2 12 2z"></path><path d="M12 18a2 2 0 0 1-2-2c0-2 2-4 2-4s2 2 2 4a2 2 0 0 1-2 2z"></path></svg>',
+        shield: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>',
+        lock: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
+        ghost: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 2 2 3-3 3 3 2-2 3 3V10a8 8 0 0 0-8-8z"></path></svg>',
+        bolt: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
+        globe: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>',
+        check: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+        camera: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>',
+        video: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>',
+        star: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+        heart: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>',
+        crown: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20L19 8l-5 6-2-8-2 8-5-6-3 12z"></path><rect x="2" y="20" width="20" height="2" rx="1"></rect></svg>',
+        clock: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+        eye: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+        gift: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>',
+        skull: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="8"></circle><circle cx="9" cy="9" r="1.5" fill="currentColor"></circle><circle cx="15" cy="9" r="1.5" fill="currentColor"></circle><path d="M8 18v-2M12 18v-2M16 18v-2"></path></svg>',
+        snail: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="10" r="6"></circle><path d="M7 16c-3 0-5 1.5-5 3h20c0-1.5-2-3-5-3"></path><circle cx="13" cy="10" r="2.5"></circle></svg>',
+        robot: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="13" rx="3"></rect><circle cx="9" cy="13" r="1.5" fill="currentColor"></circle><circle cx="15" cy="13" r="1.5" fill="currentColor"></circle><line x1="12" y1="3" x2="12" y2="7"></line><circle cx="12" cy="2" r="1.5" fill="currentColor"></circle></svg>',
+        mic: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>',
+        trophy: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4a2 2 0 0 1-2-2V4h4"></path><path d="M18 9h2a2 2 0 0 0 2-2V4h-4"></path><path d="M4 4h16v5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6V4z"></path><path d="M9 15v2a3 3 0 0 0 6 0v-2"></path><line x1="8" y1="20" x2="16" y2="20"></line></svg>',
+        diamond: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9z"></path><path d="M2 9h20"></path><path d="M10 3l-2 6 4 13 4-13-2-6"></path></svg>',
+        trending: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>',
+        dollar: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>'
+      };
+
+      // === CRITICAL RED FLAGS ===
+      // Abandoned/Inactive account
+      if (isAbandoned) {
+        result.flags.push({ text: 'Abandoned', color: '#ef4444', icon: 'skull', tooltip: t('flagAbandoned') + posts + t('flagPostsFor') + accountMonths + t('flagMonths') + ' (' + postsPerMonth.toFixed(1) + t('flagPostsPerMonth') });
+      }
+      // Botted/Farmed likes
+      if (isBottedLikes) {
+        result.flags.push({ text: 'Botted Likes', color: '#ef4444', icon: 'robot', tooltip: t('flagBottedLikes') + Math.round(likesPerPost).toLocaleString() + t('flagLikesPerPost') + posts + t('flagPosts') });
+      }
+      // Low content
+      if (isLowContent && !isAbandoned) {
+        result.flags.push({ text: 'Low Content', color: '#f97316', icon: 'camera', tooltip: t('flagLowContent') + posts + t('flagPostsFor') + accountMonths + t('flagMonths') });
+      }
+      // Slow fan growth
+      if (isSlowGrowth) {
+        result.flags.push({ text: 'Slow Growth', color: '#f97316', icon: 'snail', tooltip: t('flagSlowGrowth') + Math.round(fansPerMonth) + t('flagFansPerMonth') + accountMonths + t('flagMonths') });
+      }
+      // Boosted likes — young account with extreme like volume
+      if (!isBottedLikes && !isInflatedLikes && likes > 100000 && accountMonths < 3) {
+        result.flags.push({ text: 'Boosted Likes', color: '#ef4444', icon: 'fire', tooltip: t('flagBoostedLikes') });
+      }
+      if (effectiveFans > 50000 && likes < 1000) {
+        result.flags.push({ text: 'Bought Fans', color: '#ef4444', icon: 'warning', tooltip: t('flagBoughtFans') });
+      }
+      // Fan growth rate analysis — detect fake/suspect fan acquisition
+      if (effectiveFans > 0 && accountMonths >= 2) {
+        // For veteran models (4+ years) with massive audience, viral growth is plausible — skip
+        var isVeteranLargeAudience = accountMonths >= 48 && effectiveFans >= 100000;
+        if (!isVeteranLargeAudience) {
+          if (fansPerMonth > 5000) {
+            result.flags.push({ text: 'Fake Fans', color: '#ef4444', icon: 'robot', tooltip: t('flagFakeFans') + Math.round(fansPerMonth).toLocaleString() + t('flagFakeFansSuffix') });
+          } else if (fansPerMonth > 3000) {
+            result.flags.push({ text: 'Suspect Growth', color: '#f97316', icon: 'warning', tooltip: t('flagSuspectGrowth') + Math.round(fansPerMonth).toLocaleString() + t('flagSuspectGrowthSuffix') });
+          }
+        }
+      }
+      if (!fansVisible && commentsClosed && !isUltraActive) {
+        result.flags.push({ text: 'Low Trust', color: '#f97316', icon: 'lock', tooltip: t('flagLowTrust') });
+      }
+      if (posts === 0 && effectiveFans > 100) {
+        result.flags.push({ text: 'Empty Profile', color: '#ef4444', icon: 'ghost', tooltip: t('flagEmptyProfile') });
+      }
+      // No avatar AND no header — likely farm/shell account
+      if (hasEmptyProfileLook) {
+        result.flags.push({ text: 'No Profile Image', color: '#f97316', icon: 'camera', tooltip: t('flagNoProfileImage') });
+      } else if (!hasAvatar) {
+        result.flags.push({ text: 'No Avatar', color: '#f97316', icon: 'camera', tooltip: t('flagNoAvatar') });
+      }
+      if (postsPerMonth > 100 && accountMonths > 1 && !isVeteranActive) {
+        result.flags.push({ text: 'Bulk Posting', color: '#f97316', icon: 'bolt', tooltip: t('flagBulkPosting') });
+      }
+      if (accountMonths < 3 && accountMonths > 0) {
+        result.flags.push({ text: 'Newcomer', color: '#f59e0b', icon: 'clock', tooltip: t('flagNewcomer') });
+      }
+      // Suspicious likes — inflated by any detection method
+      if (isInflatedLikes) {
+        var inflReason = '';
+        if (inflatedByTempo) inflReason = Math.round(likesPerMonth).toLocaleString() + t('flagInflatedByTempo') + accountMonths + ' ' + t('monthShort');
+        else if (inflatedByFanRatio) inflReason = Math.round(likesPerFan) + t('flagInflatedByFanRatio') + effectiveFans + t('flagInflatedByFanRatioSuffix');
+        else inflReason = Math.round(likesPerPost) + t('flagInflatedByPostRatio') + posts + t('flagPosts');
+        result.flags.push({ text: 'Inflated Likes', color: '#f97316', icon: 'fire', tooltip: t('flagInflatedLikes') + inflReason });
+      }
+
+      // === POSITIVE SIGNALS ===
+      if (verified) {
+        result.flags.push({ text: 'Verified', color: '#00b4ff', icon: 'check', tooltip: t('flagVerified') });
+      }
+      if (hasSocialMedia) {
+        var socialNames = { instagram: 'Instagram', tiktok: 'TikTok', twitter: 'Twitter / X', reddit: 'Reddit', youtube: 'YouTube', snapchat: 'Snapchat', twitch: 'Twitch' };
+        var socialColors = { instagram: '#E1306C', tiktok: '#00f2ea', twitter: '#1DA1F2', reddit: '#FF4500', youtube: '#FF0000', snapchat: '#FFFC00', twitch: '#9146FF' };
+        // Show badge for each detected social network
+        var shownSocials = {};
+        allDetectedSocials.forEach(function(soc) {
+          if (!shownSocials[soc]) {
+            shownSocials[soc] = true;
+            result.flags.push({ text: socialNames[soc] || soc, color: socialColors[soc] || '#10b981', icon: 'globe', tooltip: t('flagSocial') + (socialNames[soc] || soc) + t('flagSocialSuffix') });
+          }
+        });
+      } else if (hasWebsite) {
+        result.flags.push({ text: 'Website', color: '#10b981', icon: 'globe', tooltip: t('flagWebsite') });
+      }
+      if (streams >= 1000) {
+        result.flags.push({ text: 'Stream Legend', color: '#b9f2ff', icon: 'diamond', tooltip: t('flagStreamLegend') + ' (' + streams + ')' });
+      } else if (streams >= 500) {
+        result.flags.push({ text: 'Stream Platinum', color: '#e5e4e2', icon: 'trophy', tooltip: t('flagStreamPlatinum') + ' (' + streams + ')' });
+      } else if (streams >= 100) {
+        result.flags.push({ text: 'Stream Master', color: '#ffd700', icon: 'mic', tooltip: t('flagStreamMaster') + ' (' + streams + ')' });
+      } else if (streams >= 30) {
+        result.flags.push({ text: 'Top Streamer', color: '#9b59b6', icon: 'star', tooltip: t('flagTopStreamer') + ' (' + streams + ')' });
+      } else if (streams >= 10) {
+        result.flags.push({ text: 'Active Streamer', color: '#9b59b6', icon: 'video', tooltip: t('flagActiveStreamer') + ' (' + streams + ')' });
+      } else if (streams >= 3) {
+        result.flags.push({ text: 'Streamer', color: '#9b59b6', icon: 'video', tooltip: t('flagStreamer') });
+      }
+      // OG Creator only if NOT abandoned (old abandoned account shouldn't get a crown)
+      if (accountMonths >= 72 && !isAbandoned) {
+        result.flags.push({ text: 'Diamond OG', color: '#b9f2ff', icon: 'diamond', tooltip: t('flagDiamondOG') });
+      } else if (accountMonths >= 48 && !isAbandoned) {
+        result.flags.push({ text: 'Platinum OG', color: '#e5e4e2', icon: 'crown', tooltip: t('flagPlatinumOG') });
+      } else if (accountMonths >= 36 && !isAbandoned) {
+        result.flags.push({ text: 'OG Creator', color: '#ffd700', icon: 'crown', tooltip: t('flagOGCreator') });
+      } else if (accountMonths >= 24 && !isAbandoned) {
+        result.flags.push({ text: 'Veteran', color: '#10b981', icon: 'shield', tooltip: t('flagVeteran') });
+      }
+      // === Fan milestone badges ===
+      if (effectiveFans >= 500000) {
+        result.flags.push({ text: 'Legend', color: '#b9f2ff', icon: 'diamond', tooltip: t('flagLegend') });
+      } else if (effectiveFans >= 100000) {
+        result.flags.push({ text: 'Icon', color: '#ffd700', icon: 'crown', tooltip: t('flagIcon') });
+      } else if (effectiveFans >= 50000) {
+        result.flags.push({ text: 'Superstar', color: '#ff6b9d', icon: 'crown', tooltip: t('flagSuperstar') });
+      } else if (effectiveFans >= 25000) {
+        result.flags.push({ text: 'Star Power', color: '#ff6b9d', icon: 'heart', tooltip: t('flagStarPower') });
+      } else if (effectiveFans >= 10000) {
+        result.flags.push({ text: 'Fan Favorite', color: '#f1c40f', icon: 'star', tooltip: t('flagFanFavorite') });
+      } else if (effectiveFans >= 5000) {
+        result.flags.push({ text: 'Trending', color: '#10b981', icon: 'trending', tooltip: t('flagTrending') });
+      } else if (effectiveFans >= 1000) {
+        result.flags.push({ text: 'Rising Star', color: '#10b981', icon: 'trending', tooltip: t('flagRisingStar') });
+      }
+      // === Organic Growth achievement ===
+      if (effectiveFans > 0 && accountMonths >= 3 && fansPerMonth >= 100 && fansPerMonth <= 3000 && !isBottedLikes) {
+        result.flags.push({ text: 'Organic Growth', color: '#10b981', icon: 'shield', tooltip: t('flagOrganicGrowth') + Math.round(fansPerMonth) + t('flagFansPerMonth') + accountMonths + ' ' + t('monthShort') + t('flagOrganicGrowthSuffix') });
+      }
+      if (videos >= 1000) {
+        result.flags.push({ text: 'Video Diamond', color: '#b9f2ff', icon: 'diamond', tooltip: t('flagVideoDiamond') + ' (' + videos + ')' });
+      } else if (videos >= 500) {
+        result.flags.push({ text: 'Video Platinum', color: '#e5e4e2', icon: 'trophy', tooltip: t('flagVideoPlatinum') + ' (' + videos + ')' });
+      } else if (videos >= 100) {
+        result.flags.push({ text: 'Video Master', color: '#ffd700', icon: 'video', tooltip: t('flagVideoMaster') + ' (' + videos + ')' });
+      } else if (videos >= 30) {
+        result.flags.push({ text: 'Video Creator', color: '#00b4ff', icon: 'video', tooltip: t('flagVideoCreator') });
+      }
+      if (posts >= 3000) {
+        result.flags.push({ text: 'Content Diamond', color: '#b9f2ff', icon: 'diamond', tooltip: t('flagContentDiamond') + ' (' + posts + ')' });
+      } else if (posts >= 1000) {
+        result.flags.push({ text: 'Content Platinum', color: '#e5e4e2', icon: 'trophy', tooltip: t('flagContentPlatinum') + ' (' + posts + ')' });
+      } else if (posts >= 500) {
+        result.flags.push({ text: 'Content Pro', color: '#ffd700', icon: 'bolt', tooltip: t('flagContentPro') + ' (' + posts + ')' });
+      } else if (posts >= 300) {
+        result.flags.push({ text: 'Content Rich', color: '#10b981', icon: 'camera', tooltip: t('flagContentRich') });
+      } else if (posts >= 100) {
+        result.flags.push({ text: 'Content Maker', color: '#10b981', icon: 'camera', tooltip: t('flagContentMaker') });
+      }
+      // Likes tiers — only if NOT botted and NOT inflated
+      if (likes >= 1000000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Likes Legend', color: '#b9f2ff', icon: 'diamond', tooltip: t('flagLikesLegend') });
+      } else if (likes >= 500000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Diamond Likes', color: '#b9f2ff', icon: 'diamond', tooltip: t('flagDiamondLikes') });
+      } else if (likes >= 250000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Platinum Likes', color: '#e5e4e2', icon: 'trophy', tooltip: t('flagPlatinumLikes') });
+      } else if (likes >= 100000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Mega Liked', color: '#ffd700', icon: 'trophy', tooltip: t('flagMegaLiked') });
+      } else if (likes >= 50000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Super Liked', color: '#ffd700', icon: 'star', tooltip: t('flagSuperLiked') });
+      } else if (likes >= 25000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Well Liked', color: '#f1c40f', icon: 'heart', tooltip: t('flagWellLiked') });
+      } else if (likes >= 10000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Liked', color: '#10b981', icon: 'heart', tooltip: t('flagLiked') });
+      } else if (likes >= 5000 && !isBottedLikes && !isInflatedLikes) {
+        result.flags.push({ text: 'Rising Likes', color: '#10b981', icon: 'heart', tooltip: t('flagRisingLikes') });
+      }
+      if (fansVisible && commentsOpen) {
+        result.flags.push({ text: 'Open Book', color: '#10b981', icon: 'eye', tooltip: t('flagOpenBook') });
+      }
+      if (profileData.subscribePrice === 0) {
+        result.flags.push({ text: 'Free Access', color: '#10b981', icon: 'gift', tooltip: t('flagFreeAccess') });
+      } else if (profileData.subscribePrice >= 30) {
+        result.flags.push({ text: 'Premium', color: '#e74c3c', icon: 'dollar', tooltip: '$' + profileData.subscribePrice + t('flagPremium') });
+      }
+      // High engagement rate (likes/fans ratio)
+      if (effectiveFans > 0 && !isBottedLikes) {
+        var engagementRate = likes / effectiveFans;
+        if (engagementRate >= 10 && posts >= 50) {
+          result.flags.push({ text: 'High Engage', color: '#10b981', icon: 'trending', tooltip: t('flagHighEngage') + engagementRate.toFixed(1) + t('flagHighEngageSuffix') });
+        }
+      }
+      // Active & engaged (opposite of abandoned)
+      if (postsPerMonth >= 10 && hoursSinceOnline < 24 && posts >= 50) {
+        result.flags.push({ text: 'Active Now', color: '#10b981', icon: 'bolt', tooltip: t('flagActiveNow') + Math.round(postsPerMonth) + t('flagActiveNowSuffix') });
+      }
+
+      // Store achIcons reference for display
+      result._achIcons = achIcons;
+
+      return result;
+    }
+
+    // Scan DOM for social media links (OF renders them via Vue as .m-tab-social links)
+    function scanSocialLinksFromDOM() {
+      var socials = [];
+      try {
+        // OF uses .m-tab-social class for social media link tabs
+        var socialLinks = document.querySelectorAll('a.m-tab-social, a[href*="instagram.com"], a[href*="tiktok.com"], a[href*="twitter.com"], a[href*="x.com/"], a[href*="reddit.com"], a[href*="youtube.com"], a[href*="snapchat.com"], a[href*="twitch.tv"]');
+        socialLinks.forEach(function(link) {
+          var h = (link.href || '').toLowerCase();
+          if (h.indexOf('instagram.com') !== -1 || h.indexOf('instagr.am') !== -1) socials.push('instagram');
+          else if (h.indexOf('tiktok.com') !== -1) socials.push('tiktok');
+          else if (h.indexOf('twitter.com') !== -1 || h.indexOf('x.com/') !== -1) socials.push('twitter');
+          else if (h.indexOf('reddit.com') !== -1) socials.push('reddit');
+          else if (h.indexOf('youtube.com') !== -1 || h.indexOf('youtu.be') !== -1) socials.push('youtube');
+          else if (h.indexOf('snapchat.com') !== -1) socials.push('snapchat');
+          else if (h.indexOf('twitch.tv') !== -1) socials.push('twitch');
+        });
+      } catch (e) {}
+      // Deduplicate
+      return socials.filter(function(v, i, a) { return a.indexOf(v) === i; });
+    }
+
     // Function to display profile data badge on the page
     function displayProfileData(profileData) {
       // Check if user is authenticated - don't show if not logged in
@@ -184,6 +1109,18 @@
         log('OF Stats: Not authenticated, skipping profile badge');
         return;
       }
+
+      // Read settings from chrome.storage.local (shared with popup)
+      chrome.storage.local.get(['ofStatsBadgeEnabled', 'ofStatsVerdictEnabled', 'ofStatsLang'], function(settings) {
+
+      // Check if badge is enabled in settings
+      if (settings.ofStatsBadgeEnabled === false) {
+        log('OF Stats: Badge disabled in settings, skipping');
+        return;
+      }
+
+      // Refresh language setting
+      _ofLang = settings.ofStatsLang || 'ru';
       
       // Only display on profile pages (not own stats/settings pages)
       if (window.location.pathname.startsWith('/my/')) return;
@@ -219,17 +1156,46 @@
         offline: '<svg viewBox="0 0 24 24" fill="none" width="14" height="14"><circle cx="12" cy="12" r="10" stroke="#64748b" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="#64748b"/></svg>',
         streams: '<svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M23 7L16 12L23 17V7Z" stroke="#9b59b6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="#9b59b6" stroke-width="2"/></svg>',
         subscribed: '<svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18457 2.99721 7.13633 4.39828 5.49707C5.79935 3.85782 7.69279 2.71538 9.79619 2.24015C11.8996 1.76491 14.1003 1.98234 16.07 2.86" stroke="#10b981" stroke-width="2" stroke-linecap="round"/><polyline points="22,4 12,14.01 9,11.01" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-        stats: '<svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M18 20V10" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 20V4" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 20V14" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        stats: '<svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M18 20V10" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 20V4" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 20V14" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        comments: '<svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       };
+      
+      // Helper: build micro sparkline SVG from trend points
+      function buildMicroSparkline(trendPoints) {
+        if (!trendPoints || trendPoints.length < 2) return '';
+        var pts = trendPoints;
+        var vals = pts.map(function(p) { return p.f; });
+        var minV = Math.min.apply(null, vals);
+        var maxV = Math.max.apply(null, vals);
+        var range = maxV - minV || 1;
+        var w = 44, h = 14;
+        var coords = vals.map(function(v, i) {
+          var x = (i / (vals.length - 1)) * w;
+          var y = h - ((v - minV) / range) * (h - 2) - 1;
+          return x.toFixed(1) + ',' + y.toFixed(1);
+        });
+        var pctChange = ((vals[vals.length - 1] - vals[0]) / vals[0] * 100);
+        var isUp = pctChange >= 0;
+        var color = isUp ? '#22c55e' : '#ef4444';
+        var arrow = isUp ? '▲' : '▼';
+        var pctText = arrow + ' ' + (isUp ? '+' : '') + pctChange.toFixed(1) + '%';
+        return '<span style="display:inline-flex;align-items:center;gap:3px;margin-left:4px;">'
+          + '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" style="vertical-align:middle;" preserveAspectRatio="none">'
+          + '<polyline points="' + coords.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+          + '</svg>'
+          + '<span style="font-size:8px;font-weight:700;color:' + color + ';background:' + color + '18;padding:1px 3px;border-radius:3px;white-space:nowrap;">' + pctText + '</span>'
+          + '</span>';
+      }
       
       // Subscribers/Fans count - THE MAIN DATA!
       if (profileData.subscribersCount !== undefined && profileData.subscribersCount !== null) {
         const fansFormatted = formatNumberShort(profileData.subscribersCount);
+        const microSpark = buildMicroSparkline(profileData._fansTrend);
         badgeItems.push(`
           <div style="display:flex;align-items:center;gap:8px;">
             ${svgIcons.fans}
             <span style="color:#8a96a3;font-size:12px;">Fans:</span>
-            <span style="color:#f1c40f;font-weight:600;font-size:13px;">${fansFormatted}</span>
+            <span style="color:#f1c40f;font-weight:600;font-size:13px;">${fansFormatted}</span>${microSpark}
           </div>
         `);
       } else if (profileData.showSubscribersCount === false) {
@@ -345,6 +1311,31 @@
         `);
       }
       
+      // Comment status from farmed models database
+      if (profileData._farmedStatus !== undefined) {
+        var commentColor, commentText, commentIcon;
+        if (profileData._farmedStatus === 'ready') {
+          commentColor = '#10b981';
+          commentText = 'Open';
+          commentIcon = svgIcons.comments.replace('currentColor', '#10b981');
+        } else if (profileData._farmedStatus === 'none') {
+          commentColor = '#ef4444';
+          commentText = 'Closed';
+          commentIcon = svgIcons.comments.replace('currentColor', '#ef4444');
+        } else {
+          commentColor = '#f59e0b';
+          commentText = 'Unknown';
+          commentIcon = svgIcons.comments.replace('currentColor', '#f59e0b');
+        }
+        badgeItems.push(`
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${commentIcon}
+            <span style="color:#8a96a3;font-size:12px;">Comments:</span>
+            <span style="color:${commentColor};font-weight:600;font-size:13px;">${commentText}</span>
+          </div>
+        `);
+      }
+      
       if (badgeItems.length === 0) {
         log('OF Stats: No data to display in badge');
         return;
@@ -354,20 +1345,30 @@
       const badge = document.createElement('div');
       badge.id = 'of-stats-profile-badge';
       badge.style.cssText = `
-        background: linear-gradient(180deg, #0f1535 0%, #0a0e27 100%);
-        border: 1px solid rgba(0, 180, 255, 0.2);
-        border-radius: 12px;
-        padding: 12px 14px;
+        background: linear-gradient(160deg, #14192d 0%, #0a0e1e 100%);
+        border: 1px solid rgba(0, 180, 255, 0.25);
+        border-top: 1px solid rgba(0, 180, 255, 0.4);
+        border-radius: 14px;
+        padding: 16px;
         margin-bottom: 15px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 15px rgba(0, 180, 255, 0.1);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         width: 100%;
         box-sizing: border-box;
         position: relative;
-        overflow: hidden;
+        overflow: visible;
+        perspective: 800px;
       `;
-      
-      // Add inner glow effect
+
+      // Inject flip card styles once
+      if (!document.getElementById('of-stats-flip-styles')) {
+        var flipStyleEl = document.createElement('style');
+        flipStyleEl.id = 'of-stats-flip-styles';
+        flipStyleEl.textContent = '#of-stats-profile-badge .of-flip-inner{position:relative;z-index:1;width:100%;transition:transform 0.6s cubic-bezier(0.4,0,0.2,1),min-height 0.4s ease;transform-style:preserve-3d}#of-stats-profile-badge .of-flip-inner.flipped{transform:rotateY(180deg)}#of-stats-profile-badge .of-flip-front{position:relative;width:100%;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-style:flat}#of-stats-profile-badge .of-flip-back{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform:rotateY(180deg);transform-style:flat}#of-stats-profile-badge .of-flip-inner.flipped .of-flip-front{pointer-events:none}#of-stats-profile-badge .of-flip-inner:not(.flipped) .of-flip-back{pointer-events:none}';
+        document.head.appendChild(flipStyleEl);
+      }
+
+      // Add inner glow effect (direct child of badge, behind flip content)
       const glowOverlay = document.createElement('div');
       glowOverlay.style.cssText = `
         position: absolute;
@@ -375,13 +1376,22 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: radial-gradient(ellipse at 50% 0%, rgba(0,180,255,0.08) 0%, rgba(0,180,255,0) 60%);
+        background: radial-gradient(ellipse at 80% 0%, rgba(0,180,255,0.12) 0%, rgba(0,180,255,0) 60%);
         pointer-events: none;
-        border-radius: 12px;
+        border-radius: 14px;
+        z-index: 0;
       `;
       badge.appendChild(glowOverlay);
+
+      // Create flip structure (wraps entire card content)
+      var flipInner = document.createElement('div');
+      flipInner.className = 'of-flip-inner';
+      var flipFront = document.createElement('div');
+      flipFront.className = 'of-flip-front';
+      var flipBack = document.createElement('div');
+      flipBack.className = 'of-flip-back';
       
-      // Header with close button
+      // Header with Details flip button and close button
       const header = document.createElement('div');
       header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(0, 180, 255, 0.15);position:relative;z-index:1;';
       header.innerHTML = `
@@ -389,9 +1399,15 @@
           ${svgIcons.stats}
           <span style="color:#00b4ff;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Profile Stats</span>
         </div>
-        <button id="of-stats-close-btn" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;padding:0 2px;line-height:1;transition:color 0.2s;">&times;</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div id="of-stats-flip-btn" style="display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;opacity:0.65;transition:opacity 0.2s;padding:2px 6px;border-radius:6px;background:rgba(0,180,255,0.08);border:1px solid rgba(0,180,255,0.15);">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+            <span style="color:#00b4ff;font-size:9px;font-weight:600;letter-spacing:0.5px;" id="of-flip-label">Details</span>
+          </div>
+          <button class="of-stats-close-btn" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;padding:0 2px;line-height:1;transition:color 0.2s;">&times;</button>
+        </div>
       `;
-      badge.appendChild(header);
+      flipFront.appendChild(header);
       
       // Username with verification badge
       if (profileData.username || profileData.name) {
@@ -399,18 +1415,710 @@
         usernameDiv.style.cssText = 'color:#e2e8f0;font-weight:600;font-size:13px;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px;position:relative;z-index:1;';
         const verifiedBadge = profileData.isVerified ? '<svg viewBox="0 0 24 24" width="14" height="14" style="flex-shrink:0;"><path fill="#00b4ff" d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>' : '';
         usernameDiv.innerHTML = '<span style="color:#00b4ff;">@</span>' + (profileData.username || profileData.name) + verifiedBadge;
-        badge.appendChild(usernameDiv);
+        flipFront.appendChild(usernameDiv);
       }
       
       // Stats list
       const list = document.createElement('div');
       list.style.cssText = 'display:flex;flex-direction:column;gap:7px;position:relative;z-index:1;';
       list.innerHTML = badgeItems.join('');
-      badge.appendChild(list);
+      flipFront.appendChild(list);
       
-      // Close button handler
-      badge.querySelector('#of-stats-close-btn').addEventListener('click', function() {
-        badge.remove();
+      // ==================== MODEL SCORE SECTION ====================
+      // First scan for social links immediately
+      profileData._detectedSocials = scanSocialLinksFromDOM();
+      const scoreResult = calculateModelScore(profileData);
+      
+      // Inject tooltip styles once
+      if (!document.getElementById('of-stats-tooltip-styles')) {
+        const tooltipStyle = document.createElement('style');
+        tooltipStyle.id = 'of-stats-tooltip-styles';
+        tooltipStyle.textContent = `
+          .of-stats-tip { position: relative; cursor: help; }
+          .of-stats-tip .of-stats-tiptext {
+            display: none;
+          }
+          .of-stats-global-tip {
+            position: fixed; z-index: 2147483647;
+            background: #1a1f3a; color: #e2e8f0;
+            font-size: 11px; font-style: normal; font-weight: 400;
+            text-align: left; line-height: 1.4;
+            border-radius: 8px; padding: 8px 10px;
+            border: 1px solid rgba(0,180,255,0.25);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            min-width: 180px; max-width: 260px;
+            white-space: normal; word-wrap: break-word;
+            pointer-events: none;
+            opacity: 0; transition: opacity 0.15s;
+          }
+          .of-stats-global-tip.visible { opacity: 1; }
+          .of-stats-global-tip::after {
+            content: ''; position: absolute;
+            top: 100%; left: 50%; transform: translateX(-50%);
+            border: 5px solid transparent; border-top-color: #1a1f3a;
+          }
+        `;
+        document.head.appendChild(tooltipStyle);
+
+        // Create a single global tooltip element on body (outside transform containers)
+        var globalTip = document.createElement('div');
+        globalTip.className = 'of-stats-global-tip';
+        document.body.appendChild(globalTip);
+        var tipHideTimer = null;
+
+        document.addEventListener('mouseover', function(e) {
+          var tip = e.target.closest('.of-stats-tip');
+          if (!tip) return;
+          var tt = tip.querySelector('.of-stats-tiptext');
+          if (!tt) return;
+          clearTimeout(tipHideTimer);
+          globalTip.innerHTML = tt.innerHTML;
+          globalTip.classList.add('visible');
+          var rect = tip.getBoundingClientRect();
+          var ttW = 220;
+          var left = rect.left + rect.width / 2 - ttW / 2;
+          if (left < 4) left = 4;
+          if (left + ttW > window.innerWidth - 4) left = window.innerWidth - 4 - ttW;
+          globalTip.style.left = left + 'px';
+          globalTip.style.width = ttW + 'px';
+          if (rect.top > 80) {
+            globalTip.style.bottom = 'auto';
+            globalTip.style.top = (rect.top - 8) + 'px';
+            globalTip.style.transform = 'translateY(-100%)';
+          } else {
+            globalTip.style.top = (rect.bottom + 8) + 'px';
+            globalTip.style.bottom = 'auto';
+            globalTip.style.transform = 'none';
+          }
+        }, true);
+
+        document.addEventListener('mouseout', function(e) {
+          var tip = e.target.closest('.of-stats-tip');
+          if (!tip) return;
+          tipHideTimer = setTimeout(function() {
+            globalTip.classList.remove('visible');
+          }, 100);
+        }, true);
+      }
+      
+      const scoreSection = document.createElement('div');
+      scoreSection.style.cssText = 'position:relative;z-index:1;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,180,255,0.15);';
+
+      // Grade tooltip descriptions
+      const gradeTooltips = {
+        'TOP': t('gradeTop'),
+        'Good': t('gradeGood'),
+        'Average': t('gradeAverage'),
+        'Suspicious': t('gradeSuspicious'),
+        'Likely Fake': t('gradeFake')
+      };
+      
+      // Score header + big number with tooltip
+      const scoreHeader = document.createElement('div');
+      scoreHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
+      const gradeTip = (gradeTooltips[scoreResult.grade] || '').replace(/\n/g, '<br>');
+      scoreHeader.innerHTML = `
+        <div class="of-stats-tip" style="display:flex;align-items:center;gap:6px;">
+          ${scoreResult.gradeIcon}
+          <span style="color:${scoreResult.gradeColor};font-weight:700;font-size:14px;">${scoreResult.grade}</span>
+          <div class="of-stats-tiptext">${gradeTip}</div>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:3px;">
+          <span style="color:${scoreResult.gradeColor};font-weight:800;font-size:22px;">${scoreResult.score}</span>
+          <span style="color:#64748b;font-size:11px;">/100</span>
+        </div>
+      `;
+      // scoreHeader and progressBar are appended in the flip card assembly below
+      
+      // Progress bar
+      const progressBar = document.createElement('div');
+      progressBar.style.cssText = 'width:100%;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;margin-bottom:8px;';
+      progressBar.innerHTML = '<div style="width:' + scoreResult.score + '%;height:100%;background:' + scoreResult.gradeColor + ';border-radius:3px;transition:width 0.5s ease;"></div>';
+      
+      // Component breakdown (compact, spread across full width with tooltips)
+      const components = scoreResult.components;
+      const compTooltips = {
+        'MAT': t('compMAT'),
+        'POP': t('compPOP'),
+        'ORG': t('compORG'),
+        'ACT': t('compACT'),
+        'TRS': t('compTRS')
+      };
+      const compDiv = document.createElement('div');
+      compDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;';
+      const compItems = [
+        { label: 'MAT', value: components.maturity, max: 25, color: '#00b4ff' },
+        { label: 'POP', value: components.popularity, max: 25, color: '#f1c40f' },
+        { label: 'ORG', value: components.organicity, max: 25, color: '#10b981' },
+        { label: 'ACT', value: components.activity, max: 15, color: '#9b59b6' },
+        { label: 'TRS', value: components.transparency, max: 10, color: '#ff6b9d' }
+      ];
+      compDiv.innerHTML = compItems.map(function(c) {
+        var tip = compTooltips[c.label] || '';
+        return '<span class="of-stats-tip" style="color:#64748b;font-size:10px;font-weight:700;cursor:help;">' + c.label + ' <span style="color:' + c.color + ';font-weight:700;">' + c.value + '</span><span style="color:#475569;">/' + c.max + '</span><div class="of-stats-tiptext">' + tip + '</div></span>';
+      }).join('');
+      // compDiv and analysisGroup will be added to scoreSection later
+
+      // === X-RAY MODE (for back side) ===
+      // Calculate X-Ray analytics data
+      var xrayFans = profileData.subscribersCount || 0;
+      var xrayLikes = profileData.favoritedCount || 0;
+      var xrayPosts = profileData.postsCount || 0;
+      var xrayVideos = profileData.videosCount || 0;
+      var xrayStreams = profileData.finishedStreamsCount || 0;
+      var xrayPrice = profileData.subscribePrice || 0;
+      var xrayMonths = 0;
+      if (profileData.joinDate) {
+        var xj = new Date(profileData.joinDate), xn = new Date();
+        xrayMonths = (xn.getFullYear() - xj.getFullYear()) * 12 + (xn.getMonth() - xj.getMonth());
+      }
+      var xrayEffectiveFans = profileData.showSubscribersCount !== false ? xrayFans : (profileData._lastKnownFans ? profileData._lastKnownFans.count || 0 : 0);
+      var xrayFansPerMonth = xrayMonths > 0 ? xrayEffectiveFans / xrayMonths : 0;
+      var xrayPostsPerMonth = xrayMonths > 0 ? xrayPosts / xrayMonths : 0;
+      var xrayLikesPerPost = xrayPosts > 0 ? xrayLikes / xrayPosts : 0;
+      var xrayEngagement = xrayEffectiveFans > 0 ? (xrayLikes / xrayEffectiveFans) : 0;
+      var xrayRevenue = xrayPrice > 0 ? xrayEffectiveFans * xrayPrice : 0;
+      var xrayAgeYears = Math.floor(xrayMonths / 12);
+      var xrayAgeMonths = xrayMonths % 12;
+      var xrayAgeText = xrayAgeYears > 0 ? xrayAgeYears + t('yearShort') + xrayAgeMonths + t('monthShort') : xrayAgeMonths + ' ' + t('monthShort');
+
+      // Build X-Ray rows
+      var xrayRows = [];
+      if (xrayRevenue > 0) {
+        xrayRows.push({ key: t('estRevenue'), val: '$' + formatNumberShort(xrayRevenue) + t('perMonth'), cls: 'good' });
+      }
+      var fansHidden = xrayEffectiveFans <= 0;
+      if (fansHidden) {
+        xrayRows.push({ key: t('fansMonth'), val: t('unknown'), cls: 'warn' });
+        xrayRows.push({ key: t('engagement'), val: t('unknown'), cls: 'warn' });
+      } else {
+        xrayRows.push({ key: t('fansMonth'), val: '~' + Math.round(xrayFansPerMonth) + ' ' + t('fansPerMonth'), cls: xrayFansPerMonth > 3000 ? 'bad' : xrayFansPerMonth >= 100 ? 'good' : 'warn' });
+        xrayRows.push({ key: t('engagement'), val: xrayEngagement.toFixed(2) + ' ' + t('likesPerFan'), cls: xrayEngagement >= 0.5 && xrayEngagement <= 5 ? 'good' : xrayEngagement > 5 && xrayEngagement < 15 ? 'warn' : xrayEngagement >= 15 ? 'bad' : 'warn' });
+      }
+      xrayRows.push({ key: t('content'), val: '~' + Math.round(xrayPostsPerMonth) + ' ' + t('postsPerMonth'), cls: xrayPostsPerMonth >= 5 ? 'good' : xrayPostsPerMonth >= 1 ? 'warn' : 'bad' });
+      xrayRows.push({ key: t('likesPost'), val: '~' + Math.round(xrayLikesPerPost), cls: xrayLikesPerPost > 500 ? 'bad' : xrayLikesPerPost >= 10 ? 'good' : 'warn' });
+      if (xrayVideos > 0) {
+        xrayRows.push({ key: t('videos'), val: xrayVideos + ' ' + t('videoCount'), cls: xrayVideos >= 10 ? 'good' : 'warn' });
+      }
+      if (xrayStreams > 0) {
+        xrayRows.push({ key: t('streams'), val: xrayStreams + ' ' + t('streamCount'), cls: xrayStreams >= 3 ? 'good' : 'warn' });
+      }
+      xrayRows.push({ key: t('accountAge'), val: xrayAgeText, cls: xrayMonths >= 12 ? 'good' : xrayMonths >= 3 ? 'warn' : 'bad' });
+      // Fans row: show count if visible, or from DB, or hidden
+      var fansVal = t('hidden');
+      var fansCls = 'bad';
+      if (profileData.showSubscribersCount !== false && xrayFans > 0) {
+        fansVal = xrayFans.toLocaleString('ru-RU') + t('fansCount');
+        fansCls = 'good';
+      } else if (profileData._lastKnownFans && profileData._lastKnownFans.count > 0) {
+        fansVal = profileData._lastKnownFans.count.toLocaleString('ru-RU') + t('fansCount');
+        fansCls = 'warn';
+      }
+      xrayRows.push({ key: t('fans'), val: fansVal, cls: fansCls });
+      var commentsStatus = profileData._farmedStatus === 'ready' ? t('commentsOpen') : (profileData._farmedStatus === 'restricted' ? t('commentsRestricted') : t('unknown'));
+      xrayRows.push({ key: t('comments'), val: commentsStatus, cls: profileData._farmedStatus === 'ready' ? 'good' : profileData._farmedStatus === 'restricted' ? 'bad' : 'warn' });
+      
+      // Analysis group (inset panel for flags + verdict) — FRONT SIDE
+      const analysisGroup = document.createElement('div');
+      analysisGroup.style.cssText = 'background:rgba(0,0,0,0.25);border-radius:10px;padding:14px;box-shadow:inset 0 2px 10px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.08);';
+      
+      // === BADGE CATEGORIES ===
+      if (scoreResult.flags.length > 0) {
+        const achIcons = scoreResult._achIcons;
+        // Separate negative vs positive flags by color
+        var negativeColors = ['#ef4444', '#f97316', '#f59e0b'];
+        var negativeFlags = [];
+        var positiveFlags = [];
+        scoreResult.flags.forEach(function(f) {
+          if (negativeColors.indexOf(f.color) !== -1) {
+            negativeFlags.push(f);
+          } else {
+            positiveFlags.push(f);
+          }
+        });
+
+        // Helper to render a row of badges
+        function renderBadgeRow(flags) {
+          return flags.map(function(f) {
+            var iconSvg = f.icon && achIcons[f.icon] ? achIcons[f.icon].replace(/currentColor/g, f.color) : '';
+            var tipHtml = f.tooltip ? '<div class="of-stats-tiptext">' + f.tooltip + '</div>' : '';
+            return '<span class="of-stats-tip" style="display:inline-flex;align-items:center;gap:3px;background:' + f.color + '18;color:' + f.color + ';font-size:10px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid ' + f.color + '35;">' + iconSvg + f.text + tipHtml + '</span>';
+          }).join('');
+        }
+
+        // Negative flags first (if any)
+        if (negativeFlags.length > 0) {
+          var negLabel = document.createElement('div');
+          negLabel.style.cssText = 'font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:600;color:#ef4444;margin-bottom:4px;';
+          negLabel.textContent = t('warnings');
+          analysisGroup.appendChild(negLabel);
+
+          var negDiv = document.createElement('div');
+          negDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;';
+          negDiv.innerHTML = renderBadgeRow(negativeFlags);
+          analysisGroup.appendChild(negDiv);
+        }
+
+        // Divider between groups (only if both groups exist)
+        if (negativeFlags.length > 0 && positiveFlags.length > 0) {
+          var badgeDivider = document.createElement('div');
+          badgeDivider.style.cssText = 'height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);margin:6px 0;';
+          analysisGroup.appendChild(badgeDivider);
+        }
+
+        // Positive flags
+        if (positiveFlags.length > 0) {
+          var posLabel = document.createElement('div');
+          posLabel.style.cssText = 'font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:600;color:#10b981;margin-bottom:4px;';
+          posLabel.textContent = t('achievements');
+          analysisGroup.appendChild(posLabel);
+
+          var posDiv = document.createElement('div');
+          posDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;';
+          posDiv.innerHTML = renderBadgeRow(positiveFlags);
+          analysisGroup.appendChild(posDiv);
+        }
+      }
+      
+      // AI Verdict (async)
+      const verdictDiv = document.createElement('div');
+      verdictDiv.style.cssText = 'color:#8a96a3;font-size:11px;font-style:italic;line-height:1.4;margin-top:4px;';
+      // Hide verdict if disabled in settings
+      if (settings.ofStatsVerdictEnabled === false) {
+        verdictDiv.style.display = 'none';
+      }
+      analysisGroup.appendChild(verdictDiv);
+      
+      // analysisGroup appended to scoreSection in assembly below
+      
+      // Request AI verdict from background (use cached if already fetched)
+      if (profileData._aiVerdict) {
+        verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span>' + profileData._aiVerdict;
+      } else {
+        verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('analyzing') + '</span>';
+        try {
+          var lastKnownFansInfo = '';
+          if (profileData.showSubscribersCount === false && profileData._lastKnownFans) {
+            lastKnownFansInfo = profileData._lastKnownFans.count + ' (' + t('aiDate') + (profileData._lastKnownFans.formattedDate || formatDateShort(profileData._lastKnownFans.recordedAt)) + ')';
+          }
+          chrome.runtime.sendMessage({
+            action: 'getAIVerdict',
+            scoreData: {
+              username: profileData.username || '',
+              score: scoreResult.score,
+              grade: scoreResult.grade,
+              components: scoreResult.components,
+              flags: scoreResult.flags.map(function(f) { return f.text; }),
+              fans: profileData.subscribersCount || 0,
+              fansVisible: profileData.showSubscribersCount !== false,
+              lastKnownFans: lastKnownFansInfo,
+              likes: profileData.favoritedCount || 0,
+              posts: profileData.postsCount || 0,
+              videos: profileData.videosCount || 0,
+              streams: profileData.finishedStreamsCount || 0,
+              verified: profileData.isVerified || false,
+              website: profileData.website || '',
+              joinDate: profileData.joinDate || '',
+              accountMonths: (function() { if (!profileData.joinDate) return 0; var j = new Date(profileData.joinDate), n = new Date(); return (n.getFullYear()-j.getFullYear())*12+(n.getMonth()-j.getMonth()); })(),
+              price: profileData.subscribePrice,
+              commentsOpen: profileData._farmedStatus === 'ready',
+              commentsClosed: profileData._farmedStatus === 'none',
+              location: profileData.location || '',
+              isOnline: profileData.isPerformer ? (profileData.lastSeen ? t('aiRecentlyOnline') : t('aiUnknown')) : t('aiUnknown')
+            }
+          }).then(function(response) {
+            if (response && response.verdict) {
+              profileData._aiVerdict = response.verdict;
+              verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span>' + response.verdict;
+            } else {
+              verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('unavailable') + '</span>';
+            }
+          }).catch(function() {
+            verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('unavailable') + '</span>';
+          });
+        } catch (e) {
+          verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('unavailable') + '</span>';
+        }
+      }
+
+      // --- BACK SIDE: Radar Chart + X-Ray ---
+      // Build radar pentagon chart SVG
+      var radarData = [
+        { label: 'MAT', value: components.maturity, max: 25, color: '#00b4ff' },
+        { label: 'POP', value: components.popularity, max: 25, color: '#f1c40f' },
+        { label: 'ORG', value: components.organicity, max: 25, color: '#10b981' },
+        { label: 'ACT', value: components.activity, max: 15, color: '#9b59b6' },
+        { label: 'TRS', value: components.transparency, max: 10, color: '#ff6b9d' }
+      ];
+      var radarR = 80; // max radius
+      var radarCx = 0, radarCy = 0;
+      // Pentagon vertex angles: -90°, -18°, 54°, 126°, 198° (starting from top, clockwise)
+      var radarAngles = [-90, -18, 54, 126, 198].map(function(a) { return a * Math.PI / 180; });
+      function radarPt(angle, r) {
+        return [Math.cos(angle) * r, Math.sin(angle) * r];
+      }
+      // Grid polygons (4 levels: 100%, 75%, 50%, 25%)
+      var gridLevels = [1, 0.75, 0.5, 0.25];
+      var gridPolygons = gridLevels.map(function(level) {
+        return radarAngles.map(function(a) { var p = radarPt(a, radarR * level); return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+      });
+      // Axis lines
+      var axisLines = radarAngles.map(function(a) { var p = radarPt(a, radarR); return '<line x1="0" y1="0" x2="' + p[0].toFixed(1) + '" y2="' + p[1].toFixed(1) + '"/>'; }).join('');
+      // Data polygon — normalize all to percentage of their max
+      var dataPoints = radarData.map(function(d, i) {
+        var ratio = Math.min(d.value / d.max, 1);
+        var p = radarPt(radarAngles[i], radarR * ratio);
+        return { x: p[0], y: p[1], label: d.label, value: d.value, max: d.max, color: d.color };
+      });
+      var dataPoly = dataPoints.map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+      // Data dots — same color as the polygon lines (gradeColor)
+      var dotColor = scoreResult.gradeColor;
+      var dataDots = dataPoints.map(function(p) { return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3.5" fill="' + dotColor + '" stroke="#0a0e1e" stroke-width="1"/>'; }).join('');
+      // SVG has no labels — they are rendered as HTML overlays below
+      var radarSvg = '<svg width="100%" viewBox="-130 -105 260 220" style="filter:drop-shadow(0 0 8px rgba(0,180,255,0.15));display:block;">'
+        + '<g opacity="0.15" stroke="' + scoreResult.gradeColor + '" fill="none">'
+        + gridPolygons.map(function(pts) { return '<polygon points="' + pts + '"/>'; }).join('')
+        + '</g>'
+        + '<g stroke="rgba(0,180,255,0.08)">' + axisLines + '</g>'
+        + '<polygon fill="' + scoreResult.gradeColor + '20" stroke="' + scoreResult.gradeColor + '" stroke-width="2" points="' + dataPoly + '"/>'
+        + '<g>' + dataDots + '</g>'
+        + '</svg>';
+
+      // Back side header with Back button and close
+      var backHeader = document.createElement('div');
+      backHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;padding-bottom:8px;border-bottom:1px solid rgba(0, 180, 255, 0.15);';
+      backHeader.innerHTML = '<div style="display:flex;align-items:center;gap:6px;">' + svgIcons.stats + '<span style="color:#00b4ff;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">' + t('radarAnalysis') + '</span></div><div style="display:flex;align-items:center;gap:8px;"><div id="of-stats-flip-btn-back" style="display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;opacity:1;transition:opacity 0.2s;padding:2px 6px;border-radius:6px;background:rgba(0,180,255,0.08);border:1px solid rgba(0,180,255,0.15);"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m0 0l7 7m-7-7l7-7"/></svg><span style="color:#00b4ff;font-size:9px;font-weight:600;letter-spacing:0.5px;" id="of-flip-label-back">Back</span></div><button class="of-stats-close-btn" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;padding:0 2px;line-height:1;transition:color 0.2s;">&times;</button></div>';
+      flipBack.appendChild(backHeader);
+
+      // === TAB SYSTEM: Radar | Trend ===
+      var hasTrend = profileData._fansTrend && profileData._fansTrend.length >= 2;
+      var tabBar = document.createElement('div');
+      tabBar.style.cssText = 'display:flex;gap:0;margin:4px 0 8px;border-bottom:1px solid rgba(0,180,255,0.12);';
+      var svgRadarIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="22" y1="8.5" x2="2" y2="15.5"/><line x1="2" y1="8.5" x2="22" y2="15.5"/></svg>';
+      var svgTrendIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 6 13 11 8 4 2 12"/><polyline points="22 12 22 20 2 20 2 12"/></svg>';
+      var tabRadar = document.createElement('div');
+      tabRadar.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:10px;font-weight:600;color:#00b4ff;cursor:pointer;border-bottom:2px solid #00b4ff;transition:all 0.2s;';
+      tabRadar.innerHTML = svgRadarIcon + ' ' + t('radarTab');
+      var tabTrend = document.createElement('div');
+      tabTrend.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:10px;font-weight:600;color:#556677;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;';
+      tabTrend.innerHTML = svgTrendIcon + ' ' + t('trendTab');
+      tabBar.appendChild(tabRadar);
+      tabBar.appendChild(tabTrend);
+      flipBack.appendChild(tabBar);
+
+      // --- RADAR TAB CONTENT ---
+      var radarTabContent = document.createElement('div');
+      radarTabContent.id = 'of-stats-tab-radar';
+
+      var radarDiv = document.createElement('div');
+      radarDiv.style.cssText = 'position:relative;';
+      radarDiv.innerHTML = radarSvg;
+      radarTabContent.appendChild(radarDiv);
+
+      // HTML labels at pentagon vertices — coords mapped from SVG viewBox -130,-130 w=260 h=245
+      var vbX=-130, vbY=-105, vbW=260, vbH=220;
+      var labelConfigs = [
+        { offy: -18, offx: 0, anchor: 'center' },
+        { offy: -6, offx: 6, anchor: 'left' },
+        { offy: 4, offx: 4, anchor: 'left' },
+        { offy: 4, offx: -4, anchor: 'right' },
+        { offy: -6, offx: -6, anchor: 'right' }
+      ];
+      radarData.forEach(function(d, i) {
+        var vtx = radarPt(radarAngles[i], radarR);
+        var cfg = labelConfigs[i];
+        var pctLeft = ((vtx[0] - vbX) / vbW * 100).toFixed(1);
+        var pctTop = ((vtx[1] - vbY) / vbH * 100).toFixed(1);
+        var xform = cfg.anchor === 'center' ? 'translate(-50%,' + cfg.offy + 'px)' : cfg.anchor === 'right' ? 'translate(calc(-100% + ' + cfg.offx + 'px),' + cfg.offy + 'px)' : 'translate(' + cfg.offx + 'px,' + cfg.offy + 'px)';
+        var tip = compTooltips[d.label] || '';
+        var lbl = document.createElement('span');
+        lbl.className = 'of-stats-tip';
+        lbl.style.cssText = 'position:absolute;top:' + pctTop + '%;left:' + pctLeft + '%;transform:' + xform + ';color:' + d.color + ';font-size:10px;font-weight:600;font-family:Inter,-apple-system,sans-serif;cursor:help;white-space:nowrap;z-index:2;';
+        lbl.textContent = d.label + ' ' + d.value;
+        if (tip) {
+          var tipEl = document.createElement('div');
+          tipEl.className = 'of-stats-tiptext';
+          tipEl.textContent = tip;
+          lbl.appendChild(tipEl);
+        }
+        radarDiv.appendChild(lbl);
+      });
+
+      // Engagement Percentile panel (Feature #5) — now synced with aggregated DB percentile
+      var analyzedModels = 1247;
+      var engagementRate = Math.max(0, xrayEngagement);
+      var negativeColors = ['#ef4444', '#f97316', '#f59e0b'];
+      var negativeFlagsCount = (scoreResult.flags || []).filter(function(f) {
+        return f && negativeColors.indexOf(f.color) !== -1;
+      }).length;
+      var scoreNorm = Math.max(0, Math.min(1, (scoreResult.score || 0) / 100));
+      var organicityNorm = Math.max(0, Math.min(1, (components.organicity || 0) / 25));
+      var engagementNorm = Math.max(0, Math.min(1, engagementRate / 5));
+      var qualityRaw = (scoreNorm * 0.60) + (organicityNorm * 0.25) + (engagementNorm * 0.15) - (negativeFlagsCount * 0.04);
+      var quality = Math.max(0.01, Math.min(0.99, qualityRaw));
+      var betterPercent = Math.max(1, Math.min(99, Math.round(quality * 100)));
+      var topPercent = Math.max(1, 100 - betterPercent);
+      var percentilePanel = document.createElement('div');
+      percentilePanel.style.cssText = 'margin-top:-34px;margin-bottom:10px;background:#0d1420;border-radius:9px;padding:9px 10px;border:1px solid rgba(0,180,255,0.16);';
+      percentilePanel.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+        + '<div id="of-percentile-top" style="font-size:19px;font-weight:800;line-height:1;background:linear-gradient(135deg,#00b4ff,#22c55e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Top ' + topPercent + '%</div>'
+        + '<div style="font-size:9px;color:#8899aa;text-align:right;max-width:170px;line-height:1.25;">'
+        + '<span id="of-percentile-better">' + t('betterThanModels') + betterPercent + '% ' + t('analyzedModelsSuffix') + '</span><br>'
+        + '<span id="of-percentile-basis" style="font-size:8px;color:#5f7388;">' + t('percentileBasis') + '</span></div>'
+        + '</div>'
+        + '<div style="position:relative;height:14px;background:#111827;border-radius:8px;overflow:hidden;">'
+        + '<div style="height:100%;width:100%;opacity:.32;background:linear-gradient(90deg,#ef4444,#eab308,#22c55e,#00b4ff);"></div>'
+        + '<div id="of-percentile-marker" style="position:absolute;top:1px;bottom:1px;width:3px;border-radius:2px;background:#fff;left:' + betterPercent + '%;transform:translateX(-50%);box-shadow:0 0 6px rgba(255,255,255,.45);"></div>'
+        + '</div>';
+      radarTabContent.appendChild(percentilePanel);
+
+      // Fetch real percentile from aggregated backend DB and replace heuristic values
+      if (profileData.username) {
+        try {
+          chrome.runtime.sendMessage({
+            action: 'getEngagementPercentile',
+            username: profileData.username,
+            metrics: {
+              score: Number(scoreResult.score || 0),
+              organicity: Number(components.organicity || 0),
+              engagementRate: Number(engagementRate || 0),
+              negativeFlagsCount: Number(negativeFlagsCount || 0)
+            }
+          }).then(function(resp) {
+            if (!resp || !resp.success) return;
+            var dbBetter = Math.max(1, Math.min(99, Number(resp.betterPercent || betterPercent)));
+            var dbTop = Math.max(1, Math.min(99, Number(resp.topPercent || (100 - dbBetter))));
+            var dbModels = Math.max(1, Number(resp.modelsAnalyzed || analyzedModels));
+
+            var topEl = percentilePanel.querySelector('#of-percentile-top');
+            var betterEl = percentilePanel.querySelector('#of-percentile-better');
+            var basisEl = percentilePanel.querySelector('#of-percentile-basis');
+            var markerEl = percentilePanel.querySelector('#of-percentile-marker');
+
+            if (topEl) topEl.textContent = 'Top ' + dbTop + '%';
+            if (betterEl) betterEl.textContent = t('betterThanModels') + dbBetter + '% ' + dbModels + ' ' + t('analyzedModelsSuffix');
+            if (basisEl) basisEl.textContent = 'aggregated DB percentile';
+            if (markerEl) markerEl.style.left = dbBetter + '%';
+          }).catch(function() {});
+        } catch (e) {}
+      }
+      flipBack.appendChild(radarTabContent);
+
+      // --- TREND TAB CONTENT ---
+      var trendTabContent = document.createElement('div');
+      trendTabContent.id = 'of-stats-tab-trend';
+      trendTabContent.style.display = 'none';
+
+      if (hasTrend) {
+        var tpts = profileData._fansTrend;
+        var tVals = tpts.map(function(p) { return p.f; });
+        var tMin = Math.min.apply(null, tVals);
+        var tMax = Math.max.apply(null, tVals);
+        var tRange = tMax - tMin || 1;
+        var tFirst = tVals[0], tLast = tVals[tVals.length - 1];
+        var tPctChange = ((tLast - tFirst) / tFirst * 100);
+        var tIsUp = tPctChange >= 0;
+        var tColor = tIsUp ? '#22c55e' : '#ef4444';
+        var tArrow = tIsUp ? '▲' : '▼';
+        var tPctText = tArrow + ' ' + (tIsUp ? '+' : '') + tPctChange.toFixed(1) + '%';
+        var tGained = tLast - tFirst;
+        var tDays = tpts.length > 1 ? Math.max(1, Math.round((new Date(tpts[tpts.length-1].d) - new Date(tpts[0].d)) / 86400000)) : 1;
+        var tPerDay = (tGained / tDays).toFixed(0);
+
+        // Build full sparkline SVG for trend tab
+        var tW = 240, tH = 56;
+        var tPadTop = 8, tPadBottom = 8;
+        var tCoords = tVals.map(function(v, i) {
+          var x = (i / (tVals.length - 1)) * tW;
+          var y = tPadTop + (1 - ((v - tMin) / tRange)) * (tH - tPadTop - tPadBottom);
+          return x.toFixed(1) + ',' + y.toFixed(1);
+        });
+        var tLine = tCoords.join(' ');
+        var tArea = tLine + ' ' + tW + ',' + tH + ' 0,' + tH;
+        var tFirstDate = tpts[0].d;
+        var tLastDate = tpts[tpts.length - 1].d;
+        var tMidDate = tpts[Math.floor(tpts.length / 2)] ? tpts[Math.floor(tpts.length / 2)].d : '';
+        function fmtTrendDate(d) { var p = d.split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
+
+        // Build interactive dots for hover tooltips
+        var tDots = '';
+        tCoords.forEach(function(coord, idx) {
+          var cx = coord.split(',')[0];
+          var cy = coord.split(',')[1];
+          tDots += '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="' + tColor + '" stroke="#0d1117" stroke-width="2" style="cursor:pointer;" data-idx="' + idx + '"/>';
+          tDots += '<circle cx="' + cx + '" cy="' + cy + '" r="12" fill="transparent" style="cursor:pointer;" data-idx="' + idx + '"/>';
+        });
+
+        trendTabContent.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+          + '<span style="font-size:10px;color:#8899aa;text-transform:uppercase;letter-spacing:0.3px;">' + t('fansTrend') + ' (' + tDays + 'd)</span>'
+          + '<div style="display:flex;align-items:center;gap:6px;">'
+          + '<span style="font-size:18px;font-weight:700;color:#fff;">' + Number(tLast).toLocaleString() + '</span>'
+          + '<span style="font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;color:' + tColor + ';background:' + tColor + '18;">' + tPctText + '</span>'
+          + '</div></div>'
+          + '<div style="position:relative;margin:6px 0;">'
+          + '<svg viewBox="0 0 ' + tW + ' ' + tH + '" width="100%" height="68" preserveAspectRatio="none" id="of-trend-svg">'
+          + '<defs><linearGradient id="ofTrendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + tColor + '" stop-opacity="0.25"/><stop offset="100%" stop-color="' + tColor + '" stop-opacity="0"/></linearGradient></defs>'
+          + '<polygon points="' + tArea + '" fill="url(#ofTrendGrad)"/>'
+          + '<polyline points="' + tLine + '" fill="none" stroke="' + tColor + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+          + tDots
+          + '</svg>'
+          + '<div id="of-trend-tooltip" style="display:none;position:absolute;bottom:2px;left:0;background:#1a2535ee;border:1px solid ' + tColor + '44;border-radius:6px;padding:4px 8px;pointer-events:none;white-space:nowrap;z-index:10;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
+          + '<div style="font-size:11px;font-weight:700;color:#fff;" id="of-trend-tip-fans"></div>'
+          + '<div style="font-size:9px;color:#8899aa;" id="of-trend-tip-date"></div>'
+          + '</div></div>'
+          + '<div style="display:flex;justify-content:space-between;font-size:9px;color:#667788;margin-bottom:8px;">'
+          + '<span>' + fmtTrendDate(tFirstDate) + '</span>'
+          + (tMidDate ? '<span>' + fmtTrendDate(tMidDate) + '</span>' : '')
+          + '<span>' + fmtTrendDate(tLastDate) + '</span>'
+          + '</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">'
+          + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
+          + '<div style="font-size:13px;font-weight:700;color:' + tColor + ';">' + (tGained >= 0 ? '+' : '') + Number(tGained).toLocaleString() + '</div>'
+          + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendGained') + '</div></div>'
+          + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
+          + '<div style="font-size:13px;font-weight:700;color:#00b4ff;">~' + tPerDay + '/d</div>'
+          + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendPerDay') + '</div></div>'
+          + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
+          + '<div style="font-size:13px;font-weight:700;color:#00b4ff;">' + tpts.length + '</div>'
+          + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendReports') + '</div></div>'
+          + '</div>';
+
+        // Attach hover listeners for interactive dots
+        setTimeout(function() {
+          var svg = document.getElementById('of-trend-svg');
+          var tip = document.getElementById('of-trend-tooltip');
+          var tipFans = document.getElementById('of-trend-tip-fans');
+          var tipDate = document.getElementById('of-trend-tip-date');
+          if (!svg || !tip) return;
+          var dots = svg.querySelectorAll('circle[data-idx]');
+          dots.forEach(function(dot) {
+            dot.addEventListener('mouseenter', function() {
+              var idx = parseInt(dot.getAttribute('data-idx'));
+              var pt = tpts[idx];
+              if (!pt) return;
+              tipFans.textContent = Number(pt.f).toLocaleString() + ' fans';
+              tipDate.textContent = fmtTrendDate(pt.d);
+              var pct = (idx / (tpts.length - 1)) * 100;
+              var clampedPct = Math.max(12, Math.min(88, pct));
+              tip.style.left = clampedPct + '%';
+              tip.style.display = '';
+            });
+            dot.addEventListener('mouseleave', function() {
+              tip.style.display = 'none';
+            });
+          });
+        }, 50);
+      } else {
+        trendTabContent.innerHTML = '<div style="text-align:center;padding:30px 10px;color:#556677;font-size:12px;">'
+          + '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#334455" stroke-width="1.5" style="margin:0 auto 8px;display:block;"><path d="M22 12H18L15 21L9 3L6 12H2"/></svg>'
+          + t('trendNoData')
+          + '</div>';
+      }
+      flipBack.appendChild(trendTabContent);
+
+      // --- TAB SWITCHING LOGIC ---
+      tabRadar.addEventListener('click', function() {
+        tabRadar.style.color = '#00b4ff';
+        tabRadar.style.borderBottomColor = '#00b4ff';
+        tabTrend.style.color = '#556677';
+        tabTrend.style.borderBottomColor = 'transparent';
+        document.getElementById('of-stats-tab-radar').style.display = '';
+        document.getElementById('of-stats-tab-trend').style.display = 'none';
+        adjustFlipHeight(true);
+      });
+      tabTrend.addEventListener('click', function() {
+        tabTrend.style.color = '#00b4ff';
+        tabTrend.style.borderBottomColor = '#00b4ff';
+        tabRadar.style.color = '#556677';
+        tabRadar.style.borderBottomColor = 'transparent';
+        document.getElementById('of-stats-tab-radar').style.display = 'none';
+        document.getElementById('of-stats-tab-trend').style.display = '';
+        adjustFlipHeight(true);
+      });
+
+      // X-Ray section on back
+      var xrayTitle = document.createElement('div');
+      xrayTitle.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;';
+      xrayTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span style="color:#00b4ff;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">' + t('xrayMode') + '</span>';
+      flipBack.appendChild(xrayTitle);
+
+      var xrayPanel = document.createElement('div');
+      xrayPanel.style.cssText = 'background:rgba(0,180,255,0.04);border:1px solid rgba(0,180,255,0.12);border-radius:8px;padding:10px;';
+      xrayPanel.innerHTML = xrayRows.map(function(r) {
+        var valColor = r.cls === 'good' ? '#10b981' : r.cls === 'bad' ? '#ef4444' : '#f59e0b';
+        var icon = r.cls === 'good' ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>'
+                 : r.cls === 'bad' ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+                 : '<svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" style="flex-shrink:0"><path d="M12 2L1 21h22L12 2zm0 4l7.5 13h-15L12 6z"/><rect x="11" y="10" width="2" height="5" rx="1"/><rect x="11" y="16" width="2" height="2" rx="1"/></svg>';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:11px;' + (r !== xrayRows[xrayRows.length - 1] ? 'border-bottom:1px solid rgba(255,255,255,0.04);' : '') + '"><span style="color:#64748b;">' + r.key + '</span><span style="display:flex;align-items:center;gap:4px;color:' + valColor + ';font-weight:600;">' + r.val + icon + '</span></div>';
+      }).join('');
+      flipBack.appendChild(xrayPanel);
+
+      // Assemble: scoreSection goes into flipFront
+      scoreSection.appendChild(scoreHeader);
+      scoreSection.appendChild(progressBar);
+      scoreSection.appendChild(compDiv);
+      scoreSection.appendChild(analysisGroup);
+      flipFront.appendChild(scoreSection);
+
+      // Assemble flip card into badge
+      flipInner.appendChild(flipFront);
+      flipInner.appendChild(flipBack);
+      badge.appendChild(flipInner);
+
+      // Helper: adjust flipInner height to fit active side
+      function adjustFlipHeight(toBack) {
+        var targetSide = toBack ? flipBack : flipFront;
+        // Temporarily make back visible to measure
+        if (toBack) { flipBack.style.position = 'relative'; flipBack.style.height = 'auto'; }
+        var h = targetSide.scrollHeight;
+        if (toBack) { flipBack.style.position = ''; flipBack.style.height = ''; }
+        // Lock current height first so transition can animate from it
+        if (!flipInner.style.minHeight) {
+          flipInner.style.minHeight = flipFront.scrollHeight + 'px';
+          // Force reflow so browser registers the starting value
+          flipInner.offsetHeight;
+        }
+        flipInner.style.minHeight = h + 'px';
+      }
+      
+      // Flip button handler (in header)
+      var flipBtnEl = badge.querySelector('#of-stats-flip-btn');
+      if (flipBtnEl) {
+        flipBtnEl.addEventListener('mouseenter', function() { this.style.opacity = '1'; });
+        flipBtnEl.addEventListener('mouseleave', function() { var f = flipInner.classList.contains('flipped'); this.style.opacity = f ? '1' : '0.65'; });
+        flipBtnEl.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var isFlipped = flipInner.classList.contains('flipped');
+          flipInner.classList.toggle('flipped');
+          adjustFlipHeight(!isFlipped);
+          var frontLabel = document.getElementById('of-flip-label');
+          var backLabel = document.getElementById('of-flip-label-back');
+          if (frontLabel) frontLabel.textContent = isFlipped ? 'Details' : 'Back';
+          if (backLabel) backLabel.textContent = isFlipped ? 'Details' : 'Back';
+          this.style.opacity = isFlipped ? '0.65' : '1';
+        });
+      }
+      // Back flip button handler
+      var flipBtnBack = badge.querySelector('#of-stats-flip-btn-back');
+      if (flipBtnBack) {
+        flipBtnBack.addEventListener('mouseenter', function() { this.style.opacity = '1'; });
+        flipBtnBack.addEventListener('mouseleave', function() { this.style.opacity = '1'; });
+        flipBtnBack.addEventListener('click', function(e) {
+          e.stopPropagation();
+          flipInner.classList.remove('flipped');
+          adjustFlipHeight(false);
+          var frontLabel = document.getElementById('of-flip-label');
+          var backLabel = document.getElementById('of-flip-label-back');
+          if (frontLabel) frontLabel.textContent = 'Details';
+          if (backLabel) backLabel.textContent = 'Details';
+          if (flipBtnEl) flipBtnEl.style.opacity = '0.65';
+        });
+      }
+      // Close button handlers (both sides)
+      badge.querySelectorAll('.of-stats-close-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { badge.remove(); });
       });
       
       // Function to insert badge into sidebar
@@ -456,7 +2164,39 @@
       }
       
       log('OF Stats: Successfully displayed profile badge!');
+      
+      // Delayed social media re-scan: OF renders social links via Vue AFTER API data
+      // Retry scan every 500ms up to 5 times, re-calculate score if socials found
+      if (!profileData._detectedSocials || profileData._detectedSocials.length === 0) {
+        var socialRetry = 0;
+        var socialRetryMax = 10;
+        var socialRetryTimer = setInterval(function() {
+          socialRetry++;
+          var foundSocials = scanSocialLinksFromDOM();
+          if (foundSocials.length > 0 || socialRetry >= socialRetryMax) {
+            clearInterval(socialRetryTimer);
+            if (foundSocials.length > 0 && (!profileData._detectedSocials || profileData._detectedSocials.length === 0)) {
+              log('OF Stats: Social links found on retry #' + socialRetry + ':', foundSocials);
+              profileData._detectedSocials = foundSocials;
+              // Re-display badge with updated social data
+              displayProfileData(profileData);
+            }
+          }
+        }, 500);
+      }
+
+      }); // end chrome.storage.local.get settings callback
     }
+
+    // Re-render badge when language changes in popup settings
+    chrome.storage.onChanged.addListener(function(changes, area) {
+      if (area === 'local' && changes.ofStatsLang && _lastBadgeProfileData) {
+        _ofLang = changes.ofStatsLang.newValue || 'ru';
+        var oldBadge = document.getElementById('of-stats-badge-card');
+        if (oldBadge) oldBadge.remove();
+        displayProfileData(_lastBadgeProfileData);
+      }
+    });
     
     // Helper to format last seen time
     function formatLastSeen(dateStr) {
@@ -845,6 +2585,10 @@
           height: 0 !important;
           overflow: hidden !important;
         }
+        /* After processing: hide ALL native children except header and our generated wrapper */
+        .b-useful-data[data-of-stats-processed] > *:not(.b-useful-data__header):not([data-of-stats-earnings-generated]) {
+          display: none !important;
+        }
         /* Hide original chart and summary when our generated content exists */
         .b-statistics-page-content__wrapper[data-of-stats-applied] .b-elements-determinant:not([data-of-stats-generated]),
         .b-statistics-page-content__wrapper[data-of-stats-applied] .b-chart:not([data-of-stats-generated]) {
@@ -866,6 +2610,14 @@
     var cn = element.className || '';
     return typeof cn === 'string' ? cn : (cn.baseVal || '');
   }
+  
+  // Listen for settings changes from content.js (Apply Changes button)
+  window.addEventListener('ofStatsSettingsChanged', function(e) {
+    if (e.detail) {
+      cachedSettings = e.detail;
+      log('OF Stats: cachedSettings updated from Apply Changes');
+    }
+  });
   
   // Store last hovered item for tooltip replacement
   let lastHoveredType = null; // 'fans' or 'following'
@@ -908,17 +2660,31 @@
     
     // Function to determine tooltip type by finding which element is hovered
     function detectHoveredType() {
-      // First try our tracked type
-      if (lastHoveredType) return lastHoveredType;
-      
-      // Fallback: check which element is currently hovered
+      // Primary: check which sidebar element is currently hovered
       const fansItem = document.querySelector('.l-sidebar__user-data__item:first-child');
       const followingItem = document.querySelector('.l-sidebar__user-data__item:nth-child(2)');
       
       if (fansItem && fansItem.matches(':hover')) return 'fans';
       if (followingItem && followingItem.matches(':hover')) return 'following';
       
-      // Another fallback: check by tooltip position
+      // Secondary: use tracked type but VALIDATE against tooltip position
+      // This prevents stale lastHoveredType from corrupting unrelated tooltips
+      if (lastHoveredType) {
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const targetItem = lastHoveredType === 'fans' ? fansItem : followingItem;
+        if (targetItem) {
+          const itemRect = targetItem.getBoundingClientRect();
+          const hDist = Math.abs(tooltipRect.left + tooltipRect.width/2 - (itemRect.left + itemRect.width/2));
+          const vDist = Math.abs(tooltipRect.top - itemRect.top);
+          if (hDist < 100 && vDist < 100) {
+            return lastHoveredType;
+          }
+        }
+        // Tooltip is far from expected sidebar item — stale lastHoveredType, ignore
+        return null;
+      }
+      
+      // Tertiary: check by tooltip position alone
       const tooltipRect = tooltip.getBoundingClientRect();
       if (fansItem) {
         const fansRect = fansItem.getBoundingClientRect();
@@ -1199,6 +2965,7 @@
     
     // Mouse truly left the item
     currentHoveredItem = null;
+    lastHoveredType = null;
     hideCustomFansTooltip();
   }, true);
   
@@ -1335,13 +3102,13 @@
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
     
-    var isRu = getPageLanguage() === 'ru';
-    var modalTitle = isRu ? 'Выплаты вручную' : 'Manual payouts';
-    var modalPlaceholder = isRu ? 'Сумма выво...' : 'Withdrawal amount';
-    var modalMinimum = isRu ? 'Минимум $20 USD' : 'Minimum $20 USD';
-    var modalMax = isRu ? 'Максимум' : 'Max';
-    var modalCancel = isRu ? 'Отменить' : 'Cancel';
-    var modalSubmit = isRu ? 'Запрос на вывод' : 'Request withdrawal';
+    var lang = getPageLanguage();
+    var modalTitle = lang === 'ru' ? 'Выплаты вручную' : lang === 'es' ? 'Pagos manuales' : lang === 'de' ? 'Manuelle Auszahlungen' : 'Manual payouts';
+    var modalPlaceholder = lang === 'ru' ? 'Сумма выво...' : lang === 'es' ? 'Monto de retiro' : lang === 'de' ? 'Auszahlungsbetrag' : 'Withdrawal amount';
+    var modalMinimum = lang === 'ru' ? 'Минимум $20 USD' : lang === 'es' ? 'Mínimo $20 USD' : lang === 'de' ? 'Mindestens $20 USD' : 'Minimum $20 USD';
+    var modalMax = lang === 'ru' ? 'Максимум' : lang === 'es' ? 'Máx' : lang === 'de' ? 'Max' : 'Max';
+    var modalCancel = lang === 'ru' ? 'Отменить' : lang === 'es' ? 'Cancelar' : lang === 'de' ? 'Abbrechen' : 'Cancel';
+    var modalSubmit = lang === 'ru' ? 'Запрос на вывод' : lang === 'es' ? 'Solicitar retiro' : lang === 'de' ? 'Auszahlung anfordern' : 'Request withdrawal';
     modal.innerHTML = '<div class="modal-dialog modal-sm modal-dialog-centered"><span tabindex="0"></span><div id="ModalPayouts___BV_modal_content_" tabindex="-1" class="modal-content"><header id="ModalPayouts___BV_modal_header_" class="modal-header"><h4 class="modal-title"> ' + modalTitle + ' </h4></header><div id="ModalPayouts___BV_modal_body_" class="modal-body m-reset-body-padding-bottom"><form id="of-stats-withdrawal-form"><div class="b-inline-form d-flex align-items-start"><div class="g-input__wrapper mr-2 flex-fill-1 m-reset-bottom-gap" step="1"><div class="g-input__wrapper input-text-field m-empty m-reset-bottom-gap"><div class="" id="of-stats-input-wrapper"><div class="v-input form-control g-input mb-0 theme--light v-text-field v-text-field--is-booted v-text-field--enclosed v-text-field--outlined v-text-field--placeholder m-placeholder-gap" id="of-stats-v-input"><div class="v-input__control"><div class="v-input__slot"><fieldset aria-hidden="true"><legend style="width: 0px;"><span class="notranslate">\u200B</span></legend></fieldset><div class="v-text-field__slot" id="of-stats-text-slot"><input at-attr="input" inputmode="decimal" autocomplete="tip-input" name="" required="required" id="of-stats-tip-input" placeholder="' + modalPlaceholder + '" type="text"></div></div><div class="v-text-field__details"><div class="v-messages theme--light"><div class="v-messages__wrapper"></div></div></div></div><div class="v-input__append-outer"><div class="g-input__help"><div>' + modalMinimum + '</div></div></div></div></div></div></div><button type="button" class="g-btn m-lg m-rounded" id="of-stats-max-btn"><span class="g-spacer-r">' + modalMax + '</span><span class=""> $' + maxAmountFormatted + ' </span></button></div><div class="modal-footer"><button type="button" class="g-btn m-flat m-btn-gaps m-reset-width" id="of-stats-cancel-btn"> ' + modalCancel + ' </button><button type="submit" class="g-btn m-flat m-btn-gaps m-reset-width" id="of-stats-submit-btn" disabled="disabled"> ' + modalSubmit + ' </button></div></form></div></div><span tabindex="0"></span></div>';
     
     document.body.appendChild(backdrop);
@@ -1726,10 +3493,12 @@
           element.setAttribute('data-of-stats-modified', 'true');
           element.style.cursor = 'pointer';
           element.title = 'Click to regenerate stats';
+          nameEl.textContent = getLocalizedGrossLabel();
           markContentReady();
         } else if (isNetLabel(name) && !element.getAttribute('data-of-stats-modified')) {
           element.textContent = ' $' + formatCurrencyEarly(stats.net) + ' ';
           element.setAttribute('data-of-stats-modified', 'true');
+          nameEl.textContent = getLocalizedNetLabel();
           markContentReady();
         }
       }
@@ -2083,12 +3852,16 @@
   var monthNamesEarlyRu = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
                            'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
   var monthNamesShortRu = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
+  var monthNamesEarlyEs = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var monthNamesShortEs = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.'];
+  var monthNamesEarlyDe = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  var monthNamesShortDe = ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
   
   // Create expandable month row HTML (early version)
   function createExpandableMonthRowEarly(monthData) {
-    var isRu = getPageLanguage() === 'ru';
-    var monthName = isRu ? monthNamesEarlyRu[monthData.month] : monthNamesEarly[monthData.month];
-    var monthNameShort = isRu ? monthNamesShortRu[monthData.month] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][monthData.month];
+    var lang = getPageLanguage();
+    var monthName = lang === 'ru' ? monthNamesEarlyRu[monthData.month] : lang === 'es' ? monthNamesEarlyEs[monthData.month] : lang === 'de' ? monthNamesEarlyDe[monthData.month] : monthNamesEarly[monthData.month];
+    var monthNameShort = lang === 'ru' ? monthNamesShortRu[monthData.month] : lang === 'es' ? monthNamesShortEs[monthData.month] : lang === 'de' ? monthNamesShortDe[monthData.month] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][monthData.month];
     var yearStr = monthData.year.toString();
     var netValue = monthData.net;
     var netStr = formatCurrencyEarly(netValue);
@@ -2142,47 +3915,47 @@
         '</div>' +
         '<button class="g-btn m-border m-rounded m-block m-no-uppercase m-icon-absolute m-time-period m-lg">' +
           '<svg class="m-half-left g-icon" data-icon-name="icon-calendar" aria-hidden="true"><use href="#icon-calendar" xlink:href="#icon-calendar"></use></svg>' +
-          '<span class="b-btn-text"> ' + (isRu ? 'От ' : 'From ') + '<span class="b-date-value">' + fromDate + '</span> ' + (isRu ? 'К ' : 'To ') + '<span class="b-date-value">' + toDate + '</span></span>' +
+          '<span class="b-btn-text"> ' + (lang === 'ru' ? 'От ' : lang === 'es' ? 'Desde ' : lang === 'de' ? 'Von ' : 'From ') + '<span class="b-date-value">' + fromDate + '</span> ' + (lang === 'ru' ? 'К ' : lang === 'es' ? 'Hasta ' : lang === 'de' ? 'Bis ' : 'To ') + '<span class="b-date-value">' + toDate + '</span></span>' +
         '</button>' +
         '<div class="b-stats-row__content" data-of-stats-ready="true">' +
           '<div class="b-stats-row__label m-border-line m-subscriptions m-active">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Подписки' : 'Subscriptions') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Подписки' : lang === 'es' ? 'Suscripciones' : lang === 'de' ? 'Abonnements' : 'Subscriptions') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + subsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(subsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + subsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(subsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-tips">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Чаевые' : 'Tips') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Чаевые' : lang === 'es' ? 'Propinas' : lang === 'de' ? 'Trinkgelder' : 'Tips') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + tipsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(tipsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + tipsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(tipsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-posts">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Посты' : 'Posts') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Посты' : lang === 'es' ? 'Publicaciones' : lang === 'de' ? 'Beiträge' : 'Posts') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + postsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(postsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + postsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(postsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-messages">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Сообщения' : 'Messages') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Сообщения' : lang === 'es' ? 'Mensajes' : lang === 'de' ? 'Nachrichten' : 'Messages') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + messagesZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(messagesGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + messagesZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(messagesNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-referrals">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Рефералы' : 'Referrals') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Рефералы' : lang === 'es' ? 'Referidos' : lang === 'de' ? 'Empfehlungen' : 'Referrals') + ' </span>' +
             '<span class="b-stats-row__val g-semibold m-zero-value" data-of-stats-modified="true"> $0.00 </span>' +
             '<span class="b-stats-row__val g-semibold m-zero-value" data-of-stats-modified="true"> $0.00 </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-calls">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Потоки' : 'Streams') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Потоки' : lang === 'es' ? 'Transmisiones' : lang === 'de' ? 'Streams' : 'Streams') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + streamsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(streamsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + streamsZero + '" data-of-stats-modified="true"> $' + formatCurrencyEarly(streamsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-total">' +
-            '<span class="b-stats-row__name g-md-text"> ' + (isRu ? 'Итого' : 'Total') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text"> ' + (lang === 'ru' ? 'Итого' : lang === 'es' ? 'Total' : lang === 'de' ? 'Gesamt' : 'Total') + ' </span>' +
             '<div class="b-stats-row__label m-total-item pt-0 pb-0">' +
-              '<span class="b-stats-row__name g-md-text"> ' + (isRu ? 'Валовой' : 'Gross') + ' </span>' +
+              '<span class="b-stats-row__name g-md-text"> ' + (lang === 'ru' ? 'Валовой' : lang === 'es' ? 'Bruto' : lang === 'de' ? 'Brutto' : 'Gross') + ' </span>' +
               '<span class="b-stats-row__val g-semibold" data-of-stats-modified="true"> $' + grossStr + ' </span>' +
             '</div>' +
             '<div class="b-stats-row__label m-total-item pt-0 pb-0">' +
-              '<span class="b-stats-row__name g-md-text"> ' + (isRu ? 'Чистая' : 'Net') + ' </span>' +
+              '<span class="b-stats-row__name g-md-text"> ' + (lang === 'ru' ? 'Чистая' : lang === 'es' ? 'Neto' : lang === 'de' ? 'Netto' : 'Net') + ' </span>' +
               '<span class="b-stats-row__val g-semibold" data-of-stats-modified="true"> $' + netStr + ' </span>' +
             '</div>' +
           '</div>' +
@@ -2538,8 +4311,11 @@
     
     // Generate labels (day numbers) - always full month
     var labels = [];
-    var isRuChart = getPageLanguage() === 'ru';
-    var monthNamesShort = isRuChart ? ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var langChart = getPageLanguage();
+    var monthNamesShort = langChart === 'ru' ? ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.']
+      : langChart === 'es' ? ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
+      : langChart === 'de' ? ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.']
+      : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (var d = 1; d <= daysInMonth; d++) {
       labels.push(d.toString().padStart(2, '0') + ' ' + monthNamesShort[targetMonth] + ' ' + (targetYear % 100).toString().padStart(2, '0'));
     }
@@ -3318,61 +5094,101 @@
     return window.location.pathname.includes('/my/statistics/statements/earnings');
   }
 
-  // Detect page language (ru / en)
+  // Detect page language (ru / es / de / en)
   function getPageLanguage() {
     var htmlLang = (document.documentElement.lang || '').toLowerCase();
     if (htmlLang.startsWith('ru')) return 'ru';
-    // Fallback: check for known Russian UI text on the page
+    if (htmlLang.startsWith('es')) return 'es';
+    if (htmlLang.startsWith('de')) return 'de';
+    // Fallback: check for known UI text on the page
     var body = document.body ? (document.body.textContent || '').substring(0, 3000) : '';
     if (body.indexOf('Статистика') !== -1 || body.indexOf('Заявления') !== -1 || body.indexOf('Заработок') !== -1) return 'ru';
+    if (body.indexOf('Estadísticas') !== -1 || body.indexOf('Ganancias') !== -1 || body.indexOf('Suscripciones') !== -1) return 'es';
+    if (body.indexOf('Statistiken') !== -1 || body.indexOf('Einnahmen') !== -1 || body.indexOf('Abonnements') !== -1) return 'de';
     return 'en';
   }
 
   // Check if text is "All time" in any language
   function isAllTimeText(text) {
     var t = text.trim().toLowerCase();
-    return t === 'all time' || t === 'все время' || t === 'за все время' || t === 'всё время';
+    return t === 'all time' || t === 'все время' || t === 'за все время' || t === 'всё время'
+        || t === 'todo el tiempo' || t === 'siempre' || t === 'todo tiempo'
+        || t === 'gesamte zeit' || t === 'alle zeit' || t === 'gesamtzeitraum'
+        || t === 'gesamt' || t === 'alle zeiten' || t === 'gesamter zeitraum'
+        || t === 'immer' || t === 'zeitraum gesamt';
   }
 
   // Get localized Top Creators text
   function getTopCreatorsText(formattedPercentage) {
-    if (getPageLanguage() === 'ru') {
-      return 'ВЫ НАХОДИТЕСЬ В ТОП% ' + formattedPercentage.replace('%', '') + 'ВСЕХ СОЗДАТЕЛЕЙ!';
-    }
+    var lang = getPageLanguage();
+    var num = formattedPercentage.replace('%', '');
+    if (lang === 'ru') return 'ВЫ НАХОДИТЕСЬ В ТОП% ' + num + 'ВСЕХ СОЗДАТЕЛЕЙ!';
+    if (lang === 'es') return '¡Estáis en el TOP% ' + num + 'de todos los creadores!';
+    if (lang === 'de') return 'SIE SINDEN IN DEN TOP% ' + num + 'ALLE Schöpfer!';
     return 'YOU ARE IN THE TOP ' + formattedPercentage + ' OF ALL CREATORS!';
   }
 
   // Check if text content looks like a Top Creators block (any language)
   function isTopCreatorsText(textContent) {
     var t = textContent.toUpperCase();
-    return (t.indexOf('TOP') !== -1 && t.indexOf('CREATORS') !== -1) ||
+    return (t.indexOf('TOP') !== -1 && (t.indexOf('CREATORS') !== -1 || t.indexOf('CREADORES') !== -1 || t.indexOf('ERSTELLER') !== -1 || t.indexOf('SCHÖPFER') !== -1 || t.indexOf('SCHOPFER') !== -1)) ||
            (t.indexOf('ТОП') !== -1 && t.indexOf('СОЗДАТЕЛЕЙ') !== -1);
   }
 
   // Check if button text is a withdrawal request button (any language)
   function isWithdrawalButton(btnText) {
     var t = btnText.toLowerCase();
-    return t.includes('request withdrawal') || t.includes('запрос на вывод');
+    return t.includes('request withdrawal') || t.includes('запрос на вывод')
+        || t.includes('solicitar retiro') || t.includes('auszahlung anfordern');
   }
 
   // Check if name matches Gross label (any language)
   function isGrossLabel(name) {
     var n = name.toLowerCase().trim();
-    return n === 'gross' || n === 'валовой' || n === 'гросс';
+    return n === 'gross' || n === 'валовой' || n === 'гросс' || n === 'bruto' || n === 'brutto';
   }
 
   // Check if name matches Net label (any language)
   function isNetLabel(name) {
     var n = name.toLowerCase().trim();
-    return n === 'net' || n === 'чистая';
+    return n === 'net' || n === 'чистая' || n === 'neto' || n === 'neta' || n === 'netto';
+  }
+
+  // Get localized label for Gross
+  function getLocalizedGrossLabel() {
+    var lang = getPageLanguage();
+    if (lang === 'ru') return 'Валовой';
+    if (lang === 'es') return 'Bruto';
+    if (lang === 'de') return 'Brutto';
+    return 'Gross';
+  }
+
+  // Get localized label for Net
+  function getLocalizedNetLabel() {
+    var lang = getPageLanguage();
+    if (lang === 'ru') return 'Чистая';
+    if (lang === 'es') return 'Neto';
+    if (lang === 'de') return 'Netto';
+    return 'Net';
   }
 
   // Get localized earnings description
   function getEarningsDescription(type, userId, username) {
-    if (getPageLanguage() === 'ru') {
+    var lang = getPageLanguage();
+    if (lang === 'ru') {
       return type === 'tip'
         ? 'Чаевые от <a href="https://onlyfans.com/' + userId + '">' + username + '</a>'
         : 'Оплата за сообщение от <a href="https://onlyfans.com/' + userId + '">' + username + '</a>';
+    }
+    if (lang === 'es') {
+      return type === 'tip'
+        ? 'Propina de <a href="https://onlyfans.com/' + userId + '">' + username + '</a>'
+        : 'Pago por mensaje de <a href="https://onlyfans.com/' + userId + '">' + username + '</a>';
+    }
+    if (lang === 'de') {
+      return type === 'tip'
+        ? 'Trinkgeld von <a href="https://onlyfans.com/' + userId + '">' + username + '</a>'
+        : 'Zahlung für Nachricht von <a href="https://onlyfans.com/' + userId + '">' + username + '</a>';
     }
     return type === 'tip'
       ? 'Tip from <a href="https://onlyfans.com/' + userId + '">' + username + '</a>'
@@ -3381,10 +5197,21 @@
 
   // Get localized status tooltip text
   function getStatusTooltipText(status, daysRemaining) {
-    if (getPageLanguage() === 'ru') {
+    var lang = getPageLanguage();
+    if (lang === 'ru') {
       if (status === 'complete') return 'Завершить';
       if (status === 'reversed') return 'Перевернутый';
       return 'Заработок станет доступен в ' + daysRemaining + ' течение нескольких дней';
+    }
+    if (lang === 'es') {
+      if (status === 'complete') return 'Completado';
+      if (status === 'reversed') return 'Revertido';
+      return 'Las ganancias estarán disponibles en ' + daysRemaining + ' día' + (daysRemaining !== 1 ? 's' : '');
+    }
+    if (lang === 'de') {
+      if (status === 'complete') return 'Abgeschlossen';
+      if (status === 'reversed') return 'Storniert';
+      return 'Einnahmen verfügbar in ' + daysRemaining + ' Tag' + (daysRemaining !== 1 ? 'en' : '');
     }
     if (status === 'complete') return 'Complete';
     if (status === 'reversed') return 'Reversed';
@@ -3406,20 +5233,30 @@
     if (!isEarningsPage()) return;
     
     const formattedPercentage = formatTopCreatorsPercentage(cachedSettings.topCreators);
-    
-    var localizedText = getTopCreatorsText(formattedPercentage);
 
-    // Check for b-top-rated style block (on /my/statistics/statements/earnings)
-    const topRatedBlock = document.querySelector('.b-top-rated');
-    if (topRatedBlock) {
-      const textEl = topRatedBlock.querySelector('.b-top-rated__text');
-      if (textEl) {
-        textEl.textContent = ' ' + localizedText + ' ';
-        return;
+    // === /my/statistics/statements/earnings page ===
+    // This page has a native Vue-controlled .b-top-rated block.
+    // Vue re-renders this block continuously (first English, then translated).
+    // We CANNOT edit its textContent — Vue overwrites it immediately.
+    // Instead: hide native block via CSS, create our own block next to it.
+    if (isStatisticsStatementsEarningsPage()) {
+      // Inject persistent CSS to hide ALL native .b-top-rated blocks on this page
+      // (always inject, even before native block exists, to prevent flash)
+      if (!document.getElementById('of-stats-hide-native-top-rated')) {
+        var hideStyle = document.createElement('style');
+        hideStyle.id = 'of-stats-hide-native-top-rated';
+        hideStyle.textContent = '.b-top-rated:not(#of-stats-top-creators-rated){display:none!important}';
+        (document.head || document.documentElement).appendChild(hideStyle);
       }
+      // Create or update our own block
+      createTopCreatorsBlockStatistics(formattedPercentage);
+      return;
     }
     
-    // Find existing Top Creators block (g-box style on /my/statements/earnings)
+    // === /my/statements/earnings page ===
+    // This page has a g-box style block with Top Creators text.
+    // We update its text to our localized version.
+    var localizedText = getTopCreatorsText(formattedPercentage);
     const allGBoxes = document.querySelectorAll('.g-box.m-with-icon.m-panel');
     let found = false;
     
@@ -3430,6 +5267,11 @@
         if (paragraph) {
           paragraph.innerHTML = localizedText;
           found = true;
+          // If OF's own block was found (not our custom one), remove our custom block
+          if (box.id !== 'of-stats-top-creators') {
+            var ourBlock = document.getElementById('of-stats-top-creators');
+            if (ourBlock) ourBlock.remove();
+          }
         }
       }
     });
@@ -3517,14 +5359,12 @@
   
   // Create Top Creators block for /my/statistics/statements/earnings page (b-top-rated style)
   function createTopCreatorsBlockStatistics(formattedPercentage) {
-    if (document.getElementById('of-stats-top-creators-rated')) return true;
     var localizedText = getTopCreatorsText(formattedPercentage);
-    if (document.querySelector('.b-top-rated')) {
-      // Update existing block
-      const textEl = document.querySelector('.b-top-rated .b-top-rated__text');
-      if (textEl) {
-        textEl.textContent = ' ' + localizedText + ' ';
-      }
+    // If our block already exists, just update its text
+    var existing = document.getElementById('of-stats-top-creators-rated');
+    if (existing) {
+      var existingText = existing.querySelector('.b-top-rated__text');
+      if (existingText) existingText.textContent = ' ' + localizedText + ' ';
       return true;
     }
     
@@ -3538,7 +5378,8 @@
     if (!document.getElementById('of-stats-top-creators-rated-style')) {
       var style = document.createElement('style');
       style.id = 'of-stats-top-creators-rated-style';
-      style.textContent = '#of-stats-top-creators-rated.b-top-rated{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid rgba(138,150,163,.25);border-radius:6px;padding:14px 20px;margin-bottom:12px;font-size:14px;font-weight:500;text-transform:uppercase;white-space:nowrap}#of-stats-top-creators-rated .b-top-rated__icon{width:24px;height:24px;flex-shrink:0;fill:#00aff0}#of-stats-top-creators-rated .b-top-rated__text{line-height:1.2;white-space:nowrap;position:relative;top:1px;margin-left:-2px}';
+      style.textContent = '#of-stats-top-creators-rated.b-top-rated{display:flex!important;align-items:center;gap:4px;background:#fff!important;border:1px solid rgba(138,150,163,.25)!important;border-radius:6px;padding:14px 20px;margin-bottom:12px;font-size:14px;font-weight:500;white-space:nowrap;text-transform:none!important}#of-stats-top-creators-rated .b-top-rated__icon{width:24px;height:24px;flex-shrink:0;fill:#00aff0}#of-stats-top-creators-rated .b-top-rated__text{line-height:1.2;white-space:nowrap;position:relative;top:1px;margin-left:-2px;text-transform:none!important}';
+
       if (document.head) {
         document.head.appendChild(style);
       } else {
@@ -3582,6 +5423,23 @@
     
     return inserted;
   }
+
+  // Watch html[lang] changes — Vue sets this when i18n initializes.
+  // When the language changes, update our Top Creators block text.
+  (function() {
+    var langObserver = new MutationObserver(function() {
+      var our = document.getElementById('of-stats-top-creators-rated');
+      if (!our || !cachedSettings || !cachedSettings.topCreators) return;
+      var lang = getPageLanguage();
+      if (lang === 'en') return; // still waiting
+      var textEl = our.querySelector('.b-top-rated__text');
+      if (textEl) {
+        var pct = formatTopCreatorsPercentage(cachedSettings.topCreators);
+        textEl.textContent = ' ' + getTopCreatorsText(pct) + ' ';
+      }
+    });
+    langObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+  })();
 
   // ==================== EARLY EARNINGS GENERATOR ====================
   
@@ -3662,9 +5520,18 @@
   }
   
   function earningsFormatDate(date) {
-    if (getPageLanguage() === 'ru') {
+    var lang = getPageLanguage();
+    if (lang === 'ru') {
       var ruMonths = ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
       return date.getDate() + ' ' + ruMonths[date.getMonth()] + ', ' + date.getFullYear();
+    }
+    if (lang === 'es') {
+      var esMonths = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.'];
+      return date.getDate() + ' ' + esMonths[date.getMonth()] + ', ' + date.getFullYear();
+    }
+    if (lang === 'de') {
+      var deMonths = ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+      return date.getDate() + '. ' + deMonths[date.getMonth()] + ' ' + date.getFullYear();
     }
     var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return months[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
@@ -4373,7 +6240,7 @@
           // Check for Top Creators block
           if (node.classList && node.classList.contains('g-box')) {
             const text = node.textContent || '';
-            if (text.includes('TOP') && text.includes('CREATORS')) {
+            if (isTopCreatorsText(text)) {
               updateTopCreatorsBanner();
             }
           }
@@ -5043,6 +6910,7 @@
           if (!valEl.getAttribute('data-of-stats-modified')) {
             valEl.textContent = ' $' + formatCurrency(stats.gross) + ' ';
             valEl.setAttribute('data-of-stats-modified', 'true');
+            nameEl.textContent = getLocalizedGrossLabel();
             valEl.style.cursor = 'pointer';
             valEl.title = 'Click to regenerate stats | Right-click to set custom value';
             log('OF Stats: Updated GROSS to $' + formatCurrency(stats.gross));
@@ -5074,6 +6942,7 @@
         } else if (isNetLabel(name) && !valEl.getAttribute('data-of-stats-modified')) {
           valEl.textContent = ' $' + formatCurrency(stats.net) + ' ';
           valEl.setAttribute('data-of-stats-modified', 'true');
+          nameEl.textContent = getLocalizedNetLabel();
           log('OF Stats: Updated NET to $' + formatCurrency(stats.net));
         }
       }
@@ -5211,37 +7080,37 @@
     tooltip.className = 'b-chart__tooltip of-stats-tooltip';
     tooltip.setAttribute('data-of-stats-alltime-tooltip', 'true');
     tooltip.style.cssText = 'position: absolute; opacity: 0; left: 0; top: 0; width: 156px; pointer-events: none; z-index: 100;';
-    var isRuTooltip = getPageLanguage() === 'ru';
+    var langTooltip = getPageLanguage();
     tooltip.innerHTML = 
       '<div class="b-chart__tooltip__title"></div>' +
       '<div class="b-chart__tooltip__text" data-cat="subscriptions">' +
         '<div class="b-chart__tooltip__circle" style="background: #2196f3;"></div>' +
-        '<div class="b-chart__tooltip__text__title"> ' + (isRuTooltip ? 'Подписки' : 'Subscriptions') + ' </div>' +
+        '<div class="b-chart__tooltip__text__title"> ' + (langTooltip === 'ru' ? 'Подписки' : langTooltip === 'es' ? 'Suscripciones' : langTooltip === 'de' ? 'Abonnements' : 'Subscriptions') + ' </div>' +
         '<div class="b-chart__tooltip__text__value"> $0 </div>' +
       '</div>' +
       '<div class="b-chart__tooltip__text" data-cat="tips">' +
         '<div class="b-chart__tooltip__circle" style="background: #00bcd4;"></div>' +
-        '<div class="b-chart__tooltip__text__title"> ' + (isRuTooltip ? 'Чаевые' : 'Tips') + ' </div>' +
+        '<div class="b-chart__tooltip__text__title"> ' + (langTooltip === 'ru' ? 'Чаевые' : langTooltip === 'es' ? 'Propinas' : langTooltip === 'de' ? 'Trinkgelder' : 'Tips') + ' </div>' +
         '<div class="b-chart__tooltip__text__value"> $0 </div>' +
       '</div>' +
       '<div class="b-chart__tooltip__text" data-cat="posts">' +
         '<div class="b-chart__tooltip__circle" style="background: #ec407a;"></div>' +
-        '<div class="b-chart__tooltip__text__title"> ' + (isRuTooltip ? 'Посты' : 'Posts') + ' </div>' +
+        '<div class="b-chart__tooltip__text__title"> ' + (langTooltip === 'ru' ? 'Посты' : langTooltip === 'es' ? 'Publicaciones' : langTooltip === 'de' ? 'Beiträge' : 'Posts') + ' </div>' +
         '<div class="b-chart__tooltip__text__value"> $0 </div>' +
       '</div>' +
       '<div class="b-chart__tooltip__text" data-cat="messages">' +
         '<div class="b-chart__tooltip__circle" style="background: #ff7043;"></div>' +
-        '<div class="b-chart__tooltip__text__title"> ' + (isRuTooltip ? 'Сообщения' : 'Messages') + ' </div>' +
+        '<div class="b-chart__tooltip__text__title"> ' + (langTooltip === 'ru' ? 'Сообщения' : langTooltip === 'es' ? 'Mensajes' : langTooltip === 'de' ? 'Nachrichten' : 'Messages') + ' </div>' +
         '<div class="b-chart__tooltip__text__value"> $0 </div>' +
       '</div>' +
       '<div class="b-chart__tooltip__text" data-cat="referrals">' +
         '<div class="b-chart__tooltip__circle" style="background: #9575cd;"></div>' +
-        '<div class="b-chart__tooltip__text__title"> ' + (isRuTooltip ? 'Рефералы' : 'Referrals') + ' </div>' +
+        '<div class="b-chart__tooltip__text__title"> ' + (langTooltip === 'ru' ? 'Рефералы' : langTooltip === 'es' ? 'Referidos' : langTooltip === 'de' ? 'Empfehlungen' : 'Referrals') + ' </div>' +
         '<div class="b-chart__tooltip__text__value"> $0 </div>' +
       '</div>' +
       '<div class="b-chart__tooltip__text" data-cat="streams">' +
         '<div class="b-chart__tooltip__circle" style="background: #ffa000;"></div>' +
-        '<div class="b-chart__tooltip__text__title"> ' + (isRuTooltip ? 'Потоки' : 'Streams') + ' </div>' +
+        '<div class="b-chart__tooltip__text__title"> ' + (langTooltip === 'ru' ? 'Потоки' : langTooltip === 'es' ? 'Transmisiones' : langTooltip === 'de' ? 'Streams' : 'Streams') + ' </div>' +
         '<div class="b-chart__tooltip__text__value"> $0 </div>' +
       '</div>';
     wrapper.appendChild(tooltip);
@@ -6133,8 +8002,11 @@
       streams: 0
     };
     
-    var isRuChart = getPageLanguage() === 'ru';
-    var monthNamesShort = isRuChart ? ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var langChart2 = getPageLanguage();
+    var monthNamesShort = langChart2 === 'ru' ? ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.']
+      : langChart2 === 'es' ? ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
+      : langChart2 === 'de' ? ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.']
+      : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
     // Add data points for every other month (skip 1 month between points)
     sortedMonths.forEach(function(monthData, index) {
@@ -6501,9 +8373,9 @@
   
   // Create a month row HTML element with expandable content
   function createMonthRowElement(monthData) {
-    var isRu = getPageLanguage() === 'ru';
-    var monthName = isRu ? monthNamesEarlyRu[monthData.month] : monthNames[monthData.month];
-    var monthNameShort = isRu ? monthNamesShortRu[monthData.month] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][monthData.month];
+    var lang = getPageLanguage();
+    var monthName = lang === 'ru' ? monthNamesEarlyRu[monthData.month] : lang === 'es' ? monthNamesEarlyEs[monthData.month] : lang === 'de' ? monthNamesEarlyDe[monthData.month] : monthNames[monthData.month];
+    var monthNameShort = lang === 'ru' ? monthNamesShortRu[monthData.month] : lang === 'es' ? monthNamesShortEs[monthData.month] : lang === 'de' ? monthNamesShortDe[monthData.month] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][monthData.month];
     var yearStr = monthData.year.toString();
     var netValue = monthData.net;
     var netStr = formatCurrency(netValue);
@@ -6559,47 +8431,47 @@
         '</div>' +
         '<button class="g-btn m-border m-rounded m-block m-no-uppercase m-icon-absolute m-time-period m-lg">' +
           '<svg class="m-half-left g-icon" data-icon-name="icon-calendar" aria-hidden="true"><use href="#icon-calendar" xlink:href="#icon-calendar"></use></svg>' +
-          '<span class="b-btn-text"> ' + (isRu ? 'От ' : 'From ') + '<span class="b-date-value">' + fromDate + '</span> ' + (isRu ? 'К ' : 'To ') + '<span class="b-date-value">' + toDate + '</span></span>' +
+          '<span class="b-btn-text"> ' + (lang === 'ru' ? 'От ' : lang === 'es' ? 'Desde ' : lang === 'de' ? 'Von ' : 'From ') + '<span class="b-date-value">' + fromDate + '</span> ' + (lang === 'ru' ? 'К ' : lang === 'es' ? 'Hasta ' : lang === 'de' ? 'Bis ' : 'To ') + '<span class="b-date-value">' + toDate + '</span></span>' +
         '</button>' +
         '<div class="b-stats-row__content" data-of-stats-ready="true">' +
           '<div class="b-stats-row__label m-border-line m-subscriptions m-active">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Подписки' : 'Subscriptions') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Подписки' : lang === 'es' ? 'Suscripciones' : lang === 'de' ? 'Abonnements' : 'Subscriptions') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + subsZero + '" data-of-stats-modified="true"> $' + formatCurrency(subsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + subsZero + '" data-of-stats-modified="true"> $' + formatCurrency(subsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-tips">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Чаевые' : 'Tips') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Чаевые' : lang === 'es' ? 'Propinas' : lang === 'de' ? 'Trinkgelder' : 'Tips') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + tipsZero + '" data-of-stats-modified="true"> $' + formatCurrency(tipsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + tipsZero + '" data-of-stats-modified="true"> $' + formatCurrency(tipsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-posts">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Посты' : 'Posts') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Посты' : lang === 'es' ? 'Publicaciones' : lang === 'de' ? 'Beiträge' : 'Posts') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + postsZero + '" data-of-stats-modified="true"> $' + formatCurrency(postsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + postsZero + '" data-of-stats-modified="true"> $' + formatCurrency(postsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-messages">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Сообщения' : 'Messages') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Сообщения' : lang === 'es' ? 'Mensajes' : lang === 'de' ? 'Nachrichten' : 'Messages') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + messagesZero + '" data-of-stats-modified="true"> $' + formatCurrency(messagesGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + messagesZero + '" data-of-stats-modified="true"> $' + formatCurrency(messagesNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-referrals">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Рефералы' : 'Referrals') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Рефералы' : lang === 'es' ? 'Referidos' : lang === 'de' ? 'Empfehlungen' : 'Referrals') + ' </span>' +
             '<span class="b-stats-row__val g-semibold m-zero-value" data-of-stats-modified="true"> $0.00 </span>' +
             '<span class="b-stats-row__val g-semibold m-zero-value" data-of-stats-modified="true"> $0.00 </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-calls">' +
-            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (isRu ? 'Потоки' : 'Streams') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text m-dots m-break-word"> ' + (lang === 'ru' ? 'Потоки' : lang === 'es' ? 'Transmisiones' : lang === 'de' ? 'Streams' : 'Streams') + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + streamsZero + '" data-of-stats-modified="true"> $' + formatCurrency(streamsGross) + ' </span>' +
             '<span class="b-stats-row__val g-semibold' + streamsZero + '" data-of-stats-modified="true"> $' + formatCurrency(streamsNet) + ' </span>' +
           '</div>' +
           '<div class="b-stats-row__label m-border-line m-total">' +
-            '<span class="b-stats-row__name g-md-text"> ' + (isRu ? 'Итого' : 'Total') + ' </span>' +
+            '<span class="b-stats-row__name g-md-text"> ' + (lang === 'ru' ? 'Итого' : lang === 'es' ? 'Total' : lang === 'de' ? 'Gesamt' : 'Total') + ' </span>' +
             '<div class="b-stats-row__label m-total-item pt-0 pb-0">' +
-              '<span class="b-stats-row__name g-md-text"> ' + (isRu ? 'Валовой' : 'Gross') + ' </span>' +
+              '<span class="b-stats-row__name g-md-text"> ' + (lang === 'ru' ? 'Валовой' : lang === 'es' ? 'Bruto' : lang === 'de' ? 'Brutto' : 'Gross') + ' </span>' +
               '<span class="b-stats-row__val g-semibold" data-of-stats-modified="true"> $' + grossStr + ' </span>' +
             '</div>' +
             '<div class="b-stats-row__label m-total-item pt-0 pb-0">' +
-              '<span class="b-stats-row__name g-md-text"> ' + (isRu ? 'Чистая' : 'Net') + ' </span>' +
+              '<span class="b-stats-row__name g-md-text"> ' + (lang === 'ru' ? 'Чистая' : lang === 'es' ? 'Neto' : lang === 'de' ? 'Netto' : 'Net') + ' </span>' +
               '<span class="b-stats-row__val g-semibold" data-of-stats-modified="true"> $' + netStr + ' </span>' +
             '</div>' +
           '</div>' +
@@ -6776,8 +8648,11 @@
     
     // Generate labels (day numbers)
     var labels = [];
-    var isRuChart = getPageLanguage() === 'ru';
-    var monthNamesShort = isRuChart ? ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var langChart3 = getPageLanguage();
+    var monthNamesShort = langChart3 === 'ru' ? ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.']
+      : langChart3 === 'es' ? ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
+      : langChart3 === 'de' ? ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.']
+      : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (var d = 1; d <= daysInMonth; d++) {
       labels.push(d.toString().padStart(2, '0') + ' ' + monthNamesShort[targetMonth] + ' ' + (targetYear % 100).toString().padStart(2, '0'));
     }
@@ -6890,6 +8765,63 @@
   // Check if we're on the statistics/statements/earnings page
   function isStatisticsEarningsPage() {
     return window.location.pathname === '/my/statistics/statements/earnings';
+  }
+
+  // Determine currently selected time period on statistics/statements/earnings page.
+  // Returns: 'last30' | 'alltime' | 'other'
+  // Detects the dropdown header text (e.g. "Last 30 days", "All time", etc.)
+  function getSelectedStatisticsPeriod() {
+    // The period dropdown on OF statistics page uses:
+    // .b-sticky-position-dropdown > .dropdown > button.b-holder-options
+    //   > div > .b-holder-options__title (contains "All time", "Last 30 days", etc.)
+    var titleEl = document.querySelector('.b-holder-options__title');
+    if (!titleEl) {
+      // Fallback: try dropdown toggle button text
+      titleEl = document.querySelector('.b-sticky-position-dropdown .dropdown-toggle, .b-holder-options');
+    }
+    if (!titleEl) {
+      // Last fallback: scan page for known period text
+      var candidates = document.querySelectorAll('.b-statistics-page-content__wrapper div, .b-statistics-page-content__wrapper button');
+      for (var i = 0; i < Math.min(candidates.length, 60); i++) {
+        var el = candidates[i];
+        var elText = (el.textContent || '').trim();
+        if (elText.length > 3 && elText.length < 30) {
+          var lt = elText.toLowerCase();
+          if (lt === 'all time' || lt === 'все время' || lt === 'за все время'
+              || lt === 'todo el tiempo' || lt === 'gesamte zeit'
+              || lt.indexOf('last') === 0 || lt.indexOf('послед') === 0
+              || lt.indexOf('últim') === 0 || lt.indexOf('letzt') === 0) {
+            titleEl = el;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!titleEl) return 'last30'; // Default fallback
+    
+    var text = (titleEl.textContent || '').trim().toLowerCase();
+    log('OF Stats: Period dropdown text: "' + text + '"');
+    
+    // Check for "All time" in various languages
+    if (text.indexOf('all time') !== -1 
+        || text.indexOf('все время') !== -1 || text.indexOf('за все время') !== -1
+        || text.indexOf('todo el tiempo') !== -1 || text.indexOf('siempre') !== -1
+        || text.indexOf('gesamte zeit') !== -1 || text.indexOf('gesamtzeitraum') !== -1
+        || text.indexOf('alle zeiten') !== -1 || text.indexOf('immer') !== -1
+        || isAllTimeText(text)) {
+      return 'alltime';
+    }
+    
+    // Check for "Last 30 days" in various languages
+    if (text.indexOf('last 30') !== -1 || text.indexOf('últimos 30') !== -1 
+        || text.indexOf('letzten 30') !== -1 || text.indexOf('последние 30') !== -1 
+        || text.indexOf('30 дн') !== -1 || text.indexOf('30 day') !== -1
+        || text.indexOf('30 día') !== -1 || text.indexOf('30 tag') !== -1) {
+      return 'last30';
+    }
+    
+    return 'other';
   }
   
   // Get transactions for statistics page - USES THE SAME DATA as /my/statements/earnings page
@@ -7088,6 +9020,9 @@
         document.querySelectorAll('.b-useful-data[data-of-stats-processed]').forEach(function(el) {
           el.removeAttribute('data-of-stats-processed');
         });
+        document.querySelectorAll('[data-of-stats-earnings-generated]').forEach(function(el) {
+          el.remove();
+        });
         return;
       }
     } catch(e) {}
@@ -7129,6 +9064,30 @@
     }
     wrapper.setAttribute('data-of-stats-applied', 'true');
     
+    // Determine currently selected period
+    var selectedPeriod = getSelectedStatisticsPeriod();
+    log('OF Stats: Selected statistics period: ' + selectedPeriod);
+    // Store globally for observer
+    window.ofStatsCurrentPeriod = selectedPeriod;
+    
+    // For periods other than last30/alltime — show native content as-is
+    if (selectedPeriod === 'other') {
+      // Restore any previously hidden native elements
+      wrapper.querySelectorAll('[data-of-stats-original-hidden]').forEach(function(el) {
+        el.removeAttribute('data-of-stats-original-hidden');
+        el.style.display = '';
+      });
+      document.querySelectorAll('.b-useful-data[data-of-stats-processed]').forEach(function(el) {
+        el.removeAttribute('data-of-stats-processed');
+      });
+      document.querySelectorAll('[data-of-stats-earnings-generated]').forEach(function(el) {
+        el.remove();
+      });
+      log('OF Stats: Period is "other" — showing native content');
+      startOriginalElementsObserver();
+      return;
+    }
+    
     // Hide/remove original elements that we're replacing (charts, summary)
     // Mark them with attribute so CSS can hide them reliably
     wrapper.querySelectorAll('.b-elements-determinant:not([data-of-stats-generated])').forEach(function(el) {
@@ -7147,7 +9106,7 @@
       });
     }
     
-    log('OF Stats: Applying statistics/statements/earnings page');
+    log('OF Stats: Applying statistics/statements/earnings page (period: ' + selectedPeriod + ')');
     
     // Get monthly data from /my/stats/earnings to calculate Gross and % change
     var earningStats = getOrGenerateEarningStatsEarly();
@@ -7158,11 +9117,24 @@
     // Get balances from settings
     var currentBalance = getCurrentBalanceValue();
     
-    // Calculate Gross from 2 last months average (must be > Current balance)
-    var totalGross = calculateGrossFromMonths(months);
+    // Calculate Gross/Net based on selected period
+    var totalGross;
+    if (selectedPeriod === 'alltime' && earningStats && earningStats.gross) {
+      // All Time — use total Gross from /my/stats/earnings data
+      totalGross = earningStats.gross;
+      log('OF Stats: Using All Time Gross from earningStats: $' + totalGross.toFixed(2));
+    } else {
+      // Last 30 days — average of 2 most recent months
+      totalGross = calculateGrossFromMonths(months);
+    }
     
     log('OF Stats Debug: totalGross=' + totalGross + ', currentBalance=' + currentBalance);
-    var totalNet = totalGross * 0.8; // Net is 80% of Gross
+    var totalNet;
+    if (selectedPeriod === 'alltime' && earningStats && earningStats.net) {
+      totalNet = earningStats.net;
+    } else {
+      totalNet = totalGross * 0.8;
+    }
     
     // Calculate percentage change from comparing current and previous month
     var percentChange = calculateMonthlyPercentageChange(months);
@@ -7182,7 +9154,7 @@
     summaryDiv.setAttribute('data-of-stats-generated', 'true');
     summaryDiv.innerHTML = '<div class="b-elements-determinant__value m-inline">' +
       '<span class=""> $' + formatCurrency(totalNet) + ' </span>' +
-      '<div class="g-gray-text b-statistics-level__text"> (<span class=""> $' + formatCurrency(totalGross) + ' </span> ' + (getPageLanguage() === 'ru' ? 'Гросс' : 'Gross') + ') </div>' +
+      '<div class="g-gray-text b-statistics-level__text"> (<span id="of-stats-gross-clickable" style="cursor:pointer;"> $' + formatCurrency(totalGross) + ' </span> ' + getLocalizedGrossLabel() + ') </div>' +
       '<span class="b-statistics-level ' + percentClass + '"><svg data-icon-name="' + percentIcon + '" aria-hidden="true" class="g-icon"><use href="#' + percentIcon + '" xlink:href="#' + percentIcon + '"></use></svg> ' + percentValue + '% </span>' +
       '</div>';
     
@@ -7197,12 +9169,12 @@
         '<div class="b-chart__tooltip__title">&nbsp;</div>' +
         '<div class="b-chart__tooltip__text">' +
           '<div class="b-chart__tooltip__circle" style="background: rgb(0, 175, 240);"></div>' +
-          '<div class="b-chart__tooltip__text__title"> ' + (getPageLanguage() === 'ru' ? 'Заработок' : 'Earnings') + ' </div>' +
+          '<div class="b-chart__tooltip__text__title"> ' + (getPageLanguage() === 'ru' ? 'Заработок' : getPageLanguage() === 'es' ? 'Ganancias' : getPageLanguage() === 'de' ? 'Verdienst' : 'Earnings') + ' </div>' +
           '<div class="b-chart__tooltip__text__value"> $0.00 </div>' +
         '</div>' +
         '<div class="b-chart__tooltip__text">' +
           '<div class="b-chart__tooltip__circle" style="background: rgb(138, 150, 163);"></div>' +
-          '<div class="b-chart__tooltip__text__title"> ' + (getPageLanguage() === 'ru' ? 'Транзакции' : 'Transactions') + ' </div>' +
+          '<div class="b-chart__tooltip__text__title"> ' + (getPageLanguage() === 'ru' ? 'Транзакции' : getPageLanguage() === 'es' ? 'Transacciones' : getPageLanguage() === 'de' ? 'Transaktionen' : 'Transactions') + ' </div>' +
           '<div class="b-chart__tooltip__text__value"> 0 </div>' +
         '</div>' +
       '</div>' +
@@ -7218,13 +9190,17 @@
       tableDiv.className = 'b-separate-section g-negative-sides-gaps g-sides-gaps';
       tableDiv.setAttribute('data-of-stats-generated', 'true');
     
-      var isRuTable = getPageLanguage() === 'ru';
+      var langTable = getPageLanguage();
       var tableHTML = '<table cellspacing="0" cellpadding="0" border="0" class="b-table m-responsive m-compact-view-mode m-default-table b-statements-table">' +
-        '<thead><tr><th class="m-width-statements"> ' + (isRuTable ? 'Дата' : 'Date') + ' </th><th class="text-right"> ' + (isRuTable ? 'Сумма' : 'Amount') + ' </th><th class="text-right"> ' + (isRuTable ? 'Сбор' : 'Fee') + ' </th><th class="text-right"> ' + (isRuTable ? 'Чистая' : 'Net') + ' </th></tr></thead>' +
+        '<thead><tr><th class="m-width-statements"> ' + (langTable === 'ru' ? 'Дата' : langTable === 'es' ? 'Fecha' : langTable === 'de' ? 'Datum' : 'Date') + ' </th><th class="text-right"> ' + (langTable === 'ru' ? 'Сумма' : langTable === 'es' ? 'Monto' : langTable === 'de' ? 'Betrag' : 'Amount') + ' </th><th class="text-right"> ' + (langTable === 'ru' ? 'Сбор' : langTable === 'es' ? 'Tarifa' : langTable === 'de' ? 'Gebühr' : 'Fee') + ' </th><th class="text-right"> ' + (langTable === 'ru' ? 'Чистая' : langTable === 'es' ? 'Neto' : langTable === 'de' ? 'Netto' : 'Net') + ' </th></tr></thead>' +
       '<tbody>';
     
-    var months = isRuTable
+    var months = langTable === 'ru'
       ? ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.']
+      : langTable === 'es'
+      ? ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
+      : langTable === 'de'
+      ? ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.']
       : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
     transactions.forEach(function(t) {
@@ -7236,8 +9212,8 @@
       var timeStr = hours + ':' + minutes + ' ' + ampm;
       
       var description = t.type === 'tip' 
-        ? (isRuTable ? 'Чаевые от' : 'Tip from') + ' <a href="https://onlyfans.com/' + t.userId + '">' + t.username + '</a>'
-        : (isRuTable ? 'Оплата за сообщение от' : 'Payment for message from') + ' <a href="https://onlyfans.com/' + t.userId + '">' + t.username + '</a>';
+        ? (langTable === 'ru' ? 'Чаевые от' : langTable === 'es' ? 'Propina de' : langTable === 'de' ? 'Trinkgeld von' : 'Tip from') + ' <a href="https://onlyfans.com/' + t.userId + '">' + t.username + '</a>'
+        : (langTable === 'ru' ? 'Оплата за сообщение от' : langTable === 'es' ? 'Pago por mensaje de' : langTable === 'de' ? 'Zahlung für Nachricht von' : 'Payment for message from') + ' <a href="https://onlyfans.com/' + t.userId + '">' + t.username + '</a>';
       
       // Use the status from the transaction data (same as /my/statements/earnings)
       var status = t.status || 'pending';
@@ -7245,10 +9221,10 @@
       
       if (status === 'complete') {
         iconName = 'icon-done';
-        statusText = isRuTable ? 'Завершить' : 'Complete';
+        statusText = langTable === 'ru' ? 'Завершить' : langTable === 'es' ? 'Completado' : langTable === 'de' ? 'Abgeschlossen' : 'Complete';
       } else if (status === 'reversed') {
         iconName = 'icon-undo';
-        statusText = isRuTable ? 'Перевернутый' : 'Reversed';
+        statusText = langTable === 'ru' ? 'Перевернутый' : langTable === 'es' ? 'Revertido' : langTable === 'de' ? 'Storniert' : 'Reversed';
       } else {
         // pending - calculate days remaining (max 6 days)
         var now = new Date();
@@ -7258,8 +9234,12 @@
         var daysSince = Math.floor((now - transDateNorm) / (1000 * 60 * 60 * 24));
         var daysRemaining = Math.max(1, 6 - daysSince);
         iconName = 'icon-loading';
-        if (isRuTable) {
+        if (langTable === 'ru') {
           statusText = 'Заработок станет доступен в ' + daysRemaining + ' течение нескольких дней';
+        } else if (langTable === 'es') {
+          statusText = 'Las ganancias estarán disponibles en ' + daysRemaining + ' día' + (daysRemaining !== 1 ? 's' : '');
+        } else if (langTable === 'de') {
+          statusText = 'Einnahmen verfügbar in ' + daysRemaining + ' Tag' + (daysRemaining !== 1 ? 'en' : '');
         } else {
           statusText = 'Earning will become available in ' + daysRemaining + ' day' + (daysRemaining !== 1 ? 's' : '');
         }
@@ -7327,8 +9307,11 @@
         if (section.hasAttribute('data-of-stats-processed')) return;
         
         var header = section.querySelector('.b-useful-data__header');
-        if (header && header.textContent.trim() === 'Earnings') {
-          originalEarningsSection = section;
+        if (header) {
+          var hText = header.textContent.trim();
+          if (hText === 'Earnings' || hText === 'Заработок' || hText === 'Ganancias' || hText === 'Provision') {
+            originalEarningsSection = section;
+          }
         }
       });
       
@@ -7336,22 +9319,23 @@
         // Mark as processed
         originalEarningsSection.setAttribute('data-of-stats-processed', 'true');
         
-        // Keep only the header, remove everything else
-        var header = originalEarningsSection.querySelector('.b-useful-data__header');
-        
-        // Remove all children except header
+        // Hide all native children except header (don't remove — Vue would re-create them)
         var children = Array.from(originalEarningsSection.children);
         children.forEach(function(child) {
-          if (!child.classList.contains('b-useful-data__header')) {
-            child.remove();
+          if (!child.classList.contains('b-useful-data__header') && !child.hasAttribute('data-of-stats-earnings-generated')) {
+            child.style.display = 'none';
+            child.setAttribute('data-of-stats-original-hidden', 'true');
           }
         });
         
-        // Create content wrapper and add after header
-        var contentWrapper = document.createElement('div');
-        contentWrapper.className = 'b-statistics-columns m-separate-block m-rows-items';
-        contentWrapper.innerHTML = generateEarningsRowsHTML(earningsBreakdown);
-        originalEarningsSection.appendChild(contentWrapper);
+        // Only add our content if not already added
+        if (!originalEarningsSection.querySelector('[data-of-stats-earnings-generated]')) {
+          var contentWrapper = document.createElement('div');
+          contentWrapper.className = 'b-statistics-columns m-separate-block m-rows-items';
+          contentWrapper.setAttribute('data-of-stats-earnings-generated', 'true');
+          contentWrapper.innerHTML = generateEarningsRowsHTML(earningsBreakdown);
+          originalEarningsSection.appendChild(contentWrapper);
+        }
         
         log('OF Stats: Replaced Earnings section content');
         
@@ -7383,8 +9367,58 @@
       }, 10000);
     }
     
+    // Store chart params for Gross click regeneration
+    window.ofStatsLastChartParams = {
+      transactions: transactions,
+      grossValue: totalGross,
+      earningsBreakdown: earningsBreakdown
+    };
+    
     // Load Chart.js and draw charts (pass grossValue for caching)
     loadChartJsAndDraw(transactions, totalGross, earningsBreakdown);
+    
+    // Attach click handler to Gross value for chart regeneration
+    setTimeout(function() {
+      var grossEl = document.getElementById('of-stats-gross-clickable');
+      if (grossEl && !grossEl.getAttribute('data-of-stats-click-bound')) {
+        grossEl.setAttribute('data-of-stats-click-bound', 'true');
+        grossEl.addEventListener('click', function() {
+          log('OF Stats: Gross clicked — full regeneration');
+          // Clear chart cache to force new random data
+          try {
+            localStorage.removeItem('ofStatsChartDataCache');
+            localStorage.removeItem('ofStatsEarningsBreakdownCache');
+          } catch(e) {}
+          // Destroy existing Chart.js instances
+          if (typeof Chart !== 'undefined') {
+            var mc = document.getElementById('of-stats-earnings-chart-main');
+            var ac = document.getElementById('of-stats-earnings-chart-aside');
+            if (mc) { var c = Chart.getChart(mc); if (c) c.destroy(); }
+            if (ac) { var c2 = Chart.getChart(ac); if (c2) c2.destroy(); }
+            document.querySelectorAll('canvas[id^="of-stats-mini-chart-"]').forEach(function(canvas) {
+              var ch = Chart.getChart(canvas); if (ch) ch.destroy();
+            });
+          }
+          // Full cleanup — remove all generated elements and re-apply from scratch
+          var w = document.querySelector('.b-statistics-page-content__wrapper');
+          if (w) {
+            w.querySelectorAll('[data-of-stats-generated]').forEach(function(el) { el.remove(); });
+            w.querySelectorAll('[data-of-stats-original-hidden]').forEach(function(el) {
+              el.removeAttribute('data-of-stats-original-hidden');
+              el.style.display = '';
+            });
+            document.querySelectorAll('.b-useful-data[data-of-stats-processed]').forEach(function(el) {
+              el.removeAttribute('data-of-stats-processed');
+            });
+            document.querySelectorAll('[data-of-stats-earnings-generated]').forEach(function(el) {
+              el.remove();
+            });
+            w.removeAttribute('data-of-stats-applied');
+          }
+          applyStatisticsEarningsPage();
+        });
+      }
+    }, 100);
     
     // Init tooltips for status icons
     initStatusTooltips();
@@ -7421,6 +9455,10 @@
       var wrapper = document.querySelector('.b-statistics-page-content__wrapper');
       if (!wrapper) return;
       
+      // --- Hide original elements ---
+      var currentPeriod = window.ofStatsCurrentPeriod || 'last30';
+      if (currentPeriod === 'other') return;
+      
       // Hide any original elements (those without our generated attribute)
       var hiddenCount = 0;
       wrapper.querySelectorAll('.b-elements-determinant:not([data-of-stats-generated]):not([data-of-stats-original-hidden])').forEach(function(el) {
@@ -7450,6 +9488,9 @@
     // Observe document.body to catch all changes including SPA navigation
     window.ofStatsOriginalElementsObserver.observe(document.body, { childList: true, subtree: true });
     log('OF Stats: Started original elements observer');
+    
+    // Also start dropdown click listener for immediate period detection
+    startDropdownClickListener();
   }
   
   // Stop the global observer
@@ -7459,6 +9500,54 @@
       window.ofStatsOriginalElementsObserver = null;
       log('OF Stats: Stopped original elements observer');
     }
+  }
+  
+  // Listen for dropdown clicks to immediately detect period changes
+  function startDropdownClickListener() {
+    if (window.ofStatsDropdownClickListener) return;
+    
+    window.ofStatsDropdownClickListener = function(e) {
+      if (!isStatisticsEarningsPage()) return;
+      
+      // Check if click is on or inside the period dropdown area
+      var dropdownArea = e.target.closest('.b-sticky-position-dropdown, .b-holder-options, .dropdown-menu, .dropdown-item, .b-holder-options__title, .dropdown');
+      if (!dropdownArea) return;
+      
+      // After dropdown item click, check period change with short delays (multiple checks)
+      var delays = [150, 400, 800];
+      delays.forEach(function(delay) {
+        setTimeout(function() {
+          var appliedPeriod = window.ofStatsCurrentPeriod || 'last30';
+          var newPeriod = getSelectedStatisticsPeriod();
+          if (newPeriod !== appliedPeriod) {
+            log('OF Stats: Dropdown click detected period change: ' + appliedPeriod + ' -> ' + newPeriod);
+            var wrapper = document.querySelector('.b-statistics-page-content__wrapper');
+            if (wrapper) {
+              wrapper.querySelectorAll('[data-of-stats-generated]').forEach(function(el) { el.remove(); });
+              wrapper.querySelectorAll('[data-of-stats-original-hidden]').forEach(function(el) {
+                el.removeAttribute('data-of-stats-original-hidden');
+                el.style.display = '';
+              });
+              document.querySelectorAll('.b-useful-data[data-of-stats-processed]').forEach(function(el) {
+                el.removeAttribute('data-of-stats-processed');
+              });
+              document.querySelectorAll('[data-of-stats-earnings-generated]').forEach(function(el) {
+                el.remove();
+              });
+              wrapper.removeAttribute('data-of-stats-applied');
+              try {
+                localStorage.removeItem('ofStatsChartDataCache');
+                localStorage.removeItem('ofStatsEarningsBreakdownCache');
+              } catch(e) {}
+              applyStatisticsEarningsPage();
+            }
+          }
+        }, delay);
+      });
+    };
+    
+    document.addEventListener('click', window.ofStatsDropdownClickListener, true);
+    log('OF Stats: Started dropdown click listener');
   }
   
   // Export function to window for content.js to call after Apply Changes
@@ -7523,6 +9612,9 @@
     // Also reset Earnings section processed flag
     document.querySelectorAll('.b-useful-data[data-of-stats-processed]').forEach(function(el) {
       el.removeAttribute('data-of-stats-processed');
+    });
+    document.querySelectorAll('[data-of-stats-earnings-generated]').forEach(function(el) {
+      el.remove();
     });
     
     // Remove hiding style if present
@@ -7622,7 +9714,9 @@
   
   // Generate HTML for Earnings section (full, with header)
   function generateEarningsHTML(breakdown) {
-    return '<div class="b-useful-data__header"> ' + (getPageLanguage() === 'ru' ? 'Заработок' : 'Earnings') + ' </div>' +
+    var elLang = getPageLanguage();
+    var earningsLabel = elLang === 'ru' ? 'Заработок' : elLang === 'es' ? 'Ganancias' : elLang === 'de' ? 'Provision' : 'Earnings';
+    return '<div class="b-useful-data__header"> ' + earningsLabel + ' </div>' +
       generateEarningsContentOnlyHTML(breakdown);
   }
   
@@ -7653,11 +9747,16 @@
         sign + change.value.toFixed(1) + '% </span>';
     }
     
+    var rlang = getPageLanguage();
+    var lTotal = rlang === 'ru' ? 'Итого' : rlang === 'es' ? 'Total' : rlang === 'de' ? 'Gesamt' : 'Total';
+    var lTips = rlang === 'ru' ? 'Чаевые' : rlang === 'es' ? 'Propinas' : rlang === 'de' ? 'Trinkgelder' : 'Tips';
+    var lMessages = rlang === 'ru' ? 'Сообщения' : rlang === 'es' ? 'Mensajes' : rlang === 'de' ? 'Nachrichten' : 'Messages';
+
     return '' +
         // Total
         '<div class="b-elements-determinant g-pointer-cursor m-rows-charts">' +
           '<div class="b-elements-determinant__unit">' +
-            '<div class="b-elements-determinant__label"> ' + (getPageLanguage() === 'ru' ? 'Итого' : 'Total') + ' </div>' +
+            '<div class="b-elements-determinant__label"> ' + lTotal + ' </div>' +
             '<div class="b-elements-determinant__value">' +
               '<span class=""> $' + formatCurrency(breakdown.total.amount) + ' </span>' +
               getChangeHTML(breakdown.total.change) +
@@ -7672,7 +9771,7 @@
         // Tips
         '<div class="b-elements-determinant g-pointer-cursor m-rows-charts">' +
           '<div class="b-elements-determinant__unit">' +
-            '<div class="b-elements-determinant__label"> ' + (getPageLanguage() === 'ru' ? 'Чаевые' : 'Tips') + ' </div>' +
+            '<div class="b-elements-determinant__label"> ' + lTips + ' </div>' +
             '<div class="b-elements-determinant__value">' +
               '<span class=""> $' + formatCurrency(breakdown.tips.amount) + ' </span>' +
               getChangeHTML(breakdown.tips.change) +
@@ -7687,7 +9786,7 @@
         // Messages
         '<div class="b-elements-determinant g-pointer-cursor m-rows-charts">' +
           '<div class="b-elements-determinant__unit">' +
-            '<div class="b-elements-determinant__label"> ' + (getPageLanguage() === 'ru' ? 'Сообщения' : 'Messages') + ' </div>' +
+            '<div class="b-elements-determinant__label"> ' + lMessages + ' </div>' +
             '<div class="b-elements-determinant__value">' +
               '<span class=""> $' + formatCurrency(breakdown.messages.amount) + ' </span>' +
               getChangeHTML(breakdown.messages.change) +
@@ -7848,6 +9947,12 @@
     
     // If Gross is the same and we have cached data, use it
     if (cachedData && cachedGross && parseFloat(cachedGross) === grossValue) {
+      // If charts already exist and rendered, skip completely
+      var existingMainCanvas = document.getElementById('of-stats-earnings-chart-main');
+      if (existingMainCanvas && typeof Chart !== 'undefined' && Chart.getChart(existingMainCanvas)) {
+        log('OF Stats: Charts already rendered with cached data, skipping');
+        return;
+      }
       log('OF Stats: Using cached chart data (Gross unchanged: $' + grossValue + ')');
       var chartData = JSON.parse(cachedData);
       loadChartScriptsAndDraw(chartData);
@@ -7855,6 +9960,74 @@
     }
     
     log('OF Stats: Generating new chart data (Gross changed from $' + cachedGross + ' to $' + grossValue + ')');
+    
+    // All Time — generate monthly data points from earningStatsData.months
+    if (window.ofStatsCurrentPeriod === 'alltime') {
+      var allTimeStats = getOrGenerateEarningStatsEarly();
+      if (allTimeStats && allTimeStats.months && allTimeStats.months.length > 0) {
+        var monthsChron = allTimeStats.months.slice().reverse(); // chronological order
+        var atLabels = [];
+        var atEarnings = [];
+        var atCounts = [];
+        var atMonthDates = [];
+        var monNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        var rawNetTotal = monthsChron.reduce(function(sum, m) { return sum + m.net; }, 0);
+        var atScale = rawNetTotal > 0 ? grossValue / rawNetTotal : 1;
+        var avgMonthNet = rawNetTotal / monthsChron.length;
+        
+        // Generate raw earnings with random variation (±30%) per month
+        var rawAtEarnings = [];
+        monthsChron.forEach(function(m) {
+          atLabels.push(monNames[m.month] + ', ' + m.year);
+          atMonthDates.push(new Date(m.year, m.month, 1).toISOString());
+          var baseValue = m.net * atScale;
+          // Random variation: 70% to 130% of base value
+          var variation = 0.7 + Math.random() * 0.6;
+          rawAtEarnings.push(baseValue * variation);
+          // Transaction count proportional to earnings with variation
+          var monthFrac = avgMonthNet > 0 ? m.net / avgMonthNet : 1;
+          var baseCount = grossValue < 3000 ? 80 : grossValue < 10000 ? 200 : 400;
+          atCounts.push(Math.max(5, Math.round(baseCount * monthFrac * (0.6 + Math.random() * 0.8))));
+        });
+        
+        // Normalize so sum = grossValue
+        var rawAtSum = rawAtEarnings.reduce(function(a, b) { return a + b; }, 0);
+        var normFactor = rawAtSum > 0 ? grossValue / rawAtSum : 1;
+        rawAtEarnings.forEach(function(val) {
+          atEarnings.push(Math.round(val * normFactor * 100) / 100);
+        });
+        
+        // Normalize earnings sum to grossValue
+        var atSum = atEarnings.reduce(function(a, b) { return a + b; }, 0);
+        var atDiff = grossValue - atSum;
+        if (Math.abs(atDiff) > 0.01 && atEarnings.length > 0) {
+          atEarnings[atEarnings.length - 1] = Math.round((atEarnings[atEarnings.length - 1] + atDiff) * 100) / 100;
+        }
+        
+        var chartData = {
+          labels: atLabels,
+          earnings: atEarnings,
+          counts: atCounts,
+          startDate: atMonthDates[0],
+          monthlyMode: true,
+          monthDates: atMonthDates,
+          miniCharts: {
+            total: generateMiniChartData(30, earningsBreakdown.total.change.isIncrease),
+            tips: generateMiniChartData(30, earningsBreakdown.tips.change.isIncrease),
+            messages: generateMiniChartData(30, earningsBreakdown.messages.change.isIncrease)
+          }
+        };
+        
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(chartData));
+          localStorage.setItem(grossKey, grossValue.toString());
+        } catch (e) {}
+        
+        loadChartScriptsAndDraw(chartData);
+        return;
+      }
+    }
     
     // Prepare chart data - generate synthetic data for the entire 30-day period
     // This ensures the chart starts from day 1, not just where transactions exist
@@ -8049,22 +10222,34 @@
   
   // Helper function to load Chart.js scripts and draw charts
   function loadChartScriptsAndDraw(chartData) {
-    // Check if Chart.js is already loaded
-    if (window.Chart) {
-      log('OF Stats: Chart.js already loaded, drawing charts');
+    function dispatchChartEvents(data) {
       window.dispatchEvent(new CustomEvent('of-stats-draw-statistics-charts', {
-        detail: chartData
+        detail: data
       }));
-      // Draw mini charts for Earnings section
-      if (chartData.miniCharts) {
+      if (data.miniCharts) {
         setTimeout(function() {
           window.dispatchEvent(new CustomEvent('of-stats-draw-mini-charts', {
-            detail: chartData.miniCharts
+            detail: data.miniCharts
           }));
         }, 100);
       }
+    }
+    
+    // Check if Chart.js is already loaded
+    if (window.Chart) {
+      log('OF Stats: Chart.js already loaded, drawing charts');
+      dispatchChartEvents(chartData);
       return;
     }
+    
+    // Prevent multiple simultaneous script loads
+    if (window.ofStatsChartScriptsLoading) {
+      // Scripts are loading — queue this chartData for when they finish
+      window.ofStatsPendingChartData = chartData;
+      log('OF Stats: Chart scripts already loading, queued data');
+      return;
+    }
+    window.ofStatsChartScriptsLoading = true;
     
     // Load Chart.js from extension
     var chartScript = document.createElement('script');
@@ -8077,23 +10262,17 @@
       drawerScript.src = chrome.runtime.getURL('chart-drawer.js');
       drawerScript.onload = function() {
         log('OF Stats: Chart drawer loaded');
-        // Dispatch event to draw charts (chart-drawer.js listens for this)
-        window.dispatchEvent(new CustomEvent('of-stats-draw-statistics-charts', {
-          detail: chartData
-        }));
-        // Draw mini charts for Earnings section
-        if (chartData.miniCharts) {
-          setTimeout(function() {
-            window.dispatchEvent(new CustomEvent('of-stats-draw-mini-charts', {
-              detail: chartData.miniCharts
-            }));
-          }, 100);
-        }
+        window.ofStatsChartScriptsLoading = false;
+        // Use queued data if available (most recent), otherwise original
+        var dataToUse = window.ofStatsPendingChartData || chartData;
+        window.ofStatsPendingChartData = null;
+        dispatchChartEvents(dataToUse);
       };
       document.head.appendChild(drawerScript);
     };
     chartScript.onerror = function() {
       logError('OF Stats: Failed to load Chart.js');
+      window.ofStatsChartScriptsLoading = false;
     };
     document.head.appendChild(chartScript);
   }
@@ -8175,6 +10354,15 @@
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
       log('OF Stats: URL changed, re-checking elements');
+
+      // Clean up Top Creators blocks from previous page.
+      // These are outside Vue's component tree so Vue never removes them.
+      ['of-stats-top-creators', 'of-stats-top-creators-rated',
+       'of-stats-top-creators-style', 'of-stats-top-creators-rated-style',
+       'of-stats-hide-native-top-rated'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.remove();
+      });
       
       // Reset flags for earning stats page if we're on it
       if (isEarningStatsPage()) {
@@ -8238,6 +10426,9 @@
                     visibility: hidden !important;
                     height: 0 !important;
                     overflow: hidden !important;
+                  }
+                  .b-useful-data[data-of-stats-processed] > *:not(.b-useful-data__header):not([data-of-stats-earnings-generated]) {
+                    display: none !important;
                   }
                   .b-statistics-page-content__wrapper[data-of-stats-applied] .b-elements-determinant:not([data-of-stats-generated]),
                   .b-statistics-page-content__wrapper[data-of-stats-applied] .b-chart:not([data-of-stats-generated]) {

@@ -141,6 +141,14 @@ async function handleMessage(request, sender) {
       case 'checkModel':
         return await apiCheckModel(request.username);
       
+      // Farmed models — comment status
+      case 'checkFarmedModel':
+        return await apiCheckFarmedModel(request.username);
+      
+      // AI Verdict for model score
+      case 'getAIVerdict':
+        return await apiGetAIVerdict(request.scoreData);
+
       // Fans actions
       case 'reportFans':
         return await apiReportFans(request.username, request.fansCount, request.fansText, request.reportDay);
@@ -150,6 +158,12 @@ async function handleMessage(request, sender) {
       
       case 'batchGetFans':
         return await apiBatchGetFans(request.usernames);
+      
+      case 'getFansTrend':
+        return await apiGetFansTrend(request.username, request.days);
+
+      case 'getEngagementPercentile':
+        return await apiGetEngagementPercentile(request.username, request.metrics);
       
       // Presets actions (cloud sync)
       case 'getPresets': {
@@ -642,6 +656,75 @@ async function apiCheckModel(username) {
   }
 }
 
+// ==================== FARMED MODELS API ====================
+
+async function apiCheckFarmedModel(username) {
+  try {
+    const response = await fetch(`${API_URL}/farmed-models/${encodeURIComponent(username)}`);
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Check farmed model error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+// ==================== AI VERDICT (xAI Grok) ====================
+
+async function apiGetAIVerdict(scoreData) {
+  try {
+    // Build clear fans description
+    let fansDesc;
+    if (scoreData.fansVisible && scoreData.fans > 0) {
+      fansDesc = scoreData.fans + ' (ОТКРЫТЫ, видны всем)';
+    } else if (!scoreData.fansVisible && scoreData.lastKnownFans) {
+      fansDesc = 'СКРЫТЫ модельёю. Последние известные: ' + scoreData.lastKnownFans;
+    } else if (!scoreData.fansVisible) {
+      fansDesc = 'СКРЫТЫ модельёю, данных нет';
+    } else {
+      fansDesc = '0';
+    }
+
+    const prompt = `Профиль @${scoreData.username}:
+Score: ${scoreData.score}/100 (${scoreData.grade})
+Компоненты: MAT ${scoreData.components.maturity}/25, POP ${scoreData.components.popularity}/25, ORG ${scoreData.components.organicity}/25, ACT ${scoreData.components.activity}/15, TRS ${scoreData.components.transparency}/10
+Фаны: ${fansDesc}
+Лайки: ${scoreData.likes}, Посты: ${scoreData.posts}, Видео: ${scoreData.videos}, Стримы: ${scoreData.streams}
+Возраст: ${scoreData.accountMonths} мес.${scoreData.price > 0 ? ' Подписка: ПЛАТНАЯ $' + scoreData.price + '/мес' + (scoreData.fansVisible && scoreData.fans > 0 ? ' (доход ~$' + Math.round(scoreData.price * scoreData.fans) + '/мес)' : '') : ' Подписка: FREE (бесплатная, дохода от подписки НЕТ)'}
+Комментарии: ${scoreData.commentsOpen ? 'ОТКРЫТЫ' : scoreData.commentsClosed ? 'ЗАКРЫТЫ' : 'неизвестно'}
+Флаги: ${scoreData.flags.join(', ') || 'нет'}`;
+
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer xai-PJt31Fwdznxy9kd5zFVw4Mba46X4zamDfk0KOCtiRjAfV9ugsWmoPp3D3Z47ePmZCBZJ6kCQGOPAr16v'
+      },
+      body: JSON.stringify({
+        model: 'grok-4.20-beta-0309-non-reasoning',
+        messages: [
+          { role: 'system', content: 'Ты опытный аналитик профилей OnlyFans. Пиши кратко и по делу, своими словами — без пересказа флагов и метрик. Будь объективным. НЕ ВЫДУМЫВАЙ факты. Если в данных есть «Последние известные» фаны — используй эту цифру, не пиши просто «фаны скрыты». Не упоминай верификацию — она есть у всех. Не называй флаги по имени (Inflated Likes, Low Trust и т.д.) — описывай ситуацию своими словами. Скрытые фаны сами по себе НЕ подозрение на накрутку. Если фаны скрыты и нет «Последних известных» — оценивай размер аудитории ТОЛЬКО по лайкам: менее 5K лайков = маленькая аудитория, 5-50K = средняя, 50K+ = большая. НЕ ПИШИ «широкая аудитория» если лайков мало. Если подписка ПЛАТНАЯ и есть фаны — упомяни доход. Если подписка FREE — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать доход, заработок, подписку, монетизацию, слово «бесплатный», слово «платная». Просто НЕ ПИШИ об этом. ФОРМАТ: 2-3 предложения, максимум 40 слов, на русском. ОБЯЗАТЕЛЬНО заканчивай выводом — что это значит для аудитории или качества аккаунта. НЕ начинай с имени/@username. Без markdown.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 200,
+        temperature: 0.4
+      })
+    });
+
+    if (!response.ok) {
+      logError('OF Stats: xAI API error:', response.status);
+      return { verdict: null };
+    }
+
+    const data = await response.json();
+    const verdict = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    return { verdict: verdict ? verdict.trim() : null };
+  } catch (error) {
+    logError('OF Stats: AI verdict error:', error);
+    return { verdict: null };
+  }
+}
+
 // ==================== FANS API ====================
 
 async function apiReportFans(username, fansCount, fansText, reportDay) {
@@ -700,6 +783,42 @@ async function apiBatchGetFans(usernames) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Batch get fans error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiGetFansTrend(username, days) {
+  try {
+    const headers = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    
+    const response = await fetch(`${API_URL}/fans/trend/${encodeURIComponent(username)}?days=${days || 90}`, { headers });
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Get fans trend error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiGetEngagementPercentile(username, metrics) {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${API_URL}/fans/percentile/${encodeURIComponent(username)}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(metrics || {})
+    });
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Get engagement percentile error:', error);
     return { success: false, error: 'Network error' };
   }
 }
