@@ -56,28 +56,26 @@ router.post('/report', authenticateToken, async (req, res) => {
       WHERE model_username = $1
     `, [cleanUsername]);
 
-    if (existing && existing.fans_count === parsedFansCount) {
-      return res.json({ 
-        message: 'Fans count unchanged',
-        recorded: false 
-      });
+    const historyChanged = !(existing && existing.fans_count === parsedFansCount);
+
+    // Upsert history only when value changed; daily trend upsert must still happen every day
+    if (historyChanged) {
+      await query(`
+        INSERT INTO model_fans_history (model_username, fans_count, fans_text, recorded_by, recorded_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (model_username) 
+        DO UPDATE SET 
+          fans_count = EXCLUDED.fans_count,
+          fans_text = EXCLUDED.fans_text,
+          recorded_by = EXCLUDED.recorded_by,
+          recorded_at = NOW()
+      `, [cleanUsername, parsedFansCount, fansText || formatFansCount(parsedFansCount), req.user.id]);
     }
 
-    // Upsert - insert or update existing record (one record per model)
-    await query(`
-      INSERT INTO model_fans_history (model_username, fans_count, fans_text, recorded_by, recorded_at)
-      VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (model_username) 
-      DO UPDATE SET 
-        fans_count = EXCLUDED.fans_count,
-        fans_text = EXCLUDED.fans_text,
-        recorded_by = EXCLUDED.recorded_by,
-        recorded_at = NOW()
-    `, [cleanUsername, parsedFansCount, fansText || formatFansCount(parsedFansCount), req.user.id]);
-
     res.json({
-      message: 'Fans recorded successfully',
+      message: historyChanged ? 'Fans recorded successfully' : 'Fans count unchanged (daily trend point will still be updated)',
       recorded: true,
+      historyChanged,
       data: {
         username: cleanUsername,
         fansCount: parsedFansCount,
