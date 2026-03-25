@@ -124,23 +124,27 @@
       
       // Report fans to global registry if visible AND model is verified (has checkmark)
       // Only verified creators should be tracked in global registry
-      // Throttle: max once per 24 hours per username to avoid spamming the server
+      // Throttle: max once per calendar day per username to ensure daily trend points are updated
       if (profileData.username && profileData.isVerified && profileData.subscribersCount !== undefined && profileData.subscribersCount !== null) {
-        const reportKey = 'ofStatsLastReport_' + profileData.username;
-        const lastReport = parseInt(localStorage.getItem(reportKey) || '0', 10);
-        const now = Date.now();
-        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const reportDayKey = 'ofStatsLastReportDay_' + profileData.username;
+        const reportLegacyTsKey = 'ofStatsLastReport_' + profileData.username;
+        const todayLocal = new Date();
+        const todayKey = todayLocal.getFullYear() + '-' + String(todayLocal.getMonth() + 1).padStart(2, '0') + '-' + String(todayLocal.getDate()).padStart(2, '0');
+        const lastReportDay = localStorage.getItem(reportDayKey);
         
-        if (now - lastReport > ONE_DAY) {
+        if (lastReportDay !== todayKey) {
           try {
             chrome.runtime.sendMessage({
               action: 'reportFans',
               username: profileData.username,
               fansCount: profileData.subscribersCount,
-              fansText: quickFormatNumber(profileData.subscribersCount)
+              fansText: quickFormatNumber(profileData.subscribersCount),
+              reportDay: todayKey
             }).then(result => {
               if (result && result.recorded) {
-                localStorage.setItem(reportKey, String(now));
+                localStorage.setItem(reportDayKey, todayKey);
+                // Keep legacy key in sync for backward compatibility/debugging
+                localStorage.setItem(reportLegacyTsKey, String(Date.now()));
                 log('OF Stats: Fans recorded to global registry for @' + profileData.username + ' (verified)');
               }
             }).catch(() => {});
@@ -148,7 +152,7 @@
             log('OF Stats: Could not report fans:', e);
           }
         } else {
-          log('OF Stats: Skipping reportFans for @' + profileData.username + ' (reported recently)');
+          log('OF Stats: Skipping reportFans for @' + profileData.username + ' (already reported today)');
         }
       }
       

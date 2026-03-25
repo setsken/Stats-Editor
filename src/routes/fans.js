@@ -32,7 +32,7 @@ router.get('/debug/recent', async (req, res) => {
 // Report fans count for a model (when user visits profile with visible fans)
 router.post('/report', authenticateToken, async (req, res) => {
   try {
-    const { username, fansCount, fansText } = req.body;
+    const { username, fansCount, fansText, reportDay } = req.body;
 
     if (!username) {
       return res.status(400).json({ error: 'Model username is required' });
@@ -87,12 +87,14 @@ router.post('/report', authenticateToken, async (req, res) => {
 
     // Async UPSERT into model_fans_daily for trend tracking (non-critical)
     try {
+      // Optional client-local day (YYYY-MM-DD). If invalid/missing, fallback to DB CURRENT_DATE.
+      const safeReportDay = (typeof reportDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(reportDay)) ? reportDay : null;
       await query(
         `INSERT INTO model_fans_daily (model_username, day, fans_count, reporters, updated_at)
-         VALUES ($1, CURRENT_DATE, $2, 1, NOW())
+         VALUES ($1, COALESCE($3::date, CURRENT_DATE), $2, 1, NOW())
          ON CONFLICT (model_username, day)
          DO UPDATE SET fans_count = $2, reporters = model_fans_daily.reporters + 1, updated_at = NOW()`,
-        [cleanUsername, parsedFansCount]
+        [cleanUsername, parsedFansCount, safeReportDay]
       );
     } catch (trendErr) {
       console.error('Fans trend UPSERT error (non-critical):', trendErr.message);

@@ -143,7 +143,7 @@ async function handleMessage(request, sender) {
       
       // Fans actions
       case 'reportFans':
-        return await apiReportFans(request.username, request.fansCount, request.fansText);
+        return await apiReportFans(request.username, request.fansCount, request.fansText, request.reportDay);
       
       case 'getFans':
         return await apiGetFans(request.username);
@@ -644,7 +644,7 @@ async function apiCheckModel(username) {
 
 // ==================== FANS API ====================
 
-async function apiReportFans(username, fansCount, fansText) {
+async function apiReportFans(username, fansCount, fansText, reportDay) {
   if (!authToken) {
     return { success: false, error: 'Not authenticated' };
   }
@@ -656,7 +656,7 @@ async function apiReportFans(username, fansCount, fansText) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${authToken}`
       },
-      body: JSON.stringify({ username, fansCount, fansText })
+      body: JSON.stringify({ username, fansCount, fansText, reportDay })
     });
     
     const data = await response.json();
