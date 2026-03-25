@@ -204,6 +204,19 @@ async function initDatabase() {
       )
     `);
 
+    // Aggregated quality snapshots — one row per model for percentile ranking
+    await query(`
+      CREATE TABLE IF NOT EXISTS model_quality_snapshots (
+        model_username VARCHAR(255) PRIMARY KEY,
+        quality_score NUMERIC(6,5) NOT NULL,
+        score NUMERIC(6,2) NOT NULL,
+        organicity NUMERIC(6,2) NOT NULL,
+        engagement_rate NUMERIC(12,6) NOT NULL,
+        negative_flags INTEGER DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
     // Create indexes
     await query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)');
@@ -213,6 +226,7 @@ async function initDatabase() {
     await query('CREATE INDEX IF NOT EXISTS idx_payments_payment_id ON payments(payment_id)');
     await query('CREATE INDEX IF NOT EXISTS idx_user_presets_user_id ON user_presets(user_id)');
     await query('CREATE INDEX IF NOT EXISTS idx_model_fans_daily_username ON model_fans_daily(model_username)');
+    await query('CREATE INDEX IF NOT EXISTS idx_model_quality_snapshots_quality ON model_quality_snapshots(quality_score)');
 
     console.log('Database initialized successfully');
   } catch (error) {

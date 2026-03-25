@@ -45,6 +45,20 @@ async function runMigrations() {
     `).catch(() => {});
     await query('CREATE INDEX IF NOT EXISTS idx_model_fans_daily_username ON model_fans_daily(model_username)').catch(() => {});
 
+    // Create model_quality_snapshots for aggregated percentile ranking
+    await query(`
+      CREATE TABLE IF NOT EXISTS model_quality_snapshots (
+        model_username VARCHAR(255) PRIMARY KEY,
+        quality_score NUMERIC(6,5) NOT NULL,
+        score NUMERIC(6,2) NOT NULL,
+        organicity NUMERIC(6,2) NOT NULL,
+        engagement_rate NUMERIC(12,6) NOT NULL,
+        negative_flags INTEGER DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `).catch(() => {});
+    await query('CREATE INDEX IF NOT EXISTS idx_model_quality_snapshots_quality ON model_quality_snapshots(quality_score)').catch(() => {});
+
     // Backfill model_fans_daily from model_fans_history (one-time migration)
     try {
       const check = await query('SELECT COUNT(*) as cnt FROM model_fans_daily');

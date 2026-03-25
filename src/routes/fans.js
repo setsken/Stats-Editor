@@ -130,6 +130,80 @@ router.get('/trend/:username', optionalAuth, async (req, res) => {
   }
 });
 
+// Get engagement percentile against aggregated DB snapshots
+router.post('/percentile/:username', optionalAuth, async (req, res) => {
+  try {
+    const { username } = req.params;
+    const cleanUsername = username.trim().toLowerCase().replace('@', '');
+
+    const rawScore = Number(req.body?.score);
+    const rawOrganicity = Number(req.body?.organicity);
+    const rawEngagementRate = Number(req.body?.engagementRate);
+    const rawNegativeFlags = Number(req.body?.negativeFlagsCount);
+
+    const score = Number.isFinite(rawScore) ? Math.max(0, Math.min(100, rawScore)) : null;
+    const organicity = Number.isFinite(rawOrganicity) ? Math.max(0, Math.min(25, rawOrganicity)) : null;
+    const engagementRate = Number.isFinite(rawEngagementRate) ? Math.max(0, rawEngagementRate) : null;
+    const negativeFlagsCount = Number.isFinite(rawNegativeFlags) ? Math.max(0, Math.min(50, Math.round(rawNegativeFlags))) : 0;
+
+    if (!cleanUsername || score === null || organicity === null || engagementRate === null) {
+      return res.status(400).json({ error: 'username, score, organicity and engagementRate are required' });
+    }
+
+    const scoreNorm = score / 100;
+    const organicityNorm = organicity / 25;
+    const engagementNorm = Math.max(0, Math.min(1, engagementRate / 5));
+    const qualityRaw = (scoreNorm * 0.60) + (organicityNorm * 0.25) + (engagementNorm * 0.15) - (negativeFlagsCount * 0.04);
+    const qualityScore = Math.max(0.01, Math.min(0.99, qualityRaw));
+
+    await query(
+      `INSERT INTO model_quality_snapshots
+        (model_username, quality_score, score, organicity, engagement_rate, negative_flags, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (model_username)
+       DO UPDATE SET
+         quality_score = EXCLUDED.quality_score,
+         score = EXCLUDED.score,
+         organicity = EXCLUDED.organicity,
+         engagement_rate = EXCLUDED.engagement_rate,
+         negative_flags = EXCLUDED.negative_flags,
+         updated_at = NOW()`,
+      [cleanUsername, qualityScore, score, organicity, engagementRate, negativeFlagsCount]
+    );
+
+    const rank = await getOne(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE quality_score < $1)::int AS lower_count,
+         COUNT(*) FILTER (WHERE quality_score = $1)::int AS equal_count,
+         AVG(engagement_rate)::float AS avg_engagement
+       FROM model_quality_snapshots`,
+      [qualityScore]
+    );
+
+    const total = Math.max(1, Number(rank?.total || 0));
+    const lower = Number(rank?.lower_count || 0);
+    const equal = Number(rank?.equal_count || 0);
+    const avgEngagement = Number(rank?.avg_engagement || 0);
+
+    const betterRaw = ((lower + (equal * 0.5)) / total) * 100;
+    const betterPercent = Math.max(1, Math.min(99, Math.round(betterRaw)));
+    const topPercent = Math.max(1, 100 - betterPercent);
+
+    res.json({
+      username: cleanUsername,
+      betterPercent,
+      topPercent,
+      modelsAnalyzed: total,
+      avgEngagement,
+      basis: 'aggregated_db_quality_distribution'
+    });
+  } catch (error) {
+    console.error('Get engagement percentile error:', error);
+    res.status(500).json({ error: 'Failed to get engagement percentile' });
+  }
+});
+
 // Get last known fans for a model (public - for hidden fans feature)
 router.get('/:username', optionalAuth, async (req, res) => {
   try {
