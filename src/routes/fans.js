@@ -171,32 +171,44 @@ router.post('/percentile/:username', optionalAuth, async (req, res) => {
       [cleanUsername, qualityScore, score, organicity, engagementRate, negativeFlagsCount]
     );
 
+    // Rank this model among all OTHER models (exclude self)
+    const MIN_MODELS_FOR_PERCENTILE = 20;
     const rank = await getOne(
       `SELECT
          COUNT(*)::int AS total,
-         COUNT(*) FILTER (WHERE quality_score < $1)::int AS lower_count,
-         COUNT(*) FILTER (WHERE quality_score = $1)::int AS equal_count,
+         COUNT(*) FILTER (WHERE quality_score > $1 AND model_username <> $2)::int AS better_count,
+         COUNT(*) FILTER (WHERE model_username <> $2)::int AS others,
          AVG(engagement_rate)::float AS avg_engagement
        FROM model_quality_snapshots`,
-      [qualityScore]
+      [qualityScore, cleanUsername]
     );
 
     const total = Math.max(1, Number(rank?.total || 0));
-    const lower = Number(rank?.lower_count || 0);
-    const equal = Number(rank?.equal_count || 0);
+    const others = Math.max(0, Number(rank?.others || 0));
+    const better = Number(rank?.better_count || 0);
     const avgEngagement = Number(rank?.avg_engagement || 0);
+    const sufficient = others >= MIN_MODELS_FOR_PERCENTILE;
 
-    const betterRaw = ((lower + (equal * 0.5)) / total) * 100;
-    const betterPercent = Math.max(1, Math.min(99, Math.round(betterRaw)));
-    const topPercent = Math.max(1, 100 - betterPercent);
+    // Percentile: what fraction of OTHER models are better than this one
+    let topPercent, betterPercent;
+    if (sufficient) {
+      const percentileRaw = (better / others) * 100;
+      topPercent = Math.max(1, Math.min(99, Math.round(percentileRaw)));
+      betterPercent = Math.max(1, Math.min(99, 100 - topPercent));
+    } else {
+      // Not enough data — return null so client keeps its local estimate
+      topPercent = null;
+      betterPercent = null;
+    }
 
     res.json({
       username: cleanUsername,
       betterPercent,
       topPercent,
       modelsAnalyzed: total,
+      sufficient,
       avgEngagement,
-      basis: 'aggregated_db_quality_distribution'
+      basis: sufficient ? 'aggregated_db_quality_distribution' : 'insufficient_data'
     });
   } catch (error) {
     console.error('Get engagement percentile error:', error);
