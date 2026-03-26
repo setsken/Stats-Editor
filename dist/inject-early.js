@@ -1887,19 +1887,25 @@
             }
           }).then(function(resp) {
             if (!resp || !resp.success) return;
-            var dbBetter = Math.max(1, Math.min(99, Number(resp.betterPercent || betterPercent)));
-            var dbTop = Math.max(1, Math.min(99, Number(resp.topPercent || (100 - dbBetter))));
-            var dbModels = Math.max(1, Number(resp.modelsAnalyzed || analyzedModels));
+            var dbModels = Math.max(1, Number(resp.modelsAnalyzed || 1));
 
             var topEl = percentilePanel.querySelector('#of-percentile-top');
             var betterEl = percentilePanel.querySelector('#of-percentile-better');
             var basisEl = percentilePanel.querySelector('#of-percentile-basis');
             var markerEl = percentilePanel.querySelector('#of-percentile-marker');
 
-            if (topEl) topEl.textContent = 'Top ' + dbTop + '%';
-            if (betterEl) betterEl.textContent = t('betterThanModels') + dbBetter + '% ' + dbModels + ' ' + t('analyzedModelsSuffix');
-            if (basisEl) basisEl.textContent = 'aggregated DB percentile';
-            if (markerEl) markerEl.style.left = dbBetter + '%';
+            // Only overwrite local heuristic if backend has enough data
+            if (resp.sufficient && resp.topPercent != null) {
+              var dbBetter = Math.max(1, Math.min(99, Number(resp.betterPercent)));
+              var dbTop = Math.max(1, Math.min(99, Number(resp.topPercent)));
+              if (topEl) topEl.textContent = 'Top ' + dbTop + '%';
+              if (betterEl) betterEl.textContent = t('betterThanModels') + dbBetter + '% ' + dbModels + ' ' + t('analyzedModelsSuffix');
+              if (basisEl) basisEl.textContent = 'aggregated DB percentile';
+              if (markerEl) markerEl.style.left = dbBetter + '%';
+            } else {
+              // Keep local heuristic, just update model count and basis text
+              if (basisEl) basisEl.textContent = 'quality score estimate (' + dbModels + ' in DB)';
+            }
           }).catch(function() {});
         } catch (e) {}
       }
