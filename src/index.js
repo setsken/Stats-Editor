@@ -1,4 +1,4 @@
-// Build: 2026-02-02 03:30:00
+// Build: 2026-04-07 12:00:00
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -17,6 +17,8 @@ const webhooksRoutes = require('./routes/webhooks');
 const promoRoutes = require('./routes/promo');
 const presetsRoutes = require('./routes/presets');
 const farmedModelsRoutes = require('./routes/farmed-models');
+const alertsRoutes = require('./routes/alerts');
+const notesRoutes = require('./routes/notes');
 
 const app = express();
 
@@ -58,6 +60,55 @@ async function runMigrations() {
       )
     `).catch(() => {});
     await query('CREATE INDEX IF NOT EXISTS idx_model_quality_snapshots_quality ON model_quality_snapshots(quality_score)').catch(() => {});
+
+    // Create model_alerts table for global alerts
+    await query(`
+      CREATE TABLE IF NOT EXISTS model_alerts (
+        id SERIAL PRIMARY KEY,
+        model_username VARCHAR(255) NOT NULL,
+        alert_type VARCHAR(50) NOT NULL,
+        icon VARCHAR(10),
+        color VARCHAR(20),
+        diff VARCHAR(50),
+        pct VARCHAR(20),
+        extra_data JSONB DEFAULT '{}',
+        alert_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(model_username, alert_type, alert_date)
+      )
+    `).catch(() => {});
+    await query('CREATE INDEX IF NOT EXISTS idx_model_alerts_username ON model_alerts(model_username)').catch(() => {});
+    await query('CREATE INDEX IF NOT EXISTS idx_model_alerts_date ON model_alerts(alert_date)').catch(() => {});
+
+    // Create user_notes table for cloud-synced personal notes
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_notes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        model_username VARCHAR(255) NOT NULL,
+        note_text TEXT DEFAULT '',
+        tags JSONB DEFAULT '[]',
+        note_date TIMESTAMP,
+        avatar_url VARCHAR(500),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, model_username)
+      )
+    `).catch(() => {});
+    await query('CREATE INDEX IF NOT EXISTS idx_user_notes_user_id ON user_notes(user_id)').catch(() => {});
+    await query('CREATE INDEX IF NOT EXISTS idx_user_notes_model ON user_notes(user_id, model_username)').catch(() => {});
+
+    // Create user_tags table for personal note tags
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_tags (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(50) NOT NULL,
+        color_index INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(() => {});
+    await query('CREATE INDEX IF NOT EXISTS idx_user_tags_user_id ON user_tags(user_id)').catch(() => {});
 
     // Backfill model_fans_daily from model_fans_history (one-time migration)
     try {
@@ -140,7 +191,7 @@ app.get('/', (req, res) => {
   res.json({ 
     status: 'OK', 
     service: 'OF Stats Backend',
-    version: '1.0.0',
+    version: '1.1.0',
     timestamp: new Date().toISOString()
   });
 });
@@ -158,6 +209,8 @@ app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/promo', promoRoutes);
 app.use('/api/presets', presetsRoutes);
 app.use('/api/farmed-models', farmedModelsRoutes);
+app.use('/api/alerts', alertsRoutes);
+app.use('/api/notes', notesRoutes);
 
 // 404 handler
 app.use((req, res) => {
