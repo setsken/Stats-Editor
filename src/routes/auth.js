@@ -89,7 +89,7 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
     );
 
     // Send welcome email (non-blocking)
@@ -153,7 +153,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
     );
 
     const subscription = await getOne(`
@@ -172,6 +172,66 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Refresh token — accepts current token (even recently expired) and issues a new one
+router.post('/refresh', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Token required' });
+    }
+
+    let decoded;
+    try {
+      // Try to verify normally first
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        // Allow refresh for tokens expired within the last 30 days (grace period)
+        decoded = jwt.decode(token);
+        if (!decoded || !decoded.userId) {
+          return res.status(401).json({ error: 'Invalid token' });
+        }
+        const expiredAt = decoded.exp * 1000;
+        const gracePeriod = 30 * 24 * 60 * 60 * 1000; // 30 days
+        if (Date.now() - expiredAt > gracePeriod) {
+          return res.status(401).json({ error: 'Token too old to refresh, please log in again' });
+        }
+      } else {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+    }
+
+    // Verify user still exists and is active
+    const user = await getOne(
+      'SELECT id, email, is_active FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (!user || !user.is_active) {
+      return res.status(401).json({ error: 'User not found or deactivated' });
+    }
+
+    // Issue fresh token
+    const newToken = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
+    );
+
+    res.json({
+      success: true,
+      token: newToken,
+      user: { id: user.id, email: user.email }
+    });
+
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({ error: 'Token refresh failed' });
   }
 });
 
