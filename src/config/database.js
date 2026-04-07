@@ -29,6 +29,12 @@ async function getOne(text, params) {
   return result.rows[0] || null;
 }
 
+// Get multiple rows
+async function getMany(text, params) {
+  const result = await query(text, params);
+  return result.rows;
+}
+
 // Initialize database tables
 async function initDatabase() {
   try {
@@ -229,4 +235,4 @@ async function initDatabase() {
   }
 }
 
-module.exports = { pool, query, getOne, initDatabase };
+module.exports = { pool, query, getOne, getMany, initDatabase };
