@@ -301,4 +301,163 @@ router.get('/payment-status/:paymentId', authenticateToken, async (req, res) => 
   }
 });
 
+// Get upgrade info (discount calculation)
+router.get('/upgrade-info', authenticateToken, async (req, res) => {
+  try {
+    const subscription = await getOne(`
+      SELECT id, plan, model_limit, status, starts_at, expires_at,
+        EXTRACT(EPOCH FROM (expires_at - NOW())) / 86400.0 as days_remaining
+      FROM subscriptions
+      WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
+      ORDER BY expires_at DESC LIMIT 1
+    `, [req.user.id]);
+
+    if (!subscription) {
+      return res.status(400).json({ error: 'No active subscription to upgrade', code: 'NO_ACTIVE_SUB' });
+    }
+
+    if (subscription.plan === 'pro') {
+      return res.status(400).json({ error: 'Already on Pro plan', code: 'ALREADY_PRO' });
+    }
+
+    if (subscription.plan === 'trial') {
+      return res.status(400).json({ error: 'Trial cannot be upgraded, purchase a plan', code: 'TRIAL_NO_UPGRADE' });
+    }
+
+    const currentPlanConfig = nowpayments.PLANS[subscription.plan];
+    const proPlanConfig = nowpayments.PLANS.pro;
+    if (!currentPlanConfig || !proPlanConfig) {
+      return res.status(500).json({ error: 'Plan configuration error' });
+    }
+
+    const daysRemaining = Math.max(0, parseFloat(subscription.days_remaining));
+    const discount = Math.round((daysRemaining / 30) * currentPlanConfig.price * 100) / 100;
+    const upgradePrice = Math.max(1, Math.round((proPlanConfig.price - discount) * 100) / 100);
+
+    res.json({
+      currentPlan: subscription.plan,
+      currentPlanName: currentPlanConfig.name,
+      targetPlan: 'pro',
+      targetPlanName: proPlanConfig.name,
+      currentPrice: currentPlanConfig.price,
+      targetPrice: proPlanConfig.price,
+      daysRemaining: Math.floor(daysRemaining),
+      discount: Math.floor(discount),
+      upgradePrice: Math.ceil(upgradePrice),
+      newModelLimit: proPlanConfig.modelLimit
+    });
+
+  } catch (error) {
+    console.error('Get upgrade info error:', error);
+    res.status(500).json({ error: 'Failed to get upgrade info' });
+  }
+});
+
+// Create upgrade payment (discounted)
+router.post('/create-upgrade-payment', authenticateToken, async (req, res) => {
+  try {
+    const { currency } = req.body;
+
+    // Re-calculate upgrade price server-side (prevent tampering)
+    const subscription = await getOne(`
+      SELECT id, plan, model_limit, status, starts_at, expires_at,
+        EXTRACT(EPOCH FROM (expires_at - NOW())) / 86400.0 as days_remaining
+      FROM subscriptions
+      WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
+      ORDER BY expires_at DESC LIMIT 1
+    `, [req.user.id]);
+
+    if (!subscription) {
+      return res.status(400).json({ error: 'No active subscription to upgrade', code: 'NO_ACTIVE_SUB' });
+    }
+
+    if (subscription.plan === 'pro') {
+      return res.status(400).json({ error: 'Already on Pro plan', code: 'ALREADY_PRO' });
+    }
+
+    if (subscription.plan === 'trial') {
+      return res.status(400).json({ error: 'Trial cannot be upgraded', code: 'TRIAL_NO_UPGRADE' });
+    }
+
+    const currentPlanConfig = nowpayments.PLANS[subscription.plan];
+    const proPlanConfig = nowpayments.PLANS.pro;
+
+    const daysRemaining = Math.max(0, parseFloat(subscription.days_remaining));
+    const discount = Math.round((daysRemaining / 30) * currentPlanConfig.price * 100) / 100;
+    const upgradePrice = Math.max(1, Math.ceil(proPlanConfig.price - discount));
+
+    const orderId = `upgrade_${req.user.id}_pro_${Date.now()}`;
+
+    // Create payment record with is_upgrade flag
+    const paymentRecord = await query(`
+      INSERT INTO payments (user_id, provider, amount, currency, plan, status, metadata)
+      VALUES ($1, 'nowpayments', $2, 'USD', 'pro', 'pending', $3)
+      RETURNING id
+    `, [req.user.id, upgradePrice, JSON.stringify({ orderId, is_upgrade: true, from_plan: subscription.plan, discount })]);
+
+    const paymentDbId = paymentRecord.rows[0].id;
+
+    const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+    const ipnCallbackUrl = `${baseUrl}/api/webhooks/nowpayments`;
+    const successUrl = `${baseUrl}/payment/success?payment_id=${paymentDbId}`;
+    const cancelUrl = `${baseUrl}/payment/cancel?payment_id=${paymentDbId}`;
+
+    let paymentResponse;
+
+    if (currency) {
+      paymentResponse = await nowpayments.createPayment({
+        priceAmount: upgradePrice,
+        priceCurrency: 'usd',
+        payCurrency: currency.toLowerCase(),
+        orderId: `${orderId}_${paymentDbId}`,
+        orderDescription: `OF Stats Upgrade to Pro - $${upgradePrice}`,
+        ipnCallbackUrl,
+        successUrl,
+        cancelUrl
+      });
+    } else {
+      paymentResponse = await nowpayments.createInvoice({
+        priceAmount: upgradePrice,
+        priceCurrency: 'usd',
+        orderId: `${orderId}_${paymentDbId}`,
+        orderDescription: `OF Stats Upgrade to Pro - $${upgradePrice}`,
+        ipnCallbackUrl,
+        successUrl,
+        cancelUrl
+      });
+    }
+
+    await query(`
+      UPDATE payments 
+      SET provider_payment_id = $1, 
+          crypto_currency = $2,
+          metadata = metadata || $3::jsonb
+      WHERE id = $4
+    `, [
+      paymentResponse.payment_id || paymentResponse.id,
+      currency?.toUpperCase() || null,
+      JSON.stringify(paymentResponse),
+      paymentDbId
+    ]);
+
+    res.json({
+      success: true,
+      paymentId: paymentDbId,
+      providerPaymentId: paymentResponse.payment_id || paymentResponse.id,
+      payAddress: paymentResponse.pay_address,
+      payAmount: paymentResponse.pay_amount,
+      payCurrency: paymentResponse.pay_currency?.toUpperCase(),
+      invoiceUrl: paymentResponse.invoice_url,
+      expiresAt: paymentResponse.expiration_estimate_date,
+      status: 'pending',
+      upgradePrice,
+      discount: Math.floor(discount)
+    });
+
+  } catch (error) {
+    console.error('Create upgrade payment error:', error);
+    res.status(500).json({ error: 'Failed to create upgrade payment' });
+  }
+});
+
 module.exports = router;

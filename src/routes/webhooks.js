@@ -107,6 +107,12 @@ router.post('/nowpayments', async (req, res) => {
         UPDATE users SET trial_used = true WHERE id = $1
       `, [payment.user_id]);
 
+      // Check if this is a plan upgrade (Plus → Pro)
+      const paymentMeta = typeof payment.metadata === 'string' 
+        ? JSON.parse(payment.metadata) 
+        : (payment.metadata || {});
+      const isUpgrade = paymentMeta.is_upgrade === true;
+
       // Check if user has existing subscription
       const existingSub = await getOne(
         'SELECT id, status, expires_at FROM subscriptions WHERE user_id = $1',
@@ -116,12 +122,20 @@ router.post('/nowpayments', async (req, res) => {
       const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 days
 
       if (existingSub) {
-        // Update existing subscription
         const currentExpiry = new Date(existingSub.expires_at);
         const now = new Date();
-        const finalExpiry = (existingSub.status === 'active' && currentExpiry > now)
-          ? new Date(currentExpiry.getTime() + 30 * 24 * 60 * 60 * 1000)
-          : newExpiry;
+
+        let finalExpiry;
+        if (isUpgrade) {
+          // Upgrade: fresh 30 days from now (user paid discounted price)
+          finalExpiry = newExpiry;
+          console.log(`Upgrade payment: fresh 30-day period for user ${payment.user_id} (${paymentMeta.from_plan} → ${payment.plan})`);
+        } else {
+          // Regular renewal: extend from current expiry if active
+          finalExpiry = (existingSub.status === 'active' && currentExpiry > now)
+            ? new Date(currentExpiry.getTime() + 30 * 24 * 60 * 60 * 1000)
+            : newExpiry;
+        }
 
         await query(`
           UPDATE subscriptions SET plan = $1, model_limit = $2, status = 'active',
@@ -130,11 +144,11 @@ router.post('/nowpayments', async (req, res) => {
           WHERE id = $5
         `, [payment.plan, planConfig.modelLimit, payment_id, finalExpiry, existingSub.id]);
 
-        if (existingSub.status !== 'active' || currentExpiry <= now) {
+        if (!isUpgrade && (existingSub.status !== 'active' || currentExpiry <= now)) {
           await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
           console.log(`Cleared models for user ${payment.user_id} (new period)`);
         }
-        console.log(`Updated subscription for user ${payment.user_id}`);
+        console.log(`Updated subscription for user ${payment.user_id}${isUpgrade ? ' (upgrade)' : ''}`);
       } else {
         // Create NEW subscription record
         await query(`
