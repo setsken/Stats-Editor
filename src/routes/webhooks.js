@@ -51,7 +51,8 @@ router.post('/nowpayments', async (req, res) => {
 
     // Get plan config to check price
     const planConfig = nowpayments.PLANS[payment.plan];
-    const requiredPrice = planConfig ? planConfig.price : 0;
+    // Use the actual payment amount from DB (handles upgrades with discounted price)
+    const requiredPrice = parseFloat(payment.amount) || (planConfig ? planConfig.price : 0);
 
     // ALWAYS check if actually_paid >= 98% of subscription price before activating
     const paidAmount = parseFloat(actually_paid) || 0;
