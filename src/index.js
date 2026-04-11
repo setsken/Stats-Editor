@@ -19,6 +19,7 @@ const presetsRoutes = require('./routes/presets');
 const farmedModelsRoutes = require('./routes/farmed-models');
 const alertsRoutes = require('./routes/alerts');
 const notesRoutes = require('./routes/notes');
+const verdictRoutes = require('./routes/verdict');
 
 const app = express();
 
@@ -211,6 +212,7 @@ app.use('/api/presets', presetsRoutes);
 app.use('/api/farmed-models', farmedModelsRoutes);
 app.use('/api/alerts', alertsRoutes);
 app.use('/api/notes', notesRoutes);
+app.use('/api/verdict', verdictRoutes);
 
 // 404 handler
 app.use((req, res) => {

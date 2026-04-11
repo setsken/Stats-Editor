@@ -10,15 +10,110 @@ const API_URL = 'https://stats-editor-production.up.railway.app/api';
 
 // Token management
 let authToken = null;
+let isRefreshing = false;
+let refreshPromise = null;
+
+// ==================== TOKEN REFRESH ====================
+// Try to refresh the token before logging out on 401
+async function tryRefreshToken() {
+  if (!authToken) return false;
+  
+  // Prevent multiple simultaneous refresh attempts
+  if (isRefreshing) {
+    try { return await refreshPromise; } catch { return false; }
+  }
+  
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.token) {
+          authToken = data.token;
+          await chrome.storage.local.set({ authToken: data.token });
+          log('OF Stats: Token refreshed successfully');
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      logError('OF Stats: Token refresh failed:', error);
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+  
+  return refreshPromise;
+}
+
+// Handle 401: try refresh first, only logout if refresh fails
+async function handle401() {
+  const refreshed = await tryRefreshToken();
+  if (!refreshed) {
+    await logout();
+  }
+  return refreshed;
+}
+
+// Proactive token refresh — check every 6 hours
+setInterval(async () => {
+  if (!authToken) return;
+  try {
+    // Decode token to check expiry
+    const payload = JSON.parse(atob(authToken.split('.')[1]));
+    const expiresIn = payload.exp * 1000 - Date.now();
+    // Refresh if less than 7 days remaining
+    if (expiresIn < 7 * 24 * 60 * 60 * 1000) {
+      log('OF Stats: Token expiring soon, refreshing proactively');
+      await tryRefreshToken();
+    }
+  } catch (e) {
+    // ignore decode errors
+  }
+}, 6 * 60 * 60 * 1000);
+
+// Auth-aware fetch: adds Authorization header, retries once on 401 after token refresh
+async function authFetch(url, options = {}) {
+  const doFetch = () => {
+    const headers = { ...options.headers, 'Authorization': `Bearer ${authToken}` };
+    return fetch(url, { ...options, headers });
+  };
+  
+  let response = await doFetch();
+  
+  if (response.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      response = await doFetch();
+    }
+    if (response.status === 401) {
+      await logout();
+    }
+  }
+  
+  return response;
+}
 
 // ==================== API CACHE ====================
 // In-memory cache to reduce redundant server requests
 const apiCache = {};
 const CACHE_TTL = {
   verifyAuth: 15 * 60 * 1000,          // 15 minutes
-  getSubscriptionStatus: 15 * 60 * 1000, // 15 minutes
+  getSubscriptionStatus: 5 * 60 * 1000, // 5 minutes
   getModels: 30 * 60 * 1000,            // 30 minutes (invalidated on add/remove)
-  getPresets: 30 * 60 * 1000            // 30 minutes (invalidated on sync/save/delete)
+  getPresets: 30 * 60 * 1000,           // 30 minutes (invalidated on sync/save/delete)
+  getNotes: 10 * 60 * 1000,             // 10 minutes (invalidated on sync/save/delete)
+  getNoteTags: 10 * 60 * 1000           // 10 minutes (invalidated on sync)
 };
 
 function getCached(key) {
@@ -116,6 +211,12 @@ async function handleMessage(request, sender) {
       case 'createPayment':
         return await apiCreatePayment(request.plan, request.currency);
       
+      case 'getUpgradeInfo':
+        return await apiGetUpgradeInfo();
+      
+      case 'createUpgradePayment':
+        return await apiCreateUpgradePayment(request.currency);
+      
       case 'checkPaymentStatus':
         return await apiCheckPaymentStatus(request.paymentId);
       
@@ -146,8 +247,18 @@ async function handleMessage(request, sender) {
         return await apiCheckFarmedModel(request.username);
       
       // AI Verdict for model score
-      case 'getAIVerdict':
+      case 'getAIVerdict': {
+        // Server-side subscription check before AI call
+        const subStatus = await apiGetSubscriptionStatus();
+        if (!subStatus.success || !subStatus.subscription || subStatus.subscription.status !== 'active') {
+          return { success: false, error: 'Subscription not active' };
+        }
         return await apiGetAIVerdict(request.scoreData);
+      }
+
+      case 'openSubscriptionTab':
+        chrome.tabs.create({ url: chrome.runtime.getURL('popup.html') });
+        return { success: true };
 
       // Fans actions
       case 'reportFans':
@@ -191,6 +302,50 @@ async function handleMessage(request, sender) {
       
       case 'setActivePreset':
         return await apiSetActivePreset(request.name);
+      
+      // Alerts actions (global per model)
+      case 'reportAlerts':
+        return await apiReportAlerts(request.username, request.alerts);
+      
+      case 'getAlerts':
+        return await apiGetAlerts(request.username);
+      
+      // Notes actions (per user, cloud sync)
+      case 'getNotes': {
+        const cached = getCached('getNotes');
+        if (cached) return cached;
+        const result = await apiGetNotes();
+        if (result.success) setCache('getNotes', result);
+        return result;
+      }
+      
+      case 'syncNotes': {
+        clearCache('getNotes');
+        return await apiSyncNotes(request.notes, request.avatars);
+      }
+      
+      case 'saveNote': {
+        clearCache('getNotes');
+        return await apiSaveNote(request.username, request.text, request.tags, request.date, request.avatarUrl);
+      }
+      
+      case 'deleteNote': {
+        clearCache('getNotes');
+        return await apiDeleteNote(request.username);
+      }
+      
+      case 'getNoteTags': {
+        const cached = getCached('getNoteTags');
+        if (cached) return cached;
+        const result = await apiGetNoteTags();
+        if (result.success) setCache('getNoteTags', result);
+        return result;
+      }
+      
+      case 'syncNoteTags': {
+        clearCache('getNoteTags');
+        return await apiSyncNoteTags(request.tags);
+      }
       
       // Side panel actions
       case 'openSidePanel':
@@ -319,13 +474,9 @@ async function apiVerifyAuth() {
   }
   
   try {
-    const response = await fetch(`${API_URL}/auth/verify`, {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
+    const response = await authFetch(`${API_URL}/auth/verify`);
     
     if (response.status === 401) {
-      // Token expired or invalid
-      await logout();
       return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
     }
     
@@ -450,12 +601,9 @@ async function apiApplyPromoCode(code) {
   
   try {
     log('OF Stats: Applying promo code:', code);
-    const response = await fetch(`${API_URL}/promo/apply`, {
+    const response = await authFetch(`${API_URL}/promo/apply`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code })
     });
     
@@ -481,12 +629,9 @@ async function apiGetSubscriptionStatus() {
   }
   
   try {
-    const response = await fetch(`${API_URL}/subscription/status`, {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
+    const response = await authFetch(`${API_URL}/subscription/status`);
     
     if (response.status === 401) {
-      await logout();
       return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
     }
     
@@ -515,12 +660,9 @@ async function apiCreatePayment(plan, currency = null) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/subscription/create-payment`, {
+    const response = await authFetch(`${API_URL}/subscription/create-payment`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan, currency })
     });
     
@@ -548,15 +690,63 @@ async function apiCreatePayment(plan, currency = null) {
   }
 }
 
+async function apiGetUpgradeInfo() {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  try {
+    const response = await authFetch(`${API_URL}/subscription/upgrade-info`);
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, ...data };
+    }
+    return { success: false, error: data.error || 'Failed to get upgrade info', code: data.code };
+  } catch (error) {
+    logError('OF Stats: Get upgrade info error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiCreateUpgradePayment(currency = null) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+  try {
+    const response = await authFetch(`${API_URL}/subscription/create-upgrade-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currency })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      return {
+        success: true,
+        paymentId: data.paymentId,
+        providerPaymentId: data.providerPaymentId,
+        payAddress: data.payAddress,
+        payAmount: data.payAmount,
+        payCurrency: data.payCurrency,
+        invoiceUrl: data.invoiceUrl,
+        expiresAt: data.expiresAt,
+        status: data.status,
+        upgradePrice: data.upgradePrice,
+        discount: data.discount
+      };
+    }
+    return { success: false, error: data.error || 'Failed to create upgrade payment', code: data.code };
+  } catch (error) {
+    logError('OF Stats: Create upgrade payment error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
 async function apiCheckPaymentStatus(paymentId) {
   if (!authToken) {
     return { success: false, error: 'Not authenticated' };
   }
   
   try {
-    const response = await fetch(`${API_URL}/subscription/payment-status/${paymentId}`, {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
+    const response = await authFetch(`${API_URL}/subscription/payment-status/${paymentId}`);
     
     const data = await response.json();
     return { success: response.ok, ...data };
@@ -574,12 +764,9 @@ async function apiGetModels() {
   }
   
   try {
-    const response = await fetch(`${API_URL}/models`, {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
+    const response = await authFetch(`${API_URL}/models`);
     
     if (response.status === 401) {
-      await logout();
       return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
     }
     
@@ -602,12 +789,9 @@ async function apiAddModel(username, displayName = null, avatarUrl = null) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/models/add`, {
+    const response = await authFetch(`${API_URL}/models/add`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, displayName, avatarUrl })
     });
     
@@ -625,9 +809,8 @@ async function apiRemoveModel(username) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/models/${encodeURIComponent(username)}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${authToken}` }
+    const response = await authFetch(`${API_URL}/models/${encodeURIComponent(username)}`, {
+      method: 'DELETE'
     });
     
     const data = await response.json();
@@ -644,9 +827,7 @@ async function apiCheckModel(username) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/models/check/${encodeURIComponent(username)}`, {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
+    const response = await authFetch(`${API_URL}/models/check/${encodeURIComponent(username)}`);
     
     const data = await response.json();
     return { success: response.ok, ...data };
@@ -673,52 +854,52 @@ async function apiCheckFarmedModel(username) {
 
 async function apiGetAIVerdict(scoreData) {
   try {
+    const lang = scoreData.lang || 'ru';
+    const isRu = lang === 'ru';
+
     // Build clear fans description
     let fansDesc;
     if (scoreData.fansVisible && scoreData.fans > 0) {
-      fansDesc = scoreData.fans + ' (ОТКРЫТЫ, видны всем)';
+      fansDesc = scoreData.fans + (isRu ? ' (ОТКРЫТЫ, видны всем)' : ' (PUBLIC, visible to all)');
     } else if (!scoreData.fansVisible && scoreData.lastKnownFans) {
-      fansDesc = 'СКРЫТЫ модельёю. Последние известные: ' + scoreData.lastKnownFans;
+      fansDesc = (isRu ? 'СКРЫТЫ модельёю. Последние известные: ' : 'HIDDEN by model. Last known: ') + scoreData.lastKnownFans;
     } else if (!scoreData.fansVisible) {
-      fansDesc = 'СКРЫТЫ модельёю, данных нет';
+      fansDesc = isRu ? 'СКРЫТЫ модельёю, данных нет' : 'HIDDEN by model, no data';
     } else {
       fansDesc = '0';
     }
 
-    const prompt = `Профиль @${scoreData.username}:
+    const prompt = isRu
+      ? `Профиль @${scoreData.username}:
 Score: ${scoreData.score}/100 (${scoreData.grade})
 Компоненты: MAT ${scoreData.components.maturity}/25, POP ${scoreData.components.popularity}/25, ORG ${scoreData.components.organicity}/25, ACT ${scoreData.components.activity}/15, TRS ${scoreData.components.transparency}/10
 Фаны: ${fansDesc}
 Лайки: ${scoreData.likes}, Посты: ${scoreData.posts}, Видео: ${scoreData.videos}, Стримы: ${scoreData.streams}
 Возраст: ${scoreData.accountMonths} мес.${scoreData.price > 0 ? ' Подписка: ПЛАТНАЯ $' + scoreData.price + '/мес' + (scoreData.fansVisible && scoreData.fans > 0 ? ' (доход ~$' + Math.round(scoreData.price * scoreData.fans) + '/мес)' : '') : ' Подписка: FREE (бесплатная, дохода от подписки НЕТ)'}
 Комментарии: ${scoreData.commentsOpen ? 'ОТКРЫТЫ' : scoreData.commentsClosed ? 'ЗАКРЫТЫ' : 'неизвестно'}
-Флаги: ${scoreData.flags.join(', ') || 'нет'}`;
+Флаги: ${scoreData.flags.join(', ') || 'нет'}`
+      : `Profile @${scoreData.username}:
+Score: ${scoreData.score}/100 (${scoreData.grade})
+Components: MAT ${scoreData.components.maturity}/25, POP ${scoreData.components.popularity}/25, ORG ${scoreData.components.organicity}/25, ACT ${scoreData.components.activity}/15, TRS ${scoreData.components.transparency}/10
+Fans: ${fansDesc}
+Likes: ${scoreData.likes}, Posts: ${scoreData.posts}, Videos: ${scoreData.videos}, Streams: ${scoreData.streams}
+Account age: ${scoreData.accountMonths} months${scoreData.price > 0 ? ' Subscription: PAID $' + scoreData.price + '/mo' + (scoreData.fansVisible && scoreData.fans > 0 ? ' (revenue ~$' + Math.round(scoreData.price * scoreData.fans) + '/mo)' : '') : ' Subscription: FREE (no subscription revenue)'}
+Comments: ${scoreData.commentsOpen ? 'OPEN' : scoreData.commentsClosed ? 'CLOSED' : 'unknown'}
+Flags: ${scoreData.flags.join(', ') || 'none'}`;
 
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+    const response = await authFetch(`${API_URL}/verdict`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer xai-PJt31Fwdznxy9kd5zFVw4Mba46X4zamDfk0KOCtiRjAfV9ugsWmoPp3D3Z47ePmZCBZJ6kCQGOPAr16v'
-      },
-      body: JSON.stringify({
-        model: 'grok-4.20-beta-0309-non-reasoning',
-        messages: [
-          { role: 'system', content: 'Ты опытный аналитик профилей OnlyFans. Пиши кратко и по делу, своими словами — без пересказа флагов и метрик. Будь объективным. НЕ ВЫДУМЫВАЙ факты. Если в данных есть «Последние известные» фаны — используй эту цифру, не пиши просто «фаны скрыты». Не упоминай верификацию — она есть у всех. Не называй флаги по имени (Inflated Likes, Low Trust и т.д.) — описывай ситуацию своими словами. Скрытые фаны сами по себе НЕ подозрение на накрутку. Если фаны скрыты и нет «Последних известных» — оценивай размер аудитории ТОЛЬКО по лайкам: менее 5K лайков = маленькая аудитория, 5-50K = средняя, 50K+ = большая. НЕ ПИШИ «широкая аудитория» если лайков мало. Если подписка ПЛАТНАЯ и есть фаны — упомяни доход. Если подписка FREE — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать доход, заработок, подписку, монетизацию, слово «бесплатный», слово «платная». Просто НЕ ПИШИ об этом. ФОРМАТ: 2-3 предложения, максимум 40 слов, на русском. ОБЯЗАТЕЛЬНО заканчивай выводом — что это значит для аудитории или качества аккаунта. НЕ начинай с имени/@username. Без markdown.' },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 200,
-        temperature: 0.4
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, lang: isRu ? 'ru' : 'en' })
     });
 
     if (!response.ok) {
-      logError('OF Stats: xAI API error:', response.status);
+      logError('OF Stats: Verdict API error:', response.status);
       return { verdict: null };
     }
 
     const data = await response.json();
-    const verdict = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    return { verdict: verdict ? verdict.trim() : null };
+    return { verdict: data.verdict || null };
   } catch (error) {
     logError('OF Stats: AI verdict error:', error);
     return { verdict: null };
@@ -733,12 +914,9 @@ async function apiReportFans(username, fansCount, fansText, reportDay) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/fans/report`, {
+    const response = await authFetch(`${API_URL}/fans/report`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, fansCount, fansText, reportDay })
     });
     
@@ -831,12 +1009,9 @@ async function apiGetPresets() {
   }
   
   try {
-    const response = await fetch(`${API_URL}/presets`, {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
+    const response = await authFetch(`${API_URL}/presets`);
     
     if (response.status === 401) {
-      await logout();
       return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
     }
     
@@ -854,17 +1029,13 @@ async function apiSyncPresets(presets, activePreset) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/presets/sync`, {
+    const response = await authFetch(`${API_URL}/presets/sync`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ presets, activePreset })
     });
     
     if (response.status === 401) {
-      await logout();
       return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
     }
     
@@ -882,12 +1053,9 @@ async function apiSavePreset(name, presetData, active = false) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/presets/${encodeURIComponent(name)}`, {
+    const response = await authFetch(`${API_URL}/presets/${encodeURIComponent(name)}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ presetData, active })
     });
     
@@ -905,9 +1073,8 @@ async function apiDeletePreset(name) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/presets/${encodeURIComponent(name)}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${authToken}` }
+    const response = await authFetch(`${API_URL}/presets/${encodeURIComponent(name)}`, {
+      method: 'DELETE'
     });
     
     const data = await response.json();
@@ -924,9 +1091,8 @@ async function apiSetActivePreset(name) {
   }
   
   try {
-    const response = await fetch(`${API_URL}/presets/active/${encodeURIComponent(name || '__none__')}`, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${authToken}` }
+    const response = await authFetch(`${API_URL}/presets/active/${encodeURIComponent(name || '__none__')}`, {
+      method: 'PUT'
     });
     
     const data = await response.json();
@@ -937,16 +1103,183 @@ async function apiSetActivePreset(name) {
   }
 }
 
+// ==================== ALERTS API (Global per model) ====================
+
+async function apiReportAlerts(username, alerts) {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${API_URL}/alerts/report`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ username, alerts })
+    });
+
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Report alerts error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiGetAlerts(username) {
+  try {
+    const response = await fetch(`${API_URL}/alerts/${encodeURIComponent(username)}`);
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Get alerts error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+// ==================== NOTES API (Per user, cloud sync) ====================
+
+async function apiGetNotes() {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await authFetch(`${API_URL}/notes`);
+
+    if (response.status === 401) {
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Get notes error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiSyncNotes(notes, avatars) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await authFetch(`${API_URL}/notes/sync`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes, avatars })
+    });
+
+    if (response.status === 401) {
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Sync notes error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiSaveNote(username, text, tags, date, avatarUrl) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await authFetch(`${API_URL}/notes/${encodeURIComponent(username)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, tags, date, avatarUrl })
+    });
+
+    if (response.status === 401) {
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Save note error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiDeleteNote(username) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await authFetch(`${API_URL}/notes/${encodeURIComponent(username)}`, {
+      method: 'DELETE'
+    });
+
+    if (response.status === 401) {
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Delete note error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiGetNoteTags() {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await authFetch(`${API_URL}/notes/tags`);
+
+    if (response.status === 401) {
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Get note tags error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+async function apiSyncNoteTags(tags) {
+  if (!authToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await authFetch(`${API_URL}/notes/tags`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags })
+    });
+
+    if (response.status === 401) {
+      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
+    }
+
+    const data = await response.json();
+    return { success: response.ok, ...data };
+  } catch (error) {
+    logError('OF Stats: Sync note tags error:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
 // ==================== SUPPORT ====================
 
 async function apiSendSupportEmail(subject, message) {
   try {
-    const response = await fetch(`${API_URL}/auth/support`, {
+    const response = await authFetch(`${API_URL}/auth/support`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject, message })
     });
     const data = await response.json();
@@ -959,16 +1292,13 @@ async function apiSendSupportEmail(subject, message) {
 
 // ==================== UTILITIES ====================
 
-// Refresh token periodically (every 6 days to be safe before 7 day expiry)
-chrome.alarms.create('refreshToken', { periodInMinutes: 60 * 24 * 6 });
+// Refresh token periodically via alarm (every 3 days)
+chrome.alarms.create('refreshToken', { periodInMinutes: 60 * 24 * 3 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'refreshToken' && authToken) {
-    log('OF Stats: Refreshing auth token...');
-    const result = await apiVerifyAuth();
-    if (!result.success) {
-      log('OF Stats: Token refresh failed, user needs to re-login');
-    }
+    log('OF Stats: Periodic token refresh...');
+    await tryRefreshToken();
   }
 });
 
