@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /icons/
+Disallow: /ofstats.zip
+
+Sitemap: https://ofstats.pro/sitemap.xml
+
+# Stats Editor - https://ofstats.pro
+# Chrome Extension for OnlyFans Statistics Visual Preview
