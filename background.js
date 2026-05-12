@@ -154,9 +154,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // ==================== EXTERNAL MESSAGES (SSO for Profile Stats) ====================
-// Allow the Profile Stats extension to request the currently signed-in token so
-// the user does not have to log in twice. The IDs allowed to talk to us are
-// declared in manifest.json "externally_connectable.ids".
+// Profile Stats can request the active token via cross-extension messaging.
+// Whitelisted senders are declared in manifest.json "externally_connectable.ids".
+// Every request opens a small confirmation window so the user explicitly
+// approves before the token leaves Stats Editor.
+const pendingSSOResponses = new Map(); // reqId -> { sendResponse, timeoutId, senderId }
+
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
   (async () => {
     try {
@@ -164,18 +167,33 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
         sendResponse({ success: false, error: 'Unknown action' });
         return;
       }
-      // Reload token from storage in case the in-memory copy is stale.
       const stored = await chrome.storage.local.get(['authToken', 'userEmail']);
       if (!stored.authToken) {
         sendResponse({ success: false, error: 'Not signed in to Stats Editor', code: 'NOT_AUTHENTICATED' });
         return;
       }
       authToken = stored.authToken;
-      sendResponse({
-        success: true,
-        token: stored.authToken,
-        email: stored.userEmail || null,
-        sentBy: sender.id
+
+      // Open the confirmation window and remember the sendResponse so we can
+      // reply once the user clicks Allow / Deny (or closes the window).
+      const reqId = (self.crypto && self.crypto.randomUUID) ? self.crypto.randomUUID() : String(Date.now()) + Math.random();
+      const timeoutId = setTimeout(() => {
+        const p = pendingSSOResponses.get(reqId);
+        if (p) {
+          pendingSSOResponses.delete(reqId);
+          p.sendResponse({ success: false, error: 'Timed out waiting for confirmation', code: 'TIMEOUT' });
+        }
+      }, 120 * 1000);
+
+      pendingSSOResponses.set(reqId, { sendResponse, timeoutId, senderId: sender.id });
+
+      const email = encodeURIComponent(stored.userEmail || '');
+      chrome.windows.create({
+        url: chrome.runtime.getURL(`auth-confirm.html?id=${reqId}&email=${email}`),
+        type: 'popup',
+        width: 380,
+        height: 320,
+        focused: true
       });
     } catch (e) {
       logError('OF Stats: SSO external message error:', e);
@@ -184,6 +202,31 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
   })();
   return true; // async response
 });
+
+// Bridge from the in-extension auth-confirm.html: deliver Allow / Deny back to
+// the waiting Profile Stats request.
+async function handleSSODecision(request) {
+  const p = pendingSSOResponses.get(request.id);
+  if (!p) return { success: false, error: 'Unknown SSO request id' };
+  clearTimeout(p.timeoutId);
+  pendingSSOResponses.delete(request.id);
+  if (!request.approved) {
+    p.sendResponse({ success: false, error: 'Authorization denied by user', code: 'USER_DENIED' });
+    return { success: true, delivered: 'denied' };
+  }
+  const stored = await chrome.storage.local.get(['authToken', 'userEmail']);
+  if (!stored.authToken) {
+    p.sendResponse({ success: false, error: 'Stats Editor session expired', code: 'TOKEN_EXPIRED' });
+    return { success: true, delivered: 'no-token' };
+  }
+  p.sendResponse({
+    success: true,
+    token: stored.authToken,
+    email: stored.userEmail || null,
+    sentBy: p.senderId
+  });
+  return { success: true, delivered: 'approved' };
+}
 
 async function handleMessage(request, sender) {
   try {
@@ -398,6 +441,10 @@ async function handleMessage(request, sender) {
       case 'clearCache':
         clearCache();
         return { success: true };
+
+      // From auth-confirm.html — user clicked Allow / Deny on the SSO popup.
+      case 'sso-decision':
+        return await handleSSODecision(request);
       
       case 'sendSupportEmail':
         return await apiSendSupportEmail(request.subject, request.message);
