@@ -5,25 +5,77 @@ const nowpayments = require('../services/nowpayments');
 
 const router = express.Router();
 
-// Get current subscription status
+// Valid product identifiers for the multi-product subscription model.
+const VALID_PRODUCTS = ['stats_editor', 'profile_stats'];
+
+// Get current subscription status.
+// Accepts optional ?product=stats_editor|profile_stats.
+// - omitted  -> legacy behaviour: latest subscription for the user (any product), for old extension clients.
+// - stats_editor -> only product='stats_editor' rows
+// - profile_stats -> own profile_stats subscription, or fall back to active stats_editor 'pro' (grants Profile Stats)
 router.get('/status', authenticateToken, async (req, res) => {
   try {
-    const subscription = await getOne(`
-      SELECT 
-        s.id, s.plan, s.model_limit, s.status, s.payment_provider,
-        s.starts_at, s.expires_at,
-        CASE 
-          WHEN s.expires_at > NOW() AND s.status = 'active' THEN true 
-          ELSE false 
-        END as is_active,
-        EXTRACT(DAY FROM s.expires_at - NOW()) as days_remaining
-      FROM subscriptions s
-      WHERE s.user_id = $1
-      ORDER BY s.expires_at DESC
-      LIMIT 1
-    `, [req.user.id]);
+    const requestedProduct = typeof req.query.product === 'string' ? req.query.product : null;
+    if (requestedProduct && !VALID_PRODUCTS.includes(requestedProduct)) {
+      return res.status(400).json({ error: 'Invalid product. Use "stats_editor" or "profile_stats".' });
+    }
 
-    // Get model count
+    let subscription = null;
+    let grantedVia = null;
+
+    if (!requestedProduct) {
+      // Legacy path: latest sub for the user, regardless of product.
+      subscription = await getOne(`
+        SELECT
+          s.id, s.plan, s.product, s.model_limit, s.status, s.payment_provider,
+          s.starts_at, s.expires_at,
+          CASE WHEN s.expires_at > NOW() AND s.status = 'active' THEN true ELSE false END as is_active,
+          EXTRACT(DAY FROM s.expires_at - NOW()) as days_remaining
+        FROM subscriptions s
+        WHERE s.user_id = $1
+        ORDER BY s.expires_at DESC
+        LIMIT 1
+      `, [req.user.id]);
+    } else {
+      // Product-specific path: own subscription for the requested product first.
+      subscription = await getOne(`
+        SELECT
+          s.id, s.plan, s.product, s.model_limit, s.status, s.payment_provider,
+          s.starts_at, s.expires_at,
+          CASE WHEN s.expires_at > NOW() AND s.status = 'active' THEN true ELSE false END as is_active,
+          EXTRACT(DAY FROM s.expires_at - NOW()) as days_remaining
+        FROM subscriptions s
+        WHERE s.user_id = $1 AND s.product = $2
+        ORDER BY s.expires_at DESC
+        LIMIT 1
+      `, [req.user.id, requestedProduct]);
+
+      // Fallback: requesting Profile Stats but no own sub -> active Stats Editor Pro grants access.
+      if ((!subscription || !subscription.is_active) && requestedProduct === 'profile_stats') {
+        const proSub = await getOne(`
+          SELECT
+            s.id, s.plan, s.product, s.model_limit, s.status, s.payment_provider,
+            s.starts_at, s.expires_at,
+            CASE WHEN s.expires_at > NOW() AND s.status = 'active' THEN true ELSE false END as is_active,
+            EXTRACT(DAY FROM s.expires_at - NOW()) as days_remaining
+          FROM subscriptions s
+          WHERE s.user_id = $1
+            AND s.product = 'stats_editor'
+            AND s.plan = 'pro'
+            AND s.status = 'active'
+            AND s.expires_at > NOW()
+          ORDER BY s.expires_at DESC
+          LIMIT 1
+        `, [req.user.id]);
+
+        if (proSub) {
+          subscription = proSub;
+          grantedVia = 'stats_editor_pro';
+        }
+      }
+    }
+
+    // Get model count (kept on Stats Editor backend for backward compat; Profile Stats will own this later).
     const modelCount = await getOne(
       'SELECT COUNT(*) as count FROM user_models WHERE user_id = $1',
       [req.user.id]
@@ -33,16 +85,20 @@ router.get('/status', authenticateToken, async (req, res) => {
       return res.json({
         hasSubscription: false,
         subscription: null,
+        product: requestedProduct || null,
         usage: { modelCount: parseInt(modelCount.count), modelLimit: 0 }
       });
     }
 
     res.json({
       hasSubscription: true,
+      product: requestedProduct || subscription.product || 'stats_editor',
+      grantedVia, // 'stats_editor_pro' when Profile Stats access comes from Pro plan, otherwise null
       subscription: {
         id: subscription.id,
         plan: subscription.plan,
-        planName: subscription.plan === 'trial' ? 'Trial' : 
+        product: subscription.product || 'stats_editor',
+        planName: subscription.plan === 'trial' ? 'Trial' :
                   subscription.plan === 'plus' ? 'Plus ($30/mo)' : 'Pro ($50/mo)',
         modelLimit: subscription.model_limit, // null = unlimited
         status: subscription.status,

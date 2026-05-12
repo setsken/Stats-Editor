@@ -111,6 +111,17 @@ async function runMigrations() {
     `).catch(() => {});
     await query('CREATE INDEX IF NOT EXISTS idx_user_tags_user_id ON user_tags(user_id)').catch(() => {});
 
+    // Add product column to subscriptions for multi-product split (Stats Editor / Profile Stats).
+    // Pre-split rows are stamped 'stats_editor' so existing /status calls behave identically.
+    await query(`
+      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS product VARCHAR(20) DEFAULT 'stats_editor'
+    `).catch(() => {});
+    await query(`UPDATE subscriptions SET product = 'stats_editor' WHERE product IS NULL`).catch(() => {});
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_subscriptions_user_product
+      ON subscriptions(user_id, product, status, expires_at)
+    `).catch(() => {});
+
     // Backfill model_fans_daily from model_fans_history (one-time migration)
     try {
       const check = await query('SELECT COUNT(*) as cnt FROM model_fans_daily');
