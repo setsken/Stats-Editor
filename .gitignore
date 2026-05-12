@@ -18,3 +18,6 @@ Thumbs.db
 
 # Local design sandbox (HTML mockups, experimental layouts, banner variants)
 sandbox/
+
+# Private RSA keys used to generate stable extension IDs (DO NOT COMMIT)
+.keys/

@@ -153,6 +153,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Keep message channel open for async response
 });
 
+// ==================== EXTERNAL MESSAGES (SSO for Profile Stats) ====================
+// Allow the Profile Stats extension to request the currently signed-in token so
+// the user does not have to log in twice. The IDs allowed to talk to us are
+// declared in manifest.json "externally_connectable.ids".
+chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
+  (async () => {
+    try {
+      if (!request || request.action !== 'getStatsEditorToken') {
+        sendResponse({ success: false, error: 'Unknown action' });
+        return;
+      }
+      // Reload token from storage in case the in-memory copy is stale.
+      const stored = await chrome.storage.local.get(['authToken', 'userEmail']);
+      if (!stored.authToken) {
+        sendResponse({ success: false, error: 'Not signed in to Stats Editor', code: 'NOT_AUTHENTICATED' });
+        return;
+      }
+      authToken = stored.authToken;
+      sendResponse({
+        success: true,
+        token: stored.authToken,
+        email: stored.userEmail || null,
+        sentBy: sender.id
+      });
+    } catch (e) {
+      logError('OF Stats: SSO external message error:', e);
+      sendResponse({ success: false, error: e.message });
+    }
+  })();
+  return true; // async response
+});
+
 async function handleMessage(request, sender) {
   try {
     switch (request.action) {
