@@ -188,11 +188,25 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
       pendingSSOResponses.set(reqId, { sendResponse, timeoutId, senderId: sender.id });
 
       const email = encodeURIComponent(stored.userEmail || '');
+      const W = 420;
+      const H = 420;
+      // Center on the primary display (workArea = screen minus taskbar).
+      let left, top;
+      try {
+        const displays = await chrome.system.display.getInfo();
+        const primary = displays.find(d => d.isPrimary) || displays[0];
+        if (primary && primary.workArea) {
+          left = Math.round(primary.workArea.left + (primary.workArea.width - W) / 2);
+          top  = Math.round(primary.workArea.top  + (primary.workArea.height - H) / 2);
+        }
+      } catch (e) { /* permission missing — let Chrome pick a position */ }
+
       chrome.windows.create({
         url: chrome.runtime.getURL(`auth-confirm.html?id=${reqId}&email=${email}`),
         type: 'popup',
-        width: 380,
-        height: 320,
+        width: W,
+        height: H,
+        ...(left != null && top != null ? { left, top } : {}),
         focused: true
       });
     } catch (e) {

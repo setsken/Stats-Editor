@@ -14,7 +14,8 @@
     "activeTab",
     "scripting",
     "alarms",
-    "sidePanel"
+    "sidePanel",
+    "system.display"
   ],
   "host_permissions": [
     "https://onlyfans.com/*",
