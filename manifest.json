@@ -36,12 +36,12 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://onlyfans.com/my/*"],
+      "matches": ["https://onlyfans.com/*"],
       "js": ["inject-early.js"],
       "run_at": "document_start"
     },
     {
-      "matches": ["https://onlyfans.com/my/*"],
+      "matches": ["https://onlyfans.com/*"],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
