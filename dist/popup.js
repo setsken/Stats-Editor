@@ -11,6 +11,8 @@ let currentSubscription = null;
 let currentModels = [];
 let uniqueModelsThisPeriod = 0; // Unique models added this subscription period
 let selectedPlan = null;
+let isUpgradeMode = false;
+let upgradeInfo = null;
 let currentPaymentId = null;
 let paymentCheckInterval = null;
 let pendingEmail = null; // For verification/reset flows
@@ -67,9 +69,403 @@ const forgotPasswordForm = document.getElementById('forgotPasswordForm');
 const forgotPasswordLink = document.getElementById('forgotPasswordLink');
 const backToLoginLink = document.getElementById('backToLogin');
 
+// ==================== i18n TRANSLATIONS ====================
+let currentLang = 'en';
+const i18n = {
+  ru: {
+    // Menu
+    menuSettings: 'Настройки',
+    menuUpgrade: 'Улучшить план',
+    menuSupport: 'Поддержка',
+    menuLogout: 'Выйти',
+    // Settings screen
+    settingsTitle: 'Настройки',
+    settingsBadge: 'Настройки бейджа',
+    settingsBadgeToggle: 'Бейдж профиля',
+    settingsBadgeInfo: 'Показать или скрыть бейдж анализа профиля на страницах моделей',
+    settingsVerdictToggle: 'Verdict AI',
+    settingsVerdictInfo: 'Показать или скрыть секцию AI-вердикта в бейдже',
+    settingsLanguage: 'Язык',
+    // Main app
+    currentModel: 'Текущая модель',
+    balanceSettings: 'Настройки баланса',
+    topCreators: 'Топ модели',
+    currentBalance: 'Текущий баланс',
+    pendingBalance: 'Ожидаемый баланс',
+    earnings: 'Типсы (Ожидается | Завершен)',
+    fansSettings: 'Настройки фанов',
+    fansCount: 'Количество фанов',
+    followingCount: 'Количество подписок',
+    applyChanges: 'Применить',
+    // Notifications
+    notificationsTitle: 'Уведомления',
+    notificationsEmpty: 'Уведомлений пока нет',
+    notificationsClear: 'Очистить всё',
+    // My Models
+    menuMyModels: 'Мои модели',
+    modelsUsing: 'Используется',
+    modelsOf: 'из',
+    modelsModels: 'моделей',
+    close: 'Закрыть',
+    // Delete Model
+    removeModel: 'Удалить модель',
+    removeModelConfirm: 'Вы уверены, что хотите удалить',
+    removeModelSuffix: 'из ваших моделей?',
+    cancel: 'Отмена',
+    remove: 'Удалить',
+    // Support
+    contactSupport: 'Связаться с поддержкой',
+    supportPromo: 'Нашли баг? Сообщите и получите 1 месяц Plus бесплатно!',
+    supportEmail: 'Ваш email',
+    supportSubject: 'Тема',
+    supportMessage: 'Сообщение',
+    send: 'Отправить',
+    messageSent: 'Сообщение отправлено!',
+    messageSentDesc: 'Мы ответим вам в ближайшее время на',
+    // Subscription
+    subExpired: 'Подписка истекла',
+    subRequired: 'Требуется подписка',
+    subTrialExpired: 'Ваш пробный период истёк',
+    promoPlaceholder: 'Введите промокод',
+    promoApply: 'Применить',
+    // Network
+    selectNetwork: 'Выберите сеть',
+    youPayExactly: 'Вы платите ровно',
+    noExtraFees: 'Без комиссий.',
+    // Payment
+    completePayment: 'Завершить оплату',
+    sendExactly: 'Отправьте:',
+    toAddress: 'На адрес:',
+    timeRemaining: 'Осталось времени',
+    verifyPayment: 'Проверить оплату',
+    verifyingPayment: 'Проверка оплаты...',
+    // Subscription expiry
+    expires: 'Истекает',
+    active: 'Активна',
+    // Notifications
+    notifSubExpiring: 'Подписка скоро истечёт',
+    notifSubExpiringMsg1: 'Ваша подписка истекает через ',
+    notifSubExpiringMsgDays: ' дн. ',
+    notifSubExpiringMsg2: 'Продлите сейчас, чтобы продолжить использование.',
+    notifSubExpired: 'Подписка истекла',
+    notifSubExpiredMsg: 'Ваша подписка истекла. Продлите для продолжения использования Stats Editor Pro.',
+    timeAgo: ' назад',
+    // Auth screens
+    appTitle: 'Stats Editor Pro',
+    signInSubtitle: 'Войдите для продолжения',
+    authEmail: 'Email',
+    authEmailPlaceholder: 'your@email.com',
+    authPassword: 'Пароль',
+    forgotPassword: 'Забыли пароль?',
+    signIn: 'Войти',
+    signInLink: 'Войти',
+    noAccount: 'Нет аккаунта?',
+    createOne: 'Создать',
+    // Reset password
+    resetPassword: 'Сброс пароля',
+    resetSubtitle: 'Введите email для получения кода',
+    sendResetCode: 'Отправить код',
+    rememberPassword: 'Помните пароль?',
+    checkEmail: 'Проверьте почту',
+    enterCodeSentTo: 'Введите код, отправленный на',
+    resetCode: 'Код сброса',
+    enterCodePlaceholder: 'Введите код из письма',
+    newPassword: 'Новый пароль',
+    minCharsPlaceholder: 'Мин. 6 символов',
+    confirmNewPassword: 'Подтвердите новый пароль',
+    resendCode: 'Отправить повторно',
+    changeEmail: 'Изменить email',
+    // Create account
+    createAccount: 'Создать аккаунт',
+    createSubtitle: 'Начните с 7 дней бесплатного периода',
+    confirmPassword: 'Подтвердите пароль',
+    haveAccount: 'Уже есть аккаунт?',
+    // Verify email
+    verifyEmail: 'Подтвердите email',
+    verificationCode: 'Код подтверждения',
+    enter6DigitCode: 'Введите 6-значный код',
+    verifyEmailBtn: 'Подтвердить',
+    loading: 'Загрузка...',
+    // Save Preset
+    savePreset: 'Сохранить пресет',
+    presetNamePlaceholder: 'Введите имя пресета...',
+    save: 'Сохранить',
+    // Delete Preset
+    deletePreset: 'Удалить пресет',
+    deletePresetConfirm: 'Вы уверены, что хотите удалить',
+    delete: 'Удалить',
+    // Upgrade Plan
+    upgradePlan: 'Улучшить план',
+    upgradeSubtitle: 'Выберите план для улучшения подписки',
+    planModels10: 'До 10 моделей',
+    planModels50: 'До 50 моделей',
+    planStatsEdit: 'Редактирование статистики',
+    planFansGraph: 'Редактирование графика фанов',
+    bestValue: 'ЛУЧШАЯ ЦЕНА',
+    perMo: 'мес',
+    getPlus: 'Выбрать Plus',
+    getPro: 'Выбрать Pro',
+    upgradeToPro: 'Перейти на Pro',
+    currentPlanBadge: 'Ваш план',
+    discountDays: 'Скидка за оставшиеся дни',
+    upgradeFor: 'Перейти за',
+    daysLeft: 'дн. осталось',
+    modelLimitReached: 'Достигнут лимит моделей! Перейдите на Pro для расширения.',
+    // Info modal
+    subActive: 'Подписка активна',
+    paymentError: 'Ошибка оплаты',
+    paymentFailed: 'Не удалось создать платёж',
+    // Welcome
+    welcomeTitle: 'Добро пожаловать в Stats Editor Pro!',
+    welcomeMsg: 'Ваш аккаунт создан. Наслаждайтесь бесплатным периодом!',
+    // Support placeholders
+    supportSubjectPlaceholder: 'Баг-репорт — Of Stats Editor',
+    supportMessagePlaceholder: 'Опишите проблему подробно: что произошло, на какой странице, что ожидали...',
+    // Reset button
+    resetBtn: 'Сбросить',
+    // Presets
+    noPreset: 'Без пресета',
+    // Status
+    statusActive: 'Активен',
+    statusInactive: 'Неактивен',
+    // My Models
+    modelAdded: 'Добавлена',
+    noModelsYet: 'Моделей пока нет. Модели добавляются автоматически при применении изменений на странице профиля.',
+    unknownDate: 'Неизвестная дата',
+    // Promo
+    promoEnterCode: 'Введите промокод',
+    promoActivated: 'Промокод активирован!',
+    promoActivatedTitle: 'Промокод активирован!',
+    promoCodeDaysAdded: 'Код "{code}" активирован. {days} дн. плана {plan} добавлено к вашему аккаунту.',
+    promoAlreadyUsed: 'Этот код уже был использован',
+    promoAlreadyUsedTitle: 'Промокод уже использован',
+    promoAlreadyUsedBody: 'Код "{code}" уже был активирован на вашем аккаунте.',
+    promoInvalid: 'Неверный промокод',
+    promoExpired: 'Срок действия промокода истёк',
+    promoInactive: 'Промокод больше не активен',
+    promoLimitReached: 'Лимит использования промокода исчерпан',
+    promoApplyFailed: 'Не удалось применить промокод',
+    promoNetworkError: 'Ошибка сети. Попробуйте снова.',
+    // Subscription
+    alreadyActiveSub: 'У вас уже есть активная подписка',
+    btnApply: 'Применить',
+  },
+  en: {
+    menuSettings: 'Settings',
+    menuUpgrade: 'Upgrade Plan',
+    menuSupport: 'Support',
+    menuLogout: 'Logout',
+    settingsTitle: 'Settings',
+    settingsBadge: 'Badge Settings',
+    settingsBadgeToggle: 'Profile Badge',
+    settingsBadgeInfo: 'Show or hide the profile analysis badge on model pages',
+    settingsVerdictToggle: 'Verdict AI',
+    settingsVerdictInfo: 'Show or hide the AI verdict analysis section in the badge',
+    settingsLanguage: 'Language',
+    currentModel: 'Current Model',
+    balanceSettings: 'Balance Settings',
+    topCreators: 'Top Creators',
+    currentBalance: 'Current Balance',
+    pendingBalance: 'Pending Balance',
+    earnings: 'Earnings (Pending | Complete)',
+    fansSettings: 'Fans Settings',
+    fansCount: 'Fans Count',
+    followingCount: 'Following Count',
+    applyChanges: 'Apply Changes',
+    // Notifications
+    notificationsTitle: 'Notifications',
+    notificationsEmpty: 'No notifications yet',
+    notificationsClear: 'Clear All',
+    // My Models
+    menuMyModels: 'My Models',
+    modelsUsing: 'Using',
+    modelsOf: 'of',
+    modelsModels: 'models',
+    close: 'Close',
+    // Delete Model
+    removeModel: 'Remove Model',
+    removeModelConfirm: 'Are you sure you want to remove',
+    removeModelSuffix: 'from your models?',
+    cancel: 'Cancel',
+    remove: 'Remove',
+    // Support
+    contactSupport: 'Contact Support',
+    supportPromo: 'Found a bug? Report it and get 1 month of Plus for free!',
+    supportEmail: 'Your email',
+    supportSubject: 'Subject',
+    supportMessage: 'Message',
+    send: 'Send',
+    messageSent: 'Message sent!',
+    messageSentDesc: "We'll get back to you soon at",
+    // Subscription
+    subExpired: 'Subscription Expired',
+    subRequired: 'Subscription Required',
+    subTrialExpired: 'Your trial has expired',
+    promoPlaceholder: 'Enter promo code',
+    promoApply: 'Apply',
+    // Network
+    selectNetwork: 'Select Network',
+    youPayExactly: 'You pay exactly',
+    noExtraFees: 'No extra fees.',
+    // Payment
+    completePayment: 'Complete Payment',
+    sendExactly: 'Send exactly:',
+    toAddress: 'To address:',
+    timeRemaining: 'Time remaining',
+    verifyPayment: 'Verify Payment',
+    verifyingPayment: 'Verifying payment...',
+    // Subscription expiry
+    expires: 'Expires',
+    active: 'Active',
+    // Notifications
+    notifSubExpiring: 'Subscription Expiring Soon',
+    notifSubExpiringMsg1: 'Your subscription expires in ',
+    notifSubExpiringMsgDays: ' day(s). ',
+    notifSubExpiringMsg2: 'Renew now to continue using all features.',
+    notifSubExpired: 'Subscription Expired',
+    notifSubExpiredMsg: 'Your subscription has expired. Please renew to continue using Stats Editor Pro.',
+    timeAgo: ' ago',
+    // Auth screens
+    appTitle: 'Stats Editor Pro',
+    signInSubtitle: 'Sign in to continue',
+    authEmail: 'Email',
+    authEmailPlaceholder: 'your@email.com',
+    authPassword: 'Password',
+    forgotPassword: 'Forgot password?',
+    signIn: 'Sign In',
+    signInLink: 'Sign in',
+    noAccount: "Don't have an account?",
+    createOne: 'Create one',
+    // Reset password
+    resetPassword: 'Reset Password',
+    resetSubtitle: 'Enter your email to receive reset code',
+    sendResetCode: 'Send Reset Code',
+    rememberPassword: 'Remember your password?',
+    checkEmail: 'Check Your Email',
+    enterCodeSentTo: 'Enter the code sent to',
+    resetCode: 'Reset Code',
+    enterCodePlaceholder: 'Enter code from email',
+    newPassword: 'New Password',
+    minCharsPlaceholder: 'Min 6 characters',
+    confirmNewPassword: 'Confirm New Password',
+    resendCode: 'Resend code',
+    changeEmail: 'Change email',
+    // Create account
+    createAccount: 'Create Account',
+    createSubtitle: 'Start with 7 days free trial',
+    confirmPassword: 'Confirm Password',
+    haveAccount: 'Already have an account?',
+    // Verify email
+    verifyEmail: 'Verify Your Email',
+    verificationCode: 'Verification Code',
+    enter6DigitCode: 'Enter 6-digit code',
+    verifyEmailBtn: 'Verify Email',
+    loading: 'Loading...',
+    // Save Preset
+    savePreset: 'Save Preset',
+    presetNamePlaceholder: 'Enter preset name...',
+    save: 'Save',
+    // Delete Preset
+    deletePreset: 'Delete Preset',
+    deletePresetConfirm: 'Are you sure you want to delete',
+    delete: 'Delete',
+    // Upgrade Plan
+    upgradePlan: 'Upgrade Plan',
+    upgradeSubtitle: 'Choose a plan to upgrade your subscription',
+    planModels10: 'Up to 10 models',
+    planModels50: 'Up to 50 models',
+    planStatsEdit: 'Statistics editing',
+    planFansGraph: 'Fans graph editing',
+    bestValue: 'BEST VALUE',
+    perMo: 'mo',
+    getPlus: 'Get Plus',
+    getPro: 'Get Pro',
+    upgradeToPro: 'Upgrade to Pro',
+    currentPlanBadge: 'Current plan',
+    discountDays: 'Discount for remaining days',
+    upgradeFor: 'Upgrade for',
+    daysLeft: 'days left',
+    modelLimitReached: 'Model limit reached! Upgrade to Pro for more slots.',
+    // Info modal
+    subActive: 'Subscription Active',
+    paymentError: 'Payment Error',
+    paymentFailed: 'Failed to create payment',
+    // Welcome
+    welcomeTitle: 'Welcome to Stats Editor Pro!',
+    welcomeMsg: 'Your account has been created. Enjoy your free trial!',
+    // Support placeholders
+    supportSubjectPlaceholder: 'Bug Report — Of Stats Editor',
+    supportMessagePlaceholder: 'Describe the issue in detail: what happened, which page, what you expected...',
+    // Reset button
+    resetBtn: 'Reset',
+    // Presets
+    noPreset: 'No preset',
+    // Status
+    statusActive: 'Active',
+    statusInactive: 'Inactive',
+    // My Models
+    modelAdded: 'Added',
+    noModelsYet: 'No models added yet. Models are added automatically when you apply changes on a profile.',
+    unknownDate: 'Unknown date',
+    // Promo
+    promoEnterCode: 'Please enter a promo code',
+    promoActivated: 'Promo code activated successfully!',
+    promoActivatedTitle: 'Promo Code Activated!',
+    promoCodeDaysAdded: 'Code "{code}" activated. {days} days of {plan} added to your account.',
+    promoAlreadyUsed: 'This code has already been used',
+    promoAlreadyUsedTitle: 'Promo Code Already Used',
+    promoAlreadyUsedBody: 'The code "{code}" has already been activated on your account.',
+    promoInvalid: 'Invalid promo code',
+    promoExpired: 'This promo code has expired',
+    promoInactive: 'This promo code is no longer active',
+    promoLimitReached: 'This promo code usage limit reached',
+    promoApplyFailed: 'Failed to apply promo code',
+    promoNetworkError: 'Network error. Please try again.',
+    // Subscription
+    alreadyActiveSub: 'You already have an active subscription',
+    btnApply: 'Apply',
+  }
+};
+
+function applyTranslations(lang) {
+  const dict = i18n[lang] || i18n.en;
+  // Update all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key]) el.textContent = dict[key];
+  });
+  // Update tooltip title attributes
+  document.querySelectorAll('[data-tooltip-i18n]').forEach(el => {
+    const key = el.getAttribute('data-tooltip-i18n');
+    if (dict[key]) el.title = dict[key];
+  });
+  // Update placeholder attributes
+  document.querySelectorAll('[data-placeholder-i18n]').forEach(el => {
+    const key = el.getAttribute('data-placeholder-i18n');
+    if (dict[key]) el.placeholder = dict[key];
+  });
+  // Re-render dynamic texts that depend on language
+  updateSubscriptionExpiry();
+}
+
+function loadSettingsUI() {
+  chrome.storage.local.get(['ofStatsBadgeEnabled', 'ofStatsVerdictEnabled', 'ofStatsLang'], (data) => {
+    const badgeEl = document.getElementById('settingBadgeEnabled');
+    const verdictEl = document.getElementById('settingVerdictEnabled');
+    if (badgeEl) badgeEl.checked = data.ofStatsBadgeEnabled !== false;
+    if (verdictEl) verdictEl.checked = data.ofStatsVerdictEnabled !== false;
+    const lang = data.ofStatsLang || 'en';
+    currentLang = lang;
+    document.querySelectorAll('.settings-lang-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === lang);
+    });
+    applyTranslations(lang);
+  });
+}
+
 // Show specific screen
 function showScreen(screenId) {
-  const screens = [loadingScreen, loginScreen, registerScreen, subscriptionScreen, paymentScreen, mainApp, forgotPasswordScreen, resetCodeScreen, verifyEmailScreen, document.getElementById('networkScreen')];
+  const screens = [loadingScreen, loginScreen, registerScreen, subscriptionScreen, paymentScreen, mainApp, forgotPasswordScreen, resetCodeScreen, verifyEmailScreen, document.getElementById('networkScreen'), document.getElementById('settingsScreen')];
   screens.forEach(screen => {
     if (screen) screen.style.display = 'none';
   });
@@ -90,7 +486,9 @@ function showScreen(screenId) {
       popupScreen: screenId,
       popupPendingEmail: pendingEmail || null,
       popupPaymentId: currentPaymentId || null,
-      popupSelectedPlan: selectedPlan || null
+      popupSelectedPlan: selectedPlan || null,
+      popupIsUpgrade: isUpgradeMode || false,
+      popupUpgradePrice: (upgradeInfo && upgradeInfo.upgradePrice) || null
     });
   }
 }
@@ -104,12 +502,16 @@ async function initAuth() {
   
   try {
     // Check for saved popup state (for verification/reset/payment flows)
-    const savedState = await chrome.storage.local.get(['popupScreen', 'popupPendingEmail', 'popupPaymentId', 'popupSelectedPlan']);
+    const savedState = await chrome.storage.local.get(['popupScreen', 'popupPendingEmail', 'popupPaymentId', 'popupSelectedPlan', 'popupIsUpgrade', 'popupUpgradePrice']);
     
     // If there's a pending payment flow, restore it
     if (savedState.popupScreen === 'paymentScreen' && savedState.popupPaymentId) {
       currentPaymentId = savedState.popupPaymentId;
       selectedPlan = savedState.popupSelectedPlan;
+      isUpgradeMode = savedState.popupIsUpgrade || false;
+      if (isUpgradeMode && savedState.popupUpgradePrice) {
+        upgradeInfo = { upgradePrice: savedState.popupUpgradePrice };
+      }
       await restorePaymentScreen();
       return;
     }
@@ -201,6 +603,10 @@ async function initAuth() {
     if (!hasActiveSubscription()) {
       // Disable plugin and clear fake values
       await disablePluginDueToExpiredSubscription();
+      
+      // Reset upgrade mode for expired flow
+      isUpgradeMode = false;
+      upgradeInfo = null;
       
       await loadPlans();
       showScreen('subscriptionScreen');
@@ -335,6 +741,50 @@ async function disablePluginDueToExpiredSubscription() {
   }
 }
 
+// Re-enable plugin automatically when subscription becomes active again
+async function enablePluginAfterSubscriptionActivation() {
+  try {
+    const result = await chrome.storage.local.get('ofStatsSettings');
+    const settings = result.ofStatsSettings || {};
+    settings.enabled = true;
+
+    await chrome.storage.local.set({
+      ofStatsSettings: settings,
+      ofStatsSubscriptionActive: true
+    });
+
+    if (mainToggle) {
+      mainToggle.checked = true;
+      mainToggle.disabled = false;
+    }
+    updateStatusIndicator(true);
+    updateContainerState(true);
+
+    try {
+      const tabs = await chrome.tabs.query({ url: '*://*.onlyfans.com/*' });
+      for (const tab of tabs) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (settingsJSON) => {
+              localStorage.setItem('ofStatsSubActive', 'true');
+              localStorage.setItem('ofStatsCache', settingsJSON);
+            },
+            args: [JSON.stringify(settings)]
+          });
+          await chrome.tabs.sendMessage(tab.id, { action: 'applyChanges', settings: settings });
+        } catch (e) {
+          // Tab may not have content script yet
+        }
+      }
+    } catch (e) {
+      log('OF Stats: Could not auto-enable tabs:', e);
+    }
+  } catch (error) {
+    logError('OF Stats: Failed to auto-enable plugin after activation:', error);
+  }
+}
+
 // Check subscription and redirect if expired
 async function checkSubscriptionAndRedirect() {
   // Refresh subscription status from server
@@ -449,12 +899,14 @@ async function checkSubscriptionExpiryNotification() {
   
   // Notify if 3 days or less remaining
   if (daysLeft <= 3 && daysLeft > 0) {
-    await addNotification('warning', 'Subscription Expiring Soon', 
-      `Your subscription expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Renew now to continue using all features.`);
+    const dict = i18n[currentLang] || i18n.en;
+    await addNotification('warning', dict.notifSubExpiring, 
+      dict.notifSubExpiringMsg1 + daysLeft + dict.notifSubExpiringMsgDays + dict.notifSubExpiringMsg2);
     await chrome.storage.local.set({ [storageKey]: true });
   } else if (daysLeft <= 0) {
-    await addNotification('warning', 'Subscription Expired', 
-      'Your subscription has expired. Please renew to continue using Stats Editor Pro.');
+    const dict = i18n[currentLang] || i18n.en;
+    await addNotification('warning', dict.notifSubExpired, 
+      dict.notifSubExpiredMsg);
     await chrome.storage.local.set({ [storageKey]: true });
   }
 }
@@ -513,35 +965,61 @@ function renderPlans(plans) {
   const container = document.getElementById('plansContainer');
   if (!container) return;
   
+  const dict = i18n[currentLang] || i18n.en;
+  
   // Define features for each plan
   const planFeatures = {
     plus: [
-      { text: 'Up to 10 models', included: true },
-      { text: 'Statistics editing', included: true },
-      { text: 'Fans graph editing', included: true },
+      { text: dict.planModels10 || 'Up to 10 models', included: true },
+      { text: dict.planStatsEdit || 'Statistics editing', included: true },
+      { text: dict.planFansGraph || 'Fans graph editing', included: true },
     ],
     pro: [
-      { text: 'Up to 50 models', included: true },
-      { text: 'Statistics editing', included: true },
-      { text: 'Fans graph editing', included: true },
+      { text: dict.planModels50 || 'Up to 50 models', included: true },
+      { text: dict.planStatsEdit || 'Statistics editing', included: true },
+      { text: dict.planFansGraph || 'Fans graph editing', included: true },
     ]
   };
   
+  // Check if user is upgrading from Plus
+  const currentPlan = currentSubscription ? (currentSubscription.plan || '').toLowerCase() : '';
+  const isActiveUpgrade = isUpgradeMode && currentPlan === 'plus' && upgradeInfo;
+  
   container.innerHTML = plans.map(plan => {
-    // Normalize plan name
     const planId = plan.id || plan.name.toLowerCase();
     const displayName = planId === 'basic' ? 'Plus' : plan.name;
     const normalizedId = planId === 'basic' ? 'plus' : planId;
     const features = planFeatures[normalizedId] || planFeatures.plus;
     const isPopular = normalizedId === 'pro';
+    const isCurrentPlan = isActiveUpgrade && normalizedId === currentPlan;
+    
+    // For upgrade mode: show discount on Pro card
+    let priceHtml = `$${plan.price}<span class="plan-period">/${dict.perMo || 'mo'}</span>`;
+    let btnText = isPopular ? (dict.getPro || 'Get Pro') : (dict.getPlus || 'Get Plus');
+    let extraBadge = '';
+    let discountHtml = '';
+    
+    if (isActiveUpgrade) {
+      if (isCurrentPlan) {
+        extraBadge = `<span class="current-plan-badge">${dict.currentPlanBadge || 'Current plan'}</span>`;
+        btnText = dict.currentPlanBadge || 'Current plan';
+      } else if (normalizedId === 'pro') {
+        priceHtml = `<span class="price-original">$${plan.price}</span> $${upgradeInfo.upgradePrice}<span class="plan-period">/${dict.perMo || 'mo'}</span>`;
+        btnText = `${dict.upgradeFor || 'Upgrade for'} $${upgradeInfo.upgradePrice}`;
+        discountHtml = `<div class="upgrade-discount-info">${dict.discountDays || 'Discount for remaining days'}: -$${upgradeInfo.discount} (${upgradeInfo.daysRemaining} ${dict.daysLeft || 'days left'})</div>`;
+      }
+    }
     
     return `
-    <div class="plan-card ${isPopular ? 'popular' : ''}" data-plan="${planId}">
-      ${isPopular ? '<span class="popular-badge">BEST VALUE</span>' : ''}
+    <div class="plan-card ${isPopular ? 'popular' : ''} ${isCurrentPlan ? 'current-plan' : ''}" data-plan="${planId}" ${isCurrentPlan ? 'data-disabled="true"' : ''}>
+      ${isPopular && !isActiveUpgrade ? '<span class="popular-badge">' + (dict.bestValue || 'BEST VALUE') + '</span>' : ''}
+      ${isPopular && isActiveUpgrade ? '<span class="popular-badge">' + (dict.bestValue || 'BEST VALUE') + '</span>' : ''}
+      ${extraBadge}
       <div class="plan-header">
         <span class="plan-name">${displayName}</span>
-        <span class="plan-price">$${plan.price}<span class="plan-period">/mo</span></span>
+        <span class="plan-price">${priceHtml}</span>
       </div>
+      ${discountHtml}
       <div class="plan-features">
         ${features.map(f => `
           <div class="plan-feature-item ${f.included ? 'included' : 'not-included'}">
@@ -555,13 +1033,14 @@ function renderPlans(plans) {
           </div>
         `).join('')}
       </div>
-      <button class="plan-select-btn">${isPopular ? 'Get Pro' : 'Get Plus'}</button>
+      <button class="plan-select-btn" ${isCurrentPlan ? 'disabled' : ''}>${btnText}</button>
     </div>
   `;
   }).join('');
   
   // Add click handlers
   container.querySelectorAll('.plan-card').forEach(card => {
+    if (card.dataset.disabled === 'true') return;
     card.addEventListener('click', () => selectPlan(card.dataset.plan));
   });
 }
@@ -575,8 +1054,13 @@ async function selectPlan(planId) {
     card.classList.toggle('selected', card.dataset.plan === planId);
   });
   
-  // Show network selection screen (plus/basic = $30, pro/premium = $50)
-  const price = (planId === 'plus' || planId === 'basic') ? 30 : 50;
+  // Determine price: use upgrade price if in upgrade mode
+  let price;
+  if (isUpgradeMode && upgradeInfo && planId === 'pro') {
+    price = upgradeInfo.upgradePrice;
+  } else {
+    price = (planId === 'plus' || planId === 'basic') ? 30 : 50;
+  }
   document.getElementById('networkPlanPrice').textContent = `Pay $${price} USDT`;
   document.getElementById('exactAmount').textContent = `$${price}`;
   
@@ -586,18 +1070,27 @@ async function selectPlan(planId) {
 // Select network and create payment
 async function selectNetwork(networkId) {
   try {
-    const result = await chrome.runtime.sendMessage({ 
-      action: 'createPayment', 
-      plan: selectedPlan,
-      currency: networkId
-    });
+    let result;
+    if (isUpgradeMode && upgradeInfo && selectedPlan === 'pro') {
+      result = await chrome.runtime.sendMessage({ 
+        action: 'createUpgradePayment', 
+        currency: networkId
+      });
+    } else {
+      result = await chrome.runtime.sendMessage({ 
+        action: 'createPayment', 
+        plan: selectedPlan,
+        currency: networkId
+      });
+    }
     
     if (!result.success) {
       // Check if it's an "active subscription" message
       if (result.error && result.error.includes('active subscription')) {
-        showInfoModal('Subscription Active', result.error, 'info');
+        const dict = i18n[currentLang] || i18n.en;
+        showInfoModal(dict.subActive || 'Subscription Active', dict.alreadyActiveSub || result.error, 'info');
       } else {
-        showInfoModal('Payment Error', result.error || 'Failed to create payment', 'error');
+        showInfoModal((i18n[currentLang] || i18n.en).paymentError || 'Payment Error', result.error || ((i18n[currentLang] || i18n.en).paymentFailed || 'Failed to create payment'), 'error');
       }
       return;
     }
@@ -625,11 +1118,17 @@ async function selectNetwork(networkId) {
     }
     
     // Update payment info
-    const planName = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 'Plus Plan - $30' : 'Pro Plan - $50';
+    let planName, price;
+    if (isUpgradeMode && upgradeInfo && selectedPlan === 'pro') {
+      planName = `Upgrade to Pro - $${upgradeInfo.upgradePrice}`;
+      price = upgradeInfo.upgradePrice;
+    } else {
+      planName = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 'Plus Plan - $30' : 'Pro Plan - $50';
+      price = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 30 : 50;
+    }
     document.getElementById('paymentPlanName').textContent = planName;
     
     // Show exact USDT amount
-    const price = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 30 : 50;
     document.getElementById('paymentAmount').textContent = `${price} USDT`;
     
     if (result.payAddress) {
@@ -716,7 +1215,11 @@ async function checkPaymentOnce(paymentId, isAutoCheck = false) {
       }
       
       // Clear payment state from storage
-      await chrome.storage.local.remove(['popupPaymentId', 'popupSelectedPlan', 'popupPayAddress', 'popupPaymentExpires']);
+      await chrome.storage.local.remove(['popupPaymentId', 'popupSelectedPlan', 'popupPayAddress', 'popupPaymentExpires', 'popupIsUpgrade', 'popupUpgradePrice']);
+      
+      // Reset upgrade mode
+      isUpgradeMode = false;
+      upgradeInfo = null;
       
       // Clear cached subscription/auth so we get fresh data from server
       await chrome.runtime.sendMessage({ action: 'clearCache' }).catch(() => {});
@@ -729,21 +1232,8 @@ async function checkPaymentOnce(paymentId, isAutoCheck = false) {
           ofStatsSubscription: currentSubscription,
           ofStatsSubscriptionActive: true
         });
-        
-        // Set localStorage flag for inject-early.js
-        try {
-          const tabs = await chrome.tabs.query({ url: '*://*.onlyfans.com/*' });
-          for (const tab of tabs) {
-            try {
-              await chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: () => {
-                  localStorage.setItem('ofStatsSubActive', 'true');
-                }
-              });
-            } catch (e) {}
-          }
-        } catch (e) {}
+
+        await enablePluginAfterSubscriptionActivation();
       }
       
       await loadUserModels();
@@ -896,7 +1386,9 @@ async function clearPaymentState() {
   if (paymentAutoCheckInterval) {
     clearInterval(paymentAutoCheckInterval);
   }
-  await chrome.storage.local.remove(['popupPaymentId', 'popupSelectedPlan', 'popupPayAddress', 'popupPaymentExpires']);
+  await chrome.storage.local.remove(['popupPaymentId', 'popupSelectedPlan', 'popupPayAddress', 'popupPaymentExpires', 'popupIsUpgrade', 'popupUpgradePrice']);
+  isUpgradeMode = false;
+  upgradeInfo = null;
   currentPaymentId = null;
 }
 
@@ -922,13 +1414,19 @@ async function restorePaymentScreen() {
   }
   
   // Update plan name
-  const planName = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 'Plus Plan - $30' : 'Pro Plan - $50';
+  let planName, price;
+  if (isUpgradeMode && upgradeInfo && selectedPlan === 'pro') {
+    planName = `Upgrade to Pro - $${upgradeInfo.upgradePrice}`;
+    price = upgradeInfo.upgradePrice;
+  } else {
+    planName = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 'Plus Plan - $30' : 'Pro Plan - $50';
+    price = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 30 : 50;
+  }
   document.getElementById('paymentPlanName').textContent = planName;
   
   // Get saved payment data from storage
   const savedData = await chrome.storage.local.get(['popupPayAddress', 'popupPaymentExpires']);
   
-  const price = (selectedPlan === 'plus' || selectedPlan === 'basic') ? 30 : 50;
   document.getElementById('paymentAmount').textContent = `${price} USDT`;
   
   if (savedData.popupPayAddress) {
@@ -1348,12 +1846,77 @@ function setupAuthListeners() {
     });
   }
   
+  // Settings button
+  const settingsBtn = document.getElementById('settingsBtn');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      userMenuDropdown.style.display = 'none';
+      const overlay = document.getElementById('dropdownOverlay');
+      if (overlay) overlay.classList.remove('active');
+      showScreen('settingsScreen');
+    });
+  }
+
+  // Settings back button
+  const settingsBackBtn = document.getElementById('settingsBackBtn');
+  if (settingsBackBtn) {
+    settingsBackBtn.addEventListener('click', () => {
+      showScreen('mainApp');
+    });
+  }
+
+  // Settings: Badge toggle
+  const settingBadgeEnabled = document.getElementById('settingBadgeEnabled');
+  if (settingBadgeEnabled) {
+    settingBadgeEnabled.addEventListener('change', () => {
+      chrome.storage.local.set({ ofStatsBadgeEnabled: settingBadgeEnabled.checked });
+    });
+  }
+
+  // Settings: Verdict AI toggle
+  const settingVerdictEnabled = document.getElementById('settingVerdictEnabled');
+  if (settingVerdictEnabled) {
+    settingVerdictEnabled.addEventListener('change', () => {
+      chrome.storage.local.set({ ofStatsVerdictEnabled: settingVerdictEnabled.checked });
+    });
+  }
+
+  // Settings: Language selector
+  document.querySelectorAll('.settings-lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lang = btn.dataset.lang;
+      document.querySelectorAll('.settings-lang-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      chrome.storage.local.set({ ofStatsLang: lang });
+      currentLang = lang;
+      applyTranslations(lang);
+    });
+  });
+
   // Upgrade button
   if (upgradeBtn) {
     upgradeBtn.addEventListener('click', async () => {
       userMenuDropdown.style.display = 'none';
       const overlay = document.getElementById('dropdownOverlay');
       if (overlay) overlay.classList.remove('active');
+      
+      // Reset upgrade state
+      isUpgradeMode = false;
+      upgradeInfo = null;
+      
+      // Try to get upgrade info if user has active subscription
+      if (hasActiveSubscription() && currentSubscription && currentSubscription.plan === 'plus') {
+        try {
+          const info = await chrome.runtime.sendMessage({ action: 'getUpgradeInfo' });
+          if (info.success) {
+            isUpgradeMode = true;
+            upgradeInfo = info;
+          }
+        } catch (e) {
+          log('Could not get upgrade info:', e);
+        }
+      }
+      
       await loadPlans();
       showScreen('subscriptionScreen');
       
@@ -1363,15 +1926,14 @@ function setupAuthListeners() {
       const authTitle = document.querySelector('#subscriptionScreen .auth-title');
       
       if (hasActiveSubscription()) {
-        // User has active subscription, show upgrade text
-        if (authTitle) authTitle.textContent = 'Upgrade Plan';
-        if (expiredText) expiredText.textContent = 'Choose a plan to upgrade your subscription';
+        const dict = i18n[currentLang] || i18n.en;
+        if (authTitle) authTitle.textContent = dict.upgradePlan || 'Upgrade Plan';
+        if (expiredText) expiredText.textContent = dict.upgradeSubtitle || 'Choose a plan to upgrade your subscription';
         if (expiredBadge) expiredBadge.style.display = 'none';
       } else {
-        // Subscription expired, show expired text
-        if (authTitle) authTitle.textContent = 'Subscription Required';
+        const dict = i18n[currentLang] || i18n.en;
+        if (authTitle) authTitle.textContent = dict.subRequired || 'Subscription Required';
         if (expiredBadge) expiredBadge.style.display = '';
-        // Badge text will be set by checkSubscriptionAndRedirect
       }
     });
   }
@@ -1383,23 +1945,32 @@ function setupAuthListeners() {
       const overlay = document.getElementById('dropdownOverlay');
       if (overlay) overlay.classList.remove('active');
 
-      // Auto-fill user email
-      const emailEl = document.getElementById('supportEmail');
-      if (emailEl) {
-        const menuEmail = document.getElementById('userMenuEmail');
-        emailEl.value = menuEmail ? menuEmail.textContent : '';
-      }
-      // Pre-fill subject
-      const subjectEl = document.getElementById('supportSubject');
-      if (subjectEl && !subjectEl.value) {
-        subjectEl.value = 'Bug Report — Of Stats Editor';
-      }
-      // Clear previous message
-      const msgEl = document.getElementById('supportMessage');
-      if (msgEl) msgEl.value = '';
-
       const supportOverlay = document.getElementById('supportModalOverlay');
-      if (supportOverlay) supportOverlay.classList.add('active');
+      if (supportOverlay) {
+        // Reset: hide success screen, show form
+        const successScreen = document.getElementById('supportSuccessScreen');
+        const supportForm = supportOverlay.querySelector('.support-form');
+        const supportBtns = supportOverlay.querySelector('.preset-modal-buttons');
+        const supportBanner = supportOverlay.querySelector('.support-promo-banner');
+        if (successScreen) successScreen.style.display = 'none';
+        if (supportForm) supportForm.style.display = '';
+        if (supportBtns) supportBtns.style.display = '';
+        if (supportBanner) supportBanner.style.display = '';
+        // Capture email now (DOM is populated at click time)
+        const menuEmail = document.getElementById('userMenuEmail');
+        const emailValue = menuEmail ? menuEmail.textContent.trim() : '';
+        // Restore saved field values or pre-fill defaults
+        chrome.storage.local.get(['supportSubject', 'supportMessage'], (saved) => {
+          const emailEl = document.getElementById('supportEmail');
+          if (emailEl) emailEl.value = emailValue;
+          const subjectEl = document.getElementById('supportSubject');
+          if (subjectEl) subjectEl.value = saved.supportSubject || 'Bug Report — Of Stats Editor';
+          const msgEl2 = document.getElementById('supportMessage');
+          if (msgEl2) msgEl2.value = saved.supportMessage || '';
+        });
+        supportOverlay.classList.add('active');
+        chrome.storage.local.set({ supportModalOpen: true, supportEmail: emailValue });
+      }
     });
   }
 
@@ -1407,6 +1978,7 @@ function setupAuthListeners() {
   const supportModalOverlay = document.getElementById('supportModalOverlay');
   const closeSupportModal = () => {
     if (supportModalOverlay) supportModalOverlay.classList.remove('active');
+    chrome.storage.local.remove(['supportModalOpen', 'supportSubject', 'supportMessage', 'supportEmail']);
   };
 
   const supportModalClose = document.getElementById('supportModalClose');
@@ -1419,10 +1991,42 @@ function setupAuthListeners() {
     });
   }
 
+  // Restore support modal state if it was open before popup was closed
+  chrome.storage.local.get(['supportModalOpen', 'supportSubject', 'supportMessage', 'supportEmail'], (data) => {
+    if (data.supportModalOpen && supportModalOverlay) {
+      const successScreen = document.getElementById('supportSuccessScreen');
+      const supportForm = supportModalOverlay.querySelector('.support-form');
+      const supportBtns = supportModalOverlay.querySelector('.preset-modal-buttons');
+      const supportBanner = supportModalOverlay.querySelector('.support-promo-banner');
+      if (successScreen) successScreen.style.display = 'none';
+      if (supportForm) supportForm.style.display = '';
+      if (supportBtns) supportBtns.style.display = '';
+      if (supportBanner) supportBanner.style.display = '';
+      // Restore saved field values from storage (DOM may not be populated yet)
+      const emailEl = document.getElementById('supportEmail');
+      if (emailEl) emailEl.value = data.supportEmail || '';
+      const subjectEl = document.getElementById('supportSubject');
+      if (subjectEl) subjectEl.value = data.supportSubject || 'Bug Report — Of Stats Editor';
+      const msgEl2 = document.getElementById('supportMessage');
+      if (msgEl2) msgEl2.value = data.supportMessage || '';
+      supportModalOverlay.classList.add('active');
+    }
+  });
+
+  // Save form fields as user types
+  const supportSubjectEl = document.getElementById('supportSubject');
+  const supportMessageEl = document.getElementById('supportMessage');
+  if (supportSubjectEl) supportSubjectEl.addEventListener('input', () => {
+    chrome.storage.local.set({ supportSubject: supportSubjectEl.value });
+  });
+  if (supportMessageEl) supportMessageEl.addEventListener('input', () => {
+    chrome.storage.local.set({ supportMessage: supportMessageEl.value });
+  });
+
   // Support send button
   const supportModalSend = document.getElementById('supportModalSend');
   if (supportModalSend) {
-    supportModalSend.addEventListener('click', () => {
+    supportModalSend.addEventListener('click', async () => {
       const emailVal = (document.getElementById('supportEmail')?.value || '').trim();
       const subjectVal = (document.getElementById('supportSubject')?.value || '').trim() || 'Bug Report — Of Stats Editor';
       const msgVal = (document.getElementById('supportMessage')?.value || '').trim();
@@ -1449,19 +2053,49 @@ function setupAuthListeners() {
         });
 
         if (result && result.success) {
-          closeSupportModal();
-          // Show success notification in the plugin
-          await addNotification('success', 'Support request sent', 'We will get back to you soon at ' + emailVal);
+          // Show success screen, hide form
+          const successScreen = document.getElementById('supportSuccessScreen');
+          const supportForm = supportModalOverlay.querySelector('.support-form');
+          const supportBtns = supportModalOverlay.querySelector('.preset-modal-buttons');
+          const supportBanner = supportModalOverlay.querySelector('.support-promo-banner');
+          chrome.storage.local.remove(['supportModalOpen', 'supportSubject', 'supportMessage']);
+          const successEmail = document.getElementById('supportSuccessEmail');
+          if (successEmail) successEmail.textContent = emailVal;
+          if (supportForm) supportForm.style.display = 'none';
+          if (supportBtns) supportBtns.style.display = 'none';
+          if (supportBanner) supportBanner.style.display = 'none';
+          if (successScreen) {
+            successScreen.style.display = 'flex';
+            // Re-trigger animation by cloning SVG circles
+            const circle = successScreen.querySelector('.support-success-circle');
+            const check = successScreen.querySelector('.support-success-check');
+            if (circle) { circle.style.animation = 'none'; void circle.offsetWidth; circle.style.animation = ''; }
+            if (check) { check.style.animation = 'none'; void check.offsetWidth; check.style.animation = ''; }
+          }
+          setTimeout(() => closeSupportModal(), 2500);
         } else {
           throw new Error(result?.error || 'Failed to send');
         }
       } catch (err) {
         supportModalSend.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polygon points="22 2 15 22 11 13 2 9 22 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> Send`;
+        // Show the actual error so we can debug
+        const errMsg = err?.message || String(err) || 'Unknown error';
         const msgEl2 = document.getElementById('supportMessage');
         if (msgEl2) {
           msgEl2.style.borderColor = 'var(--danger)';
-          setTimeout(() => { msgEl2.style.borderColor = ''; }, 3000);
+          setTimeout(() => { msgEl2.style.borderColor = ''; }, 4000);
         }
+        // Show error text below the form
+        let errDiv = document.getElementById('supportErrorMsg');
+        if (!errDiv) {
+          errDiv = document.createElement('div');
+          errDiv.id = 'supportErrorMsg';
+          errDiv.style.cssText = 'color:var(--danger);font-size:11px;margin-top:-8px;margin-bottom:4px;';
+          const form = document.querySelector('.support-form');
+          if (form) form.after(errDiv);
+        }
+        errDiv.textContent = 'Error: ' + errMsg;
+        setTimeout(() => { if (errDiv) errDiv.textContent = ''; }, 6000);
       } finally {
         supportModalSend.disabled = false;
         if (supportModalSend.textContent.trim() === 'Sending...') {
@@ -1718,6 +2352,41 @@ function renderNotifications() {
   
   list.innerHTML = notifications.map(n => {
     const timeAgo = getTimeAgo(new Date(n.timestamp));
+    const dict = i18n[currentLang] || i18n.en;
+    // Translate known notification titles/messages
+    const notifTitleMap = {
+      'Subscription Expiring Soon': dict.notifSubExpiring,
+      'Подписка скоро истечёт': dict.notifSubExpiring,
+      'Subscription Expired': dict.notifSubExpired,
+      'Подписка истекла': dict.notifSubExpired,
+      'Promo Code Activated!': dict.promoActivatedTitle,
+      'Промокод активирован!': dict.promoActivatedTitle,
+      'Promo Code Already Used': dict.promoAlreadyUsedTitle,
+      'Промокод уже использован': dict.promoAlreadyUsedTitle,
+      'Welcome to Stats Editor Pro!': dict.welcomeTitle,
+      'Добро пожаловать в Stats Editor Pro!': dict.welcomeTitle,
+    };
+    const displayTitle = notifTitleMap[n.title] || n.title;
+    // Translate known notification message bodies
+    let displayMessage = n.message;
+    const promoActivatedMatch = n.message.match(/^Code "(.+?)" activated\.\s*(\d+)\s*days of\s*(\S+)\s*added/i)
+      || n.message.match(/^Код "(.+?)" активирован\.\s*(\d+)\s*дн\.\s*плана\s*(\S+)\s*добавлено/i);
+    const promoUsedMatch = n.message.match(/^The code "(.+?)" has already been activated/i)
+      || n.message.match(/^Код "(.+?)" уже был активирован/i);
+    const subExpiringMatch = n.message.match(/^(?:Your subscription expires in|Ваша подписка истекает через)\s*(\d+)/i);
+    if (promoActivatedMatch) {
+      displayMessage = (dict.promoCodeDaysAdded || 'Code "{code}" activated. {days} days of {plan} added to your account.')
+        .replace('{code}', promoActivatedMatch[1]).replace('{days}', promoActivatedMatch[2]).replace('{plan}', promoActivatedMatch[3]);
+    } else if (promoUsedMatch) {
+      displayMessage = (dict.promoAlreadyUsedBody || 'The code "{code}" has already been activated on your account.')
+        .replace('{code}', promoUsedMatch[1]);
+    } else if (subExpiringMatch) {
+      displayMessage = (dict.notifSubExpiringMsg1 || 'Your subscription expires in ') + subExpiringMatch[1] + (dict.notifSubExpiringMsgDays || ' day(s). ') + (dict.notifSubExpiringMsg2 || 'Renew now to continue using all features.');
+    } else if (n.message.match(/^Your subscription has expired|^Ваша подписка истекла/)) {
+      displayMessage = dict.notifSubExpiredMsg || n.message;
+    } else if (n.message.match(/^Your account has been created|^Ваш аккаунт создан/)) {
+      displayMessage = dict.welcomeMsg || n.message;
+    }
     const iconMap = {
       info: `<svg viewBox="0 0 24 24" fill="none" width="16" height="16">
                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
@@ -1745,8 +2414,8 @@ function renderNotifications() {
           ${iconMap[n.type] || iconMap.info}
         </div>
         <div class="notification-content">
-          <div class="notification-title">${n.title}</div>
-          <div class="notification-message">${n.message}</div>
+          <div class="notification-title">${displayTitle}</div>
+          <div class="notification-message">${displayMessage}</div>
           <div class="notification-time">${timeAgo}</div>
         </div>
       </div>
@@ -1767,11 +2436,13 @@ function renderNotifications() {
 // Get relative time string
 function getTimeAgo(date) {
   const seconds = Math.floor((new Date() - date) / 1000);
+  const dict = i18n[currentLang] || i18n.en;
+  const ago = dict.timeAgo;
   
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return currentLang === 'ru' ? 'Только что' : 'Just now';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm' + ago;
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h' + ago;
+  if (seconds < 604800) return Math.floor(seconds / 86400) + 'd' + ago;
   
   return date.toLocaleDateString();
 }
@@ -1794,7 +2465,8 @@ function updateSubscriptionExpiry() {
     if (endDate) {
       const date = new Date(endDate);
       if (!isNaN(date.getTime())) {
-        userMenuExpires.textContent = 'Expires: ' + date.toLocaleDateString();
+        const dict = i18n[currentLang] || i18n.en;
+        userMenuExpires.textContent = dict.expires + ': ' + date.toLocaleDateString();
         return;
       }
     }
@@ -1802,7 +2474,8 @@ function updateSubscriptionExpiry() {
     // If no end date, show "Active" for paid or trial status
     const status = currentSubscription.status;
     if (status === 'trial' || status === 'active') {
-      userMenuExpires.textContent = '✅ Active';
+      const dict = i18n[currentLang] || i18n.en;
+      userMenuExpires.textContent = '✅ ' + dict.active;
     } else {
       userMenuExpires.textContent = '';
     }
@@ -2031,8 +2704,8 @@ async function handleRegister() {
         updateUserUI();
         
         // Add welcome notification for new users
-        await addNotification('success', 'Welcome to Stats Editor Pro!', 
-          'Your account has been created. Enjoy your free trial!');
+        await addNotification('success', (i18n[currentLang] || i18n.en).welcomeTitle || 'Welcome to Stats Editor Pro!', 
+          (i18n[currentLang] || i18n.en).welcomeMsg || 'Your account has been created. Enjoy your free trial!');
         
         showScreen('mainApp');
         initMainApp();
@@ -2175,10 +2848,16 @@ async function handleApplyPromoCode() {
   const input = document.getElementById('promoCodeInput');
   const btn = document.getElementById('applyPromoBtn');
   const message = document.getElementById('promoMessage');
+
+  try {
+    const langData = await chrome.storage.local.get(['ofStatsLang']);
+    if (langData && langData.ofStatsLang) currentLang = langData.ofStatsLang;
+  } catch (e) {}
   
   const code = input.value.trim().toUpperCase();
   if (!code) {
-    message.textContent = 'Please enter a promo code';
+    const dict = i18n[currentLang] || i18n.en;
+    message.textContent = dict.promoEnterCode || 'Please enter a promo code';
     message.className = 'promo-code-message error';
     return;
   }
@@ -2195,15 +2874,17 @@ async function handleApplyPromoCode() {
     
     if (result && result.success) {
       // Success - code activated
-      message.textContent = result.message || 'Promo code activated successfully!';
+      const dict = i18n[currentLang] || i18n.en;
+      message.textContent = dict.promoActivated || 'Promo code activated successfully!';
       message.className = 'promo-code-message success';
       input.value = '';
       
       // Add notification with correct days from server response
       const planName = result.subscription?.plan || result.plan || 'subscription';
       const daysAdded = result.subscription?.days || result.days || 7;
-      await addNotification('promo', 'Promo Code Activated!', 
-        `Code "${code}" activated. ${daysAdded} days of ${planName.toUpperCase()} added to your account.`);
+      const notifBody = (dict.promoCodeDaysAdded || 'Code "{code}" activated. {days} days of {plan} added to your account.')
+        .replace('{code}', code).replace('{days}', daysAdded).replace('{plan}', planName.toUpperCase());
+      await addNotification('promo', dict.promoActivatedTitle || 'Promo Code Activated!', notifBody);
       
       // Refresh subscription status
       setTimeout(async () => {
@@ -2213,6 +2894,7 @@ async function handleApplyPromoCode() {
           currentSubscription = verifyResult.subscription;
           
           if (hasActiveSubscription()) {
+            await enablePluginAfterSubscriptionActivation();
             await loadUserModels();
             updateUserUI();
             showScreen('mainApp');
@@ -2224,32 +2906,36 @@ async function handleApplyPromoCode() {
       // Error handling with specific messages
       const errorCode = result?.code || '';
       const errorMessage = result?.error || 'Invalid promo code';
+      const errorMessageLower = String(errorMessage).toLowerCase();
+      const dict = i18n[currentLang] || i18n.en;
       
-      if (errorCode === 'ALREADY_USED' || errorMessage.includes('already used') || errorMessage.includes('already been used')) {
-        message.textContent = 'This code has already been used';
+      if (errorCode === 'ALREADY_USED' || errorMessageLower.includes('already used') || errorMessageLower.includes('already been used')) {
+        message.textContent = dict.promoAlreadyUsed || 'This code has already been used';
         message.className = 'promo-code-message error';
-        await addNotification('warning', 'Promo Code Already Used', 
-          `The code "${code}" has already been activated on your account.`);
-      } else if (errorCode === 'INVALID_CODE' || errorMessage.includes('Invalid') || errorMessage.includes('not found')) {
-        message.textContent = 'Invalid promo code';
+        const notifBody = (dict.promoAlreadyUsedBody || 'The code "{code}" has already been activated on your account.')
+          .replace('{code}', code);
+        await addNotification('warning', dict.promoAlreadyUsedTitle || 'Promo Code Already Used', notifBody);
+      } else if (errorCode === 'INVALID_CODE' || errorMessageLower.includes('invalid') || errorMessageLower.includes('not found')) {
+        message.textContent = dict.promoInvalid || 'Invalid promo code';
         message.className = 'promo-code-message error';
-      } else if (errorCode === 'EXPIRED' || errorMessage.includes('expired')) {
-        message.textContent = 'This promo code has expired';
+      } else if (errorCode === 'EXPIRED' || errorMessageLower.includes('expired') || errorMessageLower.includes('no longer active') || errorMessageLower.includes('inactive')) {
+        message.textContent = dict.promoInactive || dict.promoExpired || 'This promo code is no longer active';
         message.className = 'promo-code-message error';
-      } else if (errorCode === 'LIMIT_REACHED' || errorMessage.includes('limit')) {
-        message.textContent = 'This promo code usage limit reached';
+      } else if (errorCode === 'LIMIT_REACHED' || errorMessageLower.includes('limit')) {
+        message.textContent = dict.promoLimitReached || 'This promo code usage limit reached';
         message.className = 'promo-code-message error';
       } else {
-        message.textContent = errorMessage;
+        message.textContent = dict.promoApplyFailed || 'Failed to apply promo code';
         message.className = 'promo-code-message error';
       }
     }
   } catch (error) {
-    message.textContent = 'Network error. Please try again.';
+    const dict = i18n[currentLang] || i18n.en;
+    message.textContent = dict.promoNetworkError || 'Network error. Please try again.';
     message.className = 'promo-code-message error';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Apply';
+    btn.textContent = (i18n[currentLang] || i18n.en).btnApply || 'Apply';
   }
 }
 
@@ -2265,13 +2951,13 @@ function renderModelsList() {
   if (!modelsList) return;
   
   if (currentModels.length === 0) {
-    modelsList.innerHTML = '<div class="models-empty">No models added yet. Models are added automatically when you apply changes on a profile.</div>';
+    modelsList.innerHTML = '<div class="models-empty">' + ((i18n[currentLang] || i18n.en).noModelsYet || 'No models added yet. Models are added automatically when you apply changes on a profile.') + '</div>';
     return;
   }
   
   modelsList.innerHTML = currentModels.map(model => {
     // Format date safely - backend returns createdAt (camelCase)
-    let dateStr = 'Unknown date';
+    let dateStr = (i18n[currentLang] || i18n.en).unknownDate || 'Unknown date';
     const createdDate = model.createdAt || model.created_at;
     if (createdDate) {
       const date = new Date(createdDate);
@@ -2293,7 +2979,7 @@ function renderModelsList() {
       </div>
       <div class="model-item-info">
         <span class="model-item-name">@${model.username}</span>
-        <span class="model-item-date">Added ${dateStr}</span>
+        <span class="model-item-date">${(i18n[currentLang] || i18n.en).modelAdded || 'Added'} ${dateStr}</span>
       </div>
       <button class="model-item-remove" title="Remove">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
@@ -2526,6 +3212,9 @@ const defaultSettings = {
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
+  // Load saved language immediately so subscription/promo screens use the correct locale
+  loadSettingsUI();
+
   // Setup auth listeners first (always needed)
   setupAuthListeners();
   
@@ -2549,6 +3238,7 @@ async function initMainApp(skipSubscriptionCheck = false) {
   await loadPresets();
   await loadSettings();
   await getModelInfo();
+  loadSettingsUI();
   
   // Only setup listeners once to prevent duplicates
   if (!listenersInitialized) {
@@ -2865,10 +3555,10 @@ function updateStatusIndicator(enabled) {
   
   if (enabled) {
     statusIndicator.classList.remove('inactive');
-    statusText.textContent = 'Active';
+    statusText.textContent = (i18n[currentLang] || i18n.en).statusActive || 'Active';
   } else {
     statusIndicator.classList.add('inactive');
-    statusText.textContent = 'Inactive';
+    statusText.textContent = (i18n[currentLang] || i18n.en).statusInactive || 'Inactive';
   }
 }
 
@@ -3305,7 +3995,10 @@ async function applyChanges() {
   if (currentModelUsername && currentModelUsername !== 'not_detected') {
     const canAdd = await checkAndAddModel(currentModelUsername);
     if (!canAdd) {
-      showToast('Model limit reached! Upgrade your plan.', 'error');
+      const dict = i18n[currentLang] || i18n.en;
+      showToast(dict.modelLimitReached || 'Model limit reached! Upgrade to Pro for more slots.', 'error');
+      // Auto-open upgrade screen after short delay
+      setTimeout(() => { if (upgradeBtn) upgradeBtn.click(); }, 1500);
       return;
     }
   }
@@ -4043,7 +4736,7 @@ async function saveActivePreset(name) {
 // Update custom dropdown options
 function updateCustomDropdown() {
   // Clear dropdown except first option
-  presetDropdown.innerHTML = '<div class="custom-select-option selected" data-value="">No preset</div>';
+  presetDropdown.innerHTML = '<div class="custom-select-option selected" data-value="" data-i18n="noPreset">' + ((i18n[currentLang] || i18n.en).noPreset || 'No preset') + '</div>';
   
   // Add presets sorted by name
   const presetNames = Object.keys(currentPresets).sort((a, b) => 
@@ -4065,7 +4758,7 @@ function updateCustomDropdown() {
 // Update selection in custom dropdown
 function updateCustomDropdownSelection() {
   const currentValue = presetSelect.value;
-  presetSelectText.textContent = currentValue || 'No preset';
+  presetSelectText.textContent = currentValue || (i18n[currentLang] || i18n.en).noPreset || 'No preset';
   
   // Update selected class
   presetDropdown.querySelectorAll('.custom-select-option').forEach(opt => {
@@ -4469,12 +5162,15 @@ function setupPresetListeners() {
       if (currentModelUsername && currentModelUsername !== 'not_detected' && currentModelUsername !== 'unknown') {
         const canAdd = await checkAndAddModel(currentModelUsername);
         if (!canAdd) {
-          showToast('Model limit reached! Upgrade your plan.', 'error');
+          const dict = i18n[currentLang] || i18n.en;
+          showToast(dict.modelLimitReached || 'Model limit reached! Upgrade to Pro for more slots.', 'error');
           // Reset preset selection
           presetSelect.value = '';
           updateCustomDropdownSelection();
           deletePresetBtn.disabled = true;
           await saveActivePreset('');
+          // Auto-open upgrade screen after short delay
+          setTimeout(() => { if (upgradeBtn) upgradeBtn.click(); }, 1500);
           return;
         }
       }

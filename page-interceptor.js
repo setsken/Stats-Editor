@@ -67,6 +67,7 @@
       subscribePrice: data.subscribePrice,
       location: data.location,
       website: data.website,
+      wishlistUrl: data.wishlistUrl || null,
       about: data.about,
       // Subscription info
       subscribedBy: data.subscribedBy,
@@ -75,6 +76,9 @@
       subscribedIsExpiredNow: data.subscribedIsExpiredNow,
       subscribedOn: data.subscribedOn,
       subscribedOnDuration: data.subscribedOnDuration,
+      // Visual profile
+      avatar: data.avatar || null,
+      header: data.header || null,
       // Additional
       hasLabels: data.hasLabels,
       canEarn: data.canEarn,

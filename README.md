@@ -1,69 +1,134 @@
-# OF Stats Editor Pro 🎨
+# 🚀 OF Stats Editor Pro - Visual Statistics Preview Tool for OnlyFans 🚀
 
-Профессиональный плагин для редактирования статистики с красивым темно-синим интерфейсом.
+Preview how different statistics would look on your OnlyFans page. Perfect for UI testing, educational purposes, and personal visualization.
 
-## 🚀 Установка
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 🎯 USE CASES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### Шаг 1: Скачайте иконки
-1. Откройте файл `DOWNLOAD_ICONS.html` в браузере
-2. Нажмите кнопку "Скачать" под каждой иконкой
-3. Сохраните все 3 файла в папку `icons`:
-   - `icon16.png`
-   - `icon48.png`  
-   - `icon128.png`
+✅ Goal Visualization - See how your target stats would look
+✅ UI Testing - Test interface with different values
+✅ Educational - Learn platform interface features
+✅ Personal Motivation - Visualize your goals
 
-### Шаг 2: Установите расширение в Chrome
-1. Откройте Chrome
-2. Перейдите на `chrome://extensions/`
-3. Включите **"Режим разработчика"** (переключатель в правом верхнем углу)
-4. Нажмите **"Загрузить распакованное расширение"**
-5. Выберите папку `C:\Softs\Softs\Plugin Stata`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ✨ KEY FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### Шаг 3: Использование
-1. Перейдите на сайт OnlyFans
-2. Откройте страницу статистики: `https://onlyfans.com/my/statements/earnings`
-3. Нажмите на иконку расширения в панели браузера
-4. Введите желаемые значения
-5. Нажмите **"Apply Changes"**
+### 📊 STATISTICS PREVIEW
+• Preview earnings & balance display
+• View how different fans counts appear
+• Customize visible statistics locally
 
-## ✨ Возможности
+### 📈 CHART VISUALIZATION
+• Preview fans growth charts
+• Visualize different growth patterns
+• Test chart display options
 
-- **Current Balance** - изменение текущего баланса
-- **Pending Balance** - изменение ожидающего баланса  
-- **Fans Count** - изменение количества фанов
-- **Following Count** - изменение количества подписок
-- **Toggle** - быстрое включение/выключение изменений
-- **Auto-save** - автоматическое сохранение настроек
-- **Model Detection** - определение никнейма модели
+### 🗄️ MODEL DATABASE
+• Track registration dates for models
+• Store fans count records
+• Historical data management
+• Multi-model organization
 
-## 🎨 Дизайн
+### 💾 PRESETS SYSTEM
+• Save custom configurations
+• Load presets instantly
+• Organize different setups
 
-- Темно-синяя цветовая схема
-- Градиентные акценты
-- Плавные анимации
-- Адаптивный интерфейс
+### 🎲 RANDOM MODE
+• Generate sample values
+• Set custom ranges
+• Test with varied data
 
-## 📁 Структура файлов
+### 🔔 PROFILE BADGE
+• Real-time profile analysis badge on model pages
+• Fans trend visualization (7d / 30d / 90d)
+• Engagement rate & percentile ranking
+• AI Verdict scoring
+• Farmed model detection alerts
 
-```
-Plugin Stata/
-├── manifest.json          # Конфигурация расширения
-├── popup.html            # Интерфейс плагина
-├── popup.css             # Стили интерфейса
-├── popup.js              # Логика интерфейса
-├── content.js            # Скрипт для страницы
-├── content.css           # Стили для страницы
-├── DOWNLOAD_ICONS.html   # Генератор иконок
-└── icons/
-    ├── icon16.png        # Иконка 16x16
-    ├── icon48.png        # Иконка 48x48
-    └── icon128.png       # Иконка 128x128
-```
+### �️ RADAR ANALYSIS
+• 5-axis quality radar chart (MAT, POP, ORG, ACT, TRS)
+• X-Ray mode: estimated revenue, engagement rate, content metrics
+• Engagement percentile: "Top X%" ranking across all analyzed profiles
+• Color-coded indicators for quick assessment
 
-## ⚠️ Важно
+### 📈 FANS TREND
+• Daily fans growth tracking & historical charts
+• Sparkline visualization with configurable time range (7d / 30d / 90d)
+• Growth metrics: gained fans, average per day
+• Automatic daily reporting to shared database
 
-Это расширение изменяет только **визуальное отображение** на странице. Реальные данные на сервере не изменяются.
+### ⚔️ MODEL COMPARISON
+• Side-by-side "Battle" comparison of two model profiles
+• 9 metrics compared: Score, Fans, Posts, Likes, Engagement, Organicity, Videos, Price, Streams
+• Overlaid radar chart for visual quality comparison
+• Winner determination with detailed metric breakdown
+• One-click "Compare" button on any profile badge
 
-## 🔄 Версия
+### �📝 QUICK NOTES
+• Add notes to any model profile
+• Custom tag system for organization
+• Cloud-synced across devices
 
-**v1.0.0** - Первый релиз
+### 🌐 MULTI-LANGUAGE
+• English & Russian interface
+• Automatic language detection
+
+### 🔄 PLAN UPGRADE
+• Seamless upgrade from Plus to Pro
+• Pro-rated discount for remaining days
+• Instant slot expansion without data loss
+
+### 🎨 PROFESSIONAL INTERFACE
+• Clean dark blue design
+• Intuitive controls
+• Smooth integration
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 🏢 AGENCY FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Organize multiple model profiles
+• Track registration dates
+• Monitor fans count records
+• Quick profile switching
+• Centralized data management
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 🛡️ IMPORTANT NOTICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ LOCAL visual changes ONLY - nothing sent to servers
+⚡ Original data remains unchanged
+⚡ Changes reset on page refresh
+⚡ For personal use only
+⚠️ NOT for creating misleading content for third parties
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 💎 SUBSCRIPTION PLANS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**PLUS - $30/month**
+• Up to 10 models
+• All preview features
+• Presets & Random mode
+• Data tracking
+
+**PRO - $50/month**
+• Up to 50 models
+• All preview features
+• Priority support
+• Advanced tracking
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 🔄 Version
+
+**v1.2.5** - Plan upgrade system, multi-language support, profile badge improvements
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For support: support@ofstats.pro
+Telegram: @kiiiitttt2812

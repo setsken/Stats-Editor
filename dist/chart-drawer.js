@@ -1,5 +1,9 @@
 ﻿// Chart drawing code that runs in page context
 (function() {
+  // Prevent duplicate initialization (script may be loaded multiple times)
+  if (window.ofStatsChartDrawerInitialized) return;
+  window.ofStatsChartDrawerInitialized = true;
+  
   // Debug flag - set to false in production to disable all console logs
   const DEBUG = false;
   function log(...args) { if (DEBUG) log(...args); }
@@ -26,8 +30,12 @@
   function getPageLanguage() {
     var htmlLang = (document.documentElement.lang || '').toLowerCase();
     if (htmlLang.startsWith('ru')) return 'ru';
+    if (htmlLang.startsWith('es')) return 'es';
+    if (htmlLang.startsWith('de')) return 'de';
     var body = document.body ? (document.body.textContent || '').substring(0, 3000) : '';
     if (body.indexOf('Статистика') !== -1 || body.indexOf('Заявления') !== -1 || body.indexOf('Заработок') !== -1) return 'ru';
+    if (body.indexOf('Estadísticas') !== -1 || body.indexOf('Ganancias') !== -1) return 'es';
+    if (body.indexOf('Statistiken') !== -1 || body.indexOf('Einnahmen') !== -1) return 'de';
     return 'en';
   }
   
@@ -266,6 +274,9 @@
     var earningsData = data.earnings;
     var countData = data.counts;
     var startDate = data.startDate ? new Date(data.startDate) : new Date();
+    var monthlyMode = data.monthlyMode || false;
+    var monthDates = data.monthDates || [];
+    var monthlyStep = monthlyMode ? Math.max(1, Math.ceil(labels.length / 5)) : 7;
     
     // Destroy existing charts
     var existingMain = Chart.getChart(mainCanvas);
@@ -332,10 +343,16 @@
         lastTooltipIndex = index;
         
         // Update tooltip content
-        var d = new Date(startDate);
-        d.setDate(startDate.getDate() + index);
-        var locale = getPageLanguage() === 'ru' ? 'ru-RU' : 'en-US';
-        var titleText = d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
+        var titleText;
+        if (monthlyMode && labels[index]) {
+          titleText = labels[index];
+        } else {
+          var d = new Date(startDate);
+          d.setDate(startDate.getDate() + index);
+          var _lang = getPageLanguage();
+          var locale = _lang === 'ru' ? 'ru-RU' : _lang === 'es' ? 'es-ES' : _lang === 'de' ? 'de-DE' : 'en-US';
+          titleText = d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
+        }
         
         var titleEl = tooltipEl.querySelector('.b-chart__tooltip__title');
         if (titleEl) titleEl.innerText = titleText;
@@ -605,42 +622,69 @@
           ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
           
-          var dateIndices = [1, 8, 15, 22, 29];
-          
-          dateIndices.forEach(function(dateIndex, gridIndex) {
-            if (gridIndex >= 4) return;
-            
-            if (gridLines[gridIndex]) {
-              var gridLineX = gridLines[gridIndex].x1;
-              // Vertical lines are at gridLineX - 90
-              // Dates should be positioned to the RIGHT of vertical lines
-              // So we use gridLineX - 90 (line position) + some offset to place text after line
+          if (monthlyMode) {
+            // Monthly mode: use labels directly (already "Mon, YYYY" format)
+            var numGridLabels = Math.min(gridLines.length, 4);
+            for (var gi = 0; gi < numGridLabels; gi++) {
+              var gridLineX = gridLines[gi].x1;
               var verticalLineX = gridLineX + 33;
-              var x = verticalLineX + 5; // 5px after the vertical line
+              var x = verticalLineX + 5;
+              if (x < chartArea.left) x = chartArea.left + 5;
               
-              if (x < chartArea.left) {
-                x = chartArea.left + 5;
-              }
+              // Map grid line index to label index
+              var labelIdx = (gi + 1) * monthlyStep;
+              if (labelIdx >= labels.length) labelIdx = labels.length - 1;
               
-              var d = new Date(startDate);
-              d.setDate(startDate.getDate() + dateIndex);
-              var line1 = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ',';
-              var line2 = d.getFullYear().toString();
-              
-              ctx.fillText(line1, x, chartArea.bottom + 6);
-              ctx.fillText(line2, x, chartArea.bottom + 18);
+              var parts = labels[labelIdx].split(', ');
+              ctx.fillText((parts[0] || '') + ',', x, chartArea.bottom + 6);
+              ctx.fillText(parts[1] || '', x, chartArea.bottom + 18);
             }
-          });
+            
+            // Last label at chartArea.right
+            var lastLabel = labels[labels.length - 1] || '';
+            var lastParts = lastLabel.split(', ');
+            var x5m = chartArea.right + 5;
+            ctx.fillText((lastParts[0] || '') + ',', x5m, chartArea.bottom + 6);
+            ctx.fillText(lastParts[1] || '', x5m, chartArea.bottom + 18);
+          } else {
+            // Daily mode: original logic
+            var dateIndices = [1, 8, 15, 22, 29];
           
-          // Draw 5th date at the end (right after chartArea.right vertical line)
-          var d5 = new Date(startDate);
-          d5.setDate(startDate.getDate() + 29);
-          var line1_5th = d5.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ',';
-          var line2_5th = d5.getFullYear().toString();
-          var x5 = chartArea.right + 5;
+            dateIndices.forEach(function(dateIndex, gridIndex) {
+              if (gridIndex >= 4) return;
+            
+              if (gridLines[gridIndex]) {
+                var gridLineX = gridLines[gridIndex].x1;
+                // Vertical lines are at gridLineX - 90
+                // Dates should be positioned to the RIGHT of vertical lines
+                // So we use gridLineX - 90 (line position) + some offset to place text after line
+                var verticalLineX = gridLineX + 33;
+                var x = verticalLineX + 5; // 5px after the vertical line
+              
+                if (x < chartArea.left) {
+                  x = chartArea.left + 5;
+                }
+              
+                var d = new Date(startDate);
+                d.setDate(startDate.getDate() + dateIndex);
+                var line1 = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ',';
+                var line2 = d.getFullYear().toString();
+              
+                ctx.fillText(line1, x, chartArea.bottom + 6);
+                ctx.fillText(line2, x, chartArea.bottom + 18);
+              }
+            });
           
-          ctx.fillText(line1_5th, x5, chartArea.bottom + 6);
-          ctx.fillText(line2_5th, x5, chartArea.bottom + 18);
+            // Draw 5th date at the end (right after chartArea.right vertical line)
+            var d5 = new Date(startDate);
+            d5.setDate(startDate.getDate() + 29);
+            var line1_5th = d5.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ',';
+            var line2_5th = d5.getFullYear().toString();
+            var x5 = chartArea.right + 5;
+          
+            ctx.fillText(line1_5th, x5, chartArea.bottom + 6);
+            ctx.fillText(line2_5th, x5, chartArea.bottom + 18);
+          }
         }
         
         // Draw horizontal grid lines and Y-axis labels
@@ -727,7 +771,7 @@
             ticks: {
               display: false,
               callback: function(val, index) {
-                return (index % 7 === 0) ? '' : null;
+                return (index % monthlyStep === 0) ? '' : null;
               }
             }
           },
@@ -800,7 +844,7 @@
             ticks: {
               display: false,
               callback: function(val, index) {
-                return (index % 7 === 0) ? '' : null;
+                return (index % monthlyStep === 0) ? '' : null;
               }
             }
           },
@@ -845,7 +889,17 @@
       }
     }
     
-    mainCanvas.addEventListener('mousemove', function(e) {
+    // Remove old event listeners from previous chart draws
+    if (mainCanvas._ofHandlers) {
+      mainCanvas.removeEventListener('mousemove', mainCanvas._ofHandlers.move);
+      mainCanvas.removeEventListener('mouseleave', mainCanvas._ofHandlers.leave);
+    }
+    if (asideCanvas._ofHandlers) {
+      asideCanvas.removeEventListener('mousemove', asideCanvas._ofHandlers.move);
+      asideCanvas.removeEventListener('mouseleave', asideCanvas._ofHandlers.leave);
+    }
+    
+    function mainMousemove(e) {
       var points = chartMain.getElementsAtEventForMode(e, 'index', { intersect: true }, false);
       if (points.length > 0) {
         var pointX = points[0].element.x;
@@ -862,17 +916,17 @@
           chartAside.draw();
         }
       }
-    });
+    }
     
-    mainCanvas.addEventListener('mouseleave', function() {
+    function mainMouseleave() {
       lastHoveredIndex = -1;
       hoverLineX = -1;
       chartAside.setActiveElements([]);
       chartMain.draw();
       chartAside.draw();
-    });
+    }
     
-    asideCanvas.addEventListener('mousemove', function(e) {
+    function asideMousemove(e) {
       var points = chartAside.getElementsAtEventForMode(e, 'index', { intersect: true }, false);
       if (points.length > 0) {
         var pointX = points[0].element.x;
@@ -889,15 +943,24 @@
           chartAside.draw();
         }
       }
-    });
+    }
     
-    asideCanvas.addEventListener('mouseleave', function() {
+    function asideMouseleave() {
       lastHoveredIndex = -1;
       hoverLineX = -1;
       chartMain.setActiveElements([]);
       chartMain.draw();
       chartAside.draw();
-    });
+    }
+    
+    // Store references for cleanup
+    mainCanvas._ofHandlers = { move: mainMousemove, leave: mainMouseleave };
+    asideCanvas._ofHandlers = { move: asideMousemove, leave: asideMouseleave };
+    
+    mainCanvas.addEventListener('mousemove', mainMousemove);
+    mainCanvas.addEventListener('mouseleave', mainMouseleave);
+    asideCanvas.addEventListener('mousemove', asideMousemove);
+    asideCanvas.addEventListener('mouseleave', asideMouseleave);
     
     log('OF Stats: Statistics charts rendered');
     

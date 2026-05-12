@@ -3,3 +3,18 @@ node_modules/
 Thumbs.db
 *.log
 .env
+
+# Claude / IDE local state
+.claude/
+.vscode/
+
+# Local SQLite copies (production data lives on Railway PostgreSQL)
+*.db
+*.db-shm
+*.db-wal
+
+# Build artifacts / packaged zips
+*.zip
+
+# Local design sandbox (HTML mockups, experimental layouts, banner variants)
+sandbox/

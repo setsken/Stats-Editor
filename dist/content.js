@@ -1910,6 +1910,11 @@
       localStorage.setItem('ofStatsCache', JSON.stringify(settings));
     } catch(e) {}
     
+    // Notify inject-early.js about settings change (it uses in-memory cachedSettings)
+    try {
+      window.dispatchEvent(new CustomEvent('ofStatsSettingsChanged', { detail: settings }));
+    } catch(e) {}
+    
     return { 
       success: true, 
       modified: modified,

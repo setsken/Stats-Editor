@@ -20,6 +20,7 @@
   // ==================== i18n for Badge ====================
   var _ofLang = localStorage.getItem('ofStatsLang') || 'ru';
   var _lastBadgeProfileData = null;
+  var _compareModelData = null; // saved model for comparison (loaded from chrome.storage)
   var _badgeI18n = {
     ru: {
       // Front side
@@ -40,7 +41,8 @@
       // Sections
       radarAnalysis: 'Radar Stats', xrayMode: 'X-Ray Mode',
       warnings: '⚠ Предупреждения', achievements: '✓ Достижения',
-      verdictAI: 'Вердикт AI: ', analyzing: 'Анализ...', unavailable: 'Недоступно',
+      verdictAI: 'Вердикт AI', analyzing: 'Анализ...', unavailable: 'Недоступно',
+      verdictGrade: { 'S': 'Превосходный профиль', 'A+': 'Отличный профиль', 'A': 'Хороший профиль', 'B+': 'Неплохой профиль', 'B': 'Средний профиль', 'C': 'Ниже среднего', 'D': 'Слабый профиль', 'F': 'Критический профиль' },
       // X-Ray keys
       estRevenue: 'Доход (прим.)', fansMonth: 'Фанов/мес', engagement: 'Вовлечённость',
       content: 'Контент', likesPost: 'Лайков/Пост', videos: 'Видео', streams: 'Стримы',
@@ -129,7 +131,14 @@
       // Fans trend
       trendTab: 'Тренд', radarTab: 'Радар', fansTrend: 'Тренд Фанов',
       trendGained: 'Прирост', trendPerDay: 'В день', trendReports: 'Точки',
-      trendNoData: 'Недостаточно данных',
+      trendAll: 'Все', trendNoData: 'Недостаточно данных',
+      // Milestone Timeline
+      milestoneTitle: 'Milestone Timeline', milestoneFans: 'фанов',
+      milestoneCurrent: 'сейчас', milestoneForecast: 'прогноз',
+      milestoneFor: 'за', milestoneDays: 'дн.', milestoneNoData: 'Нет данных для трекера',
+      msMonths: ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'],
+      msMonthsFull: ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'],
+      msMo: 'мес', msYr: 'г',
       // Engagement percentile (Radar tab)
       engagementPercentileTitle: 'Перцентиль вовлечённости',
       betterThanModels: 'Лучше, чем у ',
@@ -138,6 +147,25 @@
       vsAverageLabel: 'К СРЕДНЕМУ',
       modelsAnalyzedLabel: 'ПРОФИЛЕЙ',
       percentileBasis: 'на основе score, organicity и red flags',
+      aggregatedDB: 'агрегированный перцентиль БД',
+      qualityEstimate: 'оценка качества профиля',
+      // Compare (Feature #6)
+      compareBtn: 'Сравнить', compareSaved: 'Сохранено', compareTitle: 'Сравнение', compareWins: 'побеждает',
+      compareByMetrics: 'по метрикам', compareTie: 'Ничья', compareClear: 'Очистить',
+      compareBack: 'Назад к профилю',
+      // Quick Notes (Feature #7)
+      notesTab: 'Заметка', notesTagsTab: 'Теги', notesModelsTab: 'Модели',
+      notesSave: 'Сохранить', notesSaved: 'Сохранено', notesPlaceholder: 'Напишите заметку о модели...',
+      notesClickToAdd: 'Нажмите, чтобы добавить заметку...', notesCreateTag: 'Создать тег',
+      notesTagName: 'Имя тега...', notesNoModels: 'Нет моделей с этим тегом',
+      notesAll: 'Все', notesModels: 'моделей', notesModel: 'модель',
+      // Smart Alerts (Feature #8)
+      alertsTitle: 'Smart Alerts', alertsEmpty: 'Нет уведомлений', alertsClearAll: 'Очистить все',
+      alertFansSurge: 'набрала', alertFansDrop: 'потеряла', alertFans: 'фанов за день',
+      alertLikesSurge: 'набрала', alertLikesDrop: 'потеряла', alertLikes: 'лайков',
+      alertScoreUp: 'Score вырос', alertScoreDown: 'Score упал',
+      // Paywall
+      paywallRenew: 'Продлить подписку', paywallExpired: 'Подписка истекла',
       // AI payload
       aiDate: 'дата: ', aiRecentlyOnline: 'был(а) недавно', aiUnknown: 'неизвестно',
     },
@@ -156,7 +184,8 @@
       compTRS: 'Transparency — open comments, visible fans, verification',
       radarAnalysis: 'Radar Analysis', xrayMode: 'X-Ray Mode',
       warnings: '⚠ Warnings', achievements: '✓ Achievements',
-      verdictAI: 'Verdict AI: ', analyzing: 'Analyzing...', unavailable: 'Unavailable',
+      verdictAI: 'Verdict AI', analyzing: 'Analyzing...', unavailable: 'Unavailable',
+      verdictGrade: { 'S': 'Excellent profile', 'A+': 'Outstanding profile', 'A': 'Good profile', 'B+': 'Above average', 'B': 'Average profile', 'C': 'Below average', 'D': 'Poor profile', 'F': 'Critical profile' },
       estRevenue: 'Est. Revenue', fansMonth: 'Fans/month', engagement: 'Engagement',
       content: 'Content', likesPost: 'Likes/Post', videos: 'Videos', streams: 'Streams',
       accountAge: 'Account Age', fans: 'Fans', comments: 'Comments',
@@ -242,7 +271,14 @@
       // Fans trend
       trendTab: 'Trend', radarTab: 'Radar', fansTrend: 'Fans Trend',
       trendGained: 'Gained', trendPerDay: 'Per Day', trendReports: 'Points',
-      trendNoData: 'Not enough data',
+      trendAll: 'All', trendNoData: 'Not enough data',
+      // Milestone Timeline
+      milestoneTitle: 'Milestone Timeline', milestoneFans: 'fans',
+      milestoneCurrent: 'now', milestoneForecast: 'forecast',
+      milestoneFor: 'in', milestoneDays: 'days', milestoneNoData: 'No data for tracker',
+      msMonths: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      msMonthsFull: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+      msMo: 'mo', msYr: 'y',
       // Engagement percentile (Radar tab)
       engagementPercentileTitle: 'Engagement Percentile',
       betterThanModels: 'Better engagement than ',
@@ -251,6 +287,25 @@
       vsAverageLabel: 'VS AVERAGE',
       modelsAnalyzedLabel: 'MODELS',
       percentileBasis: 'based on score, organicity and red flags',
+      aggregatedDB: 'aggregated DB percentile',
+      qualityEstimate: 'quality score estimate',
+      // Compare (Feature #6)
+      compareBtn: 'Compare', compareSaved: 'Saved', compareTitle: 'Comparison', compareWins: 'wins',
+      compareByMetrics: 'by metrics', compareTie: 'Tie', compareClear: 'Clear',
+      compareBack: 'Back to profile',
+      // Quick Notes (Feature #7)
+      notesTab: 'Note', notesTagsTab: 'Tags', notesModelsTab: 'Models',
+      notesSave: 'Save', notesSaved: 'Saved', notesPlaceholder: 'Write a note about this model...',
+      notesClickToAdd: 'Click to add a note...', notesCreateTag: 'Create tag',
+      notesTagName: 'Tag name...', notesNoModels: 'No models with this tag',
+      notesAll: 'All', notesModels: 'models', notesModel: 'model',
+      // Smart Alerts (Feature #8)
+      alertsTitle: 'Smart Alerts', alertsEmpty: 'No alerts', alertsClearAll: 'Clear all',
+      alertFansSurge: 'gained', alertFansDrop: 'lost', alertFans: 'fans in a day',
+      alertLikesSurge: 'gained', alertLikesDrop: 'lost', alertLikes: 'likes',
+      alertScoreUp: 'Score increased', alertScoreDown: 'Score decreased',
+      // Paywall
+      paywallRenew: 'Renew Subscription', paywallExpired: 'Subscription expired',
       aiDate: 'date: ', aiRecentlyOnline: 'recently online', aiUnknown: 'unknown',
     }
   };
@@ -367,6 +422,33 @@
       if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
       return String(num);
     }
+
+    // LTTB (Largest-Triangle-Three-Buckets) downsampling
+    // Keeps visually important points for chart readability
+    function lttbDownsample(data, threshold) {
+      if (data.length <= threshold) return data;
+      var sampled = [data[0]];
+      var bucketSize = (data.length - 2) / (threshold - 2);
+      var a = 0;
+      for (var i = 1; i < threshold - 1; i++) {
+        var avgStart = Math.floor((i) * bucketSize) + 1;
+        var avgEnd = Math.min(Math.floor((i + 1) * bucketSize) + 1, data.length);
+        var avgX = 0, avgY = 0, cnt = 0;
+        for (var j = avgStart; j < avgEnd; j++) { avgX += j; avgY += data[j].f; cnt++; }
+        avgX /= cnt; avgY /= cnt;
+        var rangeStart = Math.floor((i - 1) * bucketSize) + 1;
+        var rangeEnd = Math.floor((i) * bucketSize) + 1;
+        var maxArea = -1, maxIdx = rangeStart;
+        for (var k = rangeStart; k < rangeEnd; k++) {
+          var area = Math.abs((a - avgX) * (data[k].f - data[a].f) - (a - k) * (avgY - data[a].f));
+          if (area > maxArea) { maxArea = area; maxIdx = k; }
+        }
+        sampled.push(data[maxIdx]);
+        a = maxIdx;
+      }
+      sampled.push(data[data.length - 1]);
+      return sampled;
+    }
     
     // Listen for profile data events dispatched from page context
     window.addEventListener('ofStatsProfileData', async function(e) {
@@ -385,20 +467,18 @@
         
         if (lastReportDay !== todayKey) {
           try {
-            chrome.runtime.sendMessage({
+            const result = await chrome.runtime.sendMessage({
               action: 'reportFans',
               username: profileData.username,
               fansCount: profileData.subscribersCount,
               fansText: quickFormatNumber(profileData.subscribersCount),
               reportDay: todayKey
-            }).then(result => {
-              if (result && result.recorded) {
-                localStorage.setItem(reportDayKey, todayKey);
-                // Keep legacy key in sync for backward compatibility/debugging
-                localStorage.setItem(reportLegacyTsKey, String(Date.now()));
-                log('OF Stats: Fans recorded to global registry for @' + profileData.username + ' (verified)');
-              }
-            }).catch(() => {});
+            });
+            if (result && result.recorded) {
+              localStorage.setItem(reportDayKey, todayKey);
+              localStorage.setItem(reportLegacyTsKey, String(Date.now()));
+              log('OF Stats: Fans recorded to global registry for @' + profileData.username + ' (verified)');
+            }
           } catch (e) {
             log('OF Stats: Could not report fans:', e);
           }
@@ -444,8 +524,9 @@
       // because OF renders social links via Vue AFTER API data arrives
       profileData._detectedSocials = [];
       
-      // Fetch fans trend from server (non-blocking for badge render)
+      // Fetch fans trend from server (after reportFans to ensure today's point is written)
       profileData._fansTrend = null;
+      profileData._fansTrendRaw = null;
       if (profileData.username) {
         try {
           const trendData = await chrome.runtime.sendMessage({
@@ -453,9 +534,24 @@
             username: profileData.username,
             days: 90
           });
-          if (trendData && trendData.points && trendData.points.length >= 2) {
-            profileData._fansTrend = trendData.points;
-            log('OF Stats: Fans trend loaded for @' + profileData.username + ': ' + trendData.points.length + ' points');
+          if (trendData && trendData.points && trendData.points.length >= 1) {
+            var pts = trendData.points;
+            // Ensure today's point is present (inject from live data if missing)
+            if (profileData.subscribersCount != null) {
+              var now = new Date();
+              var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+              var lastPt = pts[pts.length - 1];
+              if (lastPt.d !== todayStr) {
+                pts.push({ d: todayStr, f: profileData.subscribersCount });
+              } else if (lastPt.f !== profileData.subscribersCount) {
+                lastPt.f = profileData.subscribersCount;
+              }
+            }
+            profileData._fansTrendRaw = pts.slice();
+            if (pts.length >= 2) {
+              profileData._fansTrend = pts;
+              log('OF Stats: Fans trend loaded for @' + profileData.username + ': ' + pts.length + ' points');
+            }
           }
         } catch (e) {
           log('OF Stats: Could not fetch fans trend:', e);
@@ -1101,6 +1197,321 @@
       return socials.filter(function(v, i, a) { return a.indexOf(v) === i; });
     }
 
+    // ==================== COMPARISON PANEL (Feature #6) ====================
+    function showComparisonInBadge(modelA, modelB, badgeEl, flipInner, flipFront, flipBack, adjustFlipHeight, updateCompareButtonCb) {
+      // Inject battle animation styles once
+      if (!document.getElementById('of-stats-battle-style')) {
+        var sty = document.createElement('style');
+        sty.id = 'of-stats-battle-style';
+        sty.textContent = [
+          '@keyframes ofBattleSlideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}',
+          '@keyframes ofBattlePulse{0%,100%{box-shadow:0 0 0 0 rgba(0,180,255,0)}50%{box-shadow:0 0 18px 4px rgba(0,180,255,0.25)}}',
+          '@keyframes ofBattleVs{0%{transform:scale(0.4) rotate(-20deg);opacity:0}60%{transform:scale(1.3) rotate(5deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}',
+          '@keyframes ofBattleGlow{0%,100%{opacity:0.3}50%{opacity:0.8}}',
+          '@keyframes ofBattleRowIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}',
+          '@keyframes ofBattleWinner{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}',
+          '@keyframes ofBattleRadarDraw{from{stroke-dashoffset:600}to{stroke-dashoffset:0}}',
+          '@keyframes ofCrownBounce{0%{transform:scale(0) rotate(-15deg);opacity:0}50%{transform:scale(1.3) rotate(5deg);opacity:1}70%{transform:scale(0.9) rotate(-2deg)}100%{transform:scale(1) rotate(0);opacity:1}}',
+          '@keyframes ofCrownFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}',
+          '@keyframes ofWinnerGlow{0%,100%{box-shadow:0 0 8px rgba(255,215,0,0.3)}50%{box-shadow:0 0 20px rgba(255,215,0,0.6)}}',
+          '@keyframes ofScorePop{0%{transform:scale(0);opacity:0}60%{transform:scale(1.15);opacity:1}100%{transform:scale(1)}}',
+          '@keyframes ofScoreShine{0%{background-position:200% center}100%{background-position:-200% center}}',
+          '.of-battle-avatar{width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid transparent;animation:ofBattlePulse 2s ease-in-out infinite}',
+          '.of-battle-avatar-winner{animation:ofWinnerGlow 2s ease-in-out infinite!important;border-color:#ffd700!important}',
+          '.of-battle-avatar-a{border-color:#00b4ff}',
+          '.of-battle-avatar-b{border-color:#7c3aed}',
+          '.of-battle-placeholder{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;animation:ofBattlePulse 2s ease-in-out infinite}',
+          '.of-battle-placeholder-a{background:rgba(0,180,255,0.15);border:2px solid #00b4ff}',
+          '.of-battle-placeholder-b{background:rgba(124,58,237,0.15);border:2px solid #7c3aed}',
+          '.of-battle-placeholder-winner{animation:ofWinnerGlow 2s ease-in-out infinite!important;border-color:#ffd700!important}'
+        ].join('');
+        document.head.appendChild(sty);
+      }
+
+      // --- PRE-CALCULATE WINS for crown/verdict ---
+      var radarKeys = [['MAT','mat',25],['POP','pop',25],['ORG','org',25],['ACT','act',15],['TRS','trs',10]];
+      var metrics = [
+        ['Score', 'score', 'num', true],
+        ['Fans', 'fans', 'short', true],
+        ['Posts', 'posts', 'num', true],
+        ['Likes', 'likes', 'short', true],
+        ['Engage', 'engagement', 'pct', true],
+        ['Organic', 'organicityScore', 'num', true],
+        ['Videos', 'videos', 'num', true],
+        ['Price', 'price', 'dollar', false],
+        ['Streams', 'streams', 'num', true]
+      ];
+      var winsA = 0, winsB = 0;
+      metrics.forEach(function(m) {
+        var key = m[1], higherBetter = m[3];
+        var vA = modelA[key] || 0, vB = modelB[key] || 0;
+        if (vA !== vB) {
+          if (higherBetter) { if (vA > vB) winsA++; else winsB++; }
+          else {
+            if (vA === 0 && vB > 0) winsA++;
+            else if (vB === 0 && vA > 0) winsB++;
+            else { if (vA < vB) winsA++; else winsB++; }
+          }
+        }
+      });
+      var hasWinner = winsA !== winsB;
+      var winnerIsA = winsA > winsB;
+
+      // Create comparison content div
+      var compView = document.createElement('div');
+      compView.id = 'of-stats-compare-view';
+      compView.style.cssText = 'animation:ofBattleSlideIn 0.4s ease;';
+
+      // --- HEADER: compact with back arrow + close ---
+      var hdr = document.createElement('div');
+      hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(0,180,255,0.12);';
+      hdr.innerHTML = '<div style="display:flex;align-items:center;gap:6px;">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="5" cy="6" r="3"/><path d="M12 6h5a2 2 0 0 1 2 2v7"/><path d="m15 9-3-3 3-3"/><circle cx="19" cy="18" r="3"/><path d="M12 18H7a2 2 0 0 1-2-2V9"/><path d="m9 15 3 3-3 3"/></svg>'
+        + '<span style="color:#00b4ff;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">' + t('compareTitle') + '</span></div>'
+        + '<div style="display:flex;align-items:center;gap:6px;">'
+        + '<div id="of-battle-back-btn" style="display:flex;align-items:center;gap:3px;cursor:pointer;user-select:none;padding:3px 8px;border-radius:6px;background:rgba(0,180,255,0.08);border:1px solid rgba(0,180,255,0.15);transition:all 0.2s;">'
+        + '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m0 0l7 7m-7-7l7-7"/></svg>'
+        + '<span style="color:#00b4ff;font-size:9px;font-weight:600;letter-spacing:0.3px;">' + t('compareBack') + '</span></div>'
+        + '<button id="of-battle-close-btn" style="background:none;border:none;color:#5f7388;cursor:pointer;font-size:16px;padding:0 2px;line-height:1;transition:color 0.2s;" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#5f7388\'">&times;</button></div>';
+      compView.appendChild(hdr);
+
+      // --- AVATARS + VS ROW with crown on winner ---
+      var gradeColorA = modelA.gradeColor || '#00b4ff';
+      var gradeColorB = modelB.gradeColor || '#00b4ff';
+
+      function avatarHtml(model, side, isWinner) {
+        var cls = side === 'a' ? 'of-battle-avatar of-battle-avatar-a' : 'of-battle-avatar of-battle-avatar-b';
+        var phCls = side === 'a' ? 'of-battle-placeholder of-battle-placeholder-a' : 'of-battle-placeholder of-battle-placeholder-b';
+        if (isWinner) { cls += ' of-battle-avatar-winner'; phCls += ' of-battle-placeholder-winner'; }
+        var crown = isWinner ? '<div style="position:absolute;top:-4px;left:50%;transform:translateX(-50%);z-index:3;pointer-events:none;"><div style="animation:ofCrownBounce 0.6s ease 0.8s both;"><div style="animation:ofCrownFloat 2s ease-in-out 1.4s infinite;font-size:20px;filter:drop-shadow(0 2px 8px rgba(255,215,0,0.6));">👑</div></div></div>' : '';
+        var avatarWrap = '<div style="position:relative;display:inline-block;padding-top:' + (isWinner ? '18px' : '0') + ';">' + crown;
+        if (model.avatar && typeof model.avatar === 'string' && model.avatar.indexOf('http') === 0) {
+          avatarWrap += '<img class="' + cls + '" src="' + model.avatar + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="' + phCls + '" style="display:none">👤</div>';
+        } else {
+          avatarWrap += '<div class="' + phCls + '">👤</div>';
+        }
+        avatarWrap += '</div>';
+        return avatarWrap;
+      }
+
+      function scoreBadge(model, side, isWin) {
+        var gc = model.gradeColor || '#00b4ff';
+        if (isWin) {
+          return '<div style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;padding:3px 10px;border-radius:12px;'
+            + 'background:linear-gradient(135deg,' + gc + '22,#ffd70022);'
+            + 'border:1px solid ' + gc + '44;'
+            + 'animation:ofScorePop 0.4s ease 0.6s both;">'
+            + '<span style="font-size:13px;filter:drop-shadow(0 0 4px ' + gc + ');">' + (model.gradeIcon || '') + '</span>'
+            + '<span style="font-size:14px;font-weight:900;background:linear-gradient(135deg,' + gc + ',#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">' + model.score + '</span>'
+            + '</div>';
+        }
+        return '<div style="display:inline-flex;align-items:center;gap:2px;margin-top:3px;padding:2px 8px;border-radius:10px;'
+          + 'background:' + gc + '12;border:1px solid ' + gc + '20;">'
+          + '<span style="font-size:10px;opacity:0.7;">' + (model.gradeIcon || '') + '</span>'
+          + '<span style="font-size:11px;font-weight:700;color:' + gc + ';opacity:0.8;">' + model.score + '</span>'
+          + '</div>';
+      }
+
+      var vsRow = document.createElement('div');
+      vsRow.style.cssText = 'display:flex;align-items:flex-end;justify-content:center;gap:10px;margin-bottom:10px;padding-top:4px;';
+      vsRow.innerHTML =
+        '<div style="text-align:center;animation:ofBattleSlideIn 0.3s ease;flex:1;min-width:0;">'
+        + avatarHtml(modelA, 'a', hasWinner && winnerIsA)
+        + '<div style="font-size:10px;font-weight:700;color:' + (hasWinner && winnerIsA ? '#ffd700' : '#fff') + ';margin-top:4px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:auto;margin-right:auto;">@' + modelA.username + '</div>'
+        + scoreBadge(modelA, 'a', hasWinner && winnerIsA)
+        + '</div>'
+        + '<div style="animation:ofBattleVs 0.5s ease 0.2s both;flex-shrink:0;padding-bottom:14px;">'
+        + '<div style="font-size:18px;font-weight:900;background:linear-gradient(135deg,#00b4ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">VS</div>'
+        + '<div style="width:24px;height:2px;background:linear-gradient(90deg,#00b4ff,#7c3aed);border-radius:1px;margin:4px auto;animation:ofBattleGlow 2s ease infinite;"></div>'
+        + '</div>'
+        + '<div style="text-align:center;animation:ofBattleSlideIn 0.3s ease 0.1s both;flex:1;min-width:0;">'
+        + avatarHtml(modelB, 'b', hasWinner && !winnerIsA)
+        + '<div style="font-size:10px;font-weight:700;color:' + (hasWinner && !winnerIsA ? '#ffd700' : '#fff') + ';margin-top:4px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:auto;margin-right:auto;">@' + modelB.username + '</div>'
+        + scoreBadge(modelB, 'b', hasWinner && !winnerIsA)
+        + '</div>';
+      compView.appendChild(vsRow);
+
+      // --- VERDICT right after avatars ---
+      var verdict = document.createElement('div');
+      verdict.style.cssText = 'text-align:center;padding:4px 0 8px;animation:ofBattleSlideIn 0.4s ease 0.4s both;';
+      if (hasWinner) {
+        var winner = winnerIsA ? modelA : modelB;
+        var winColor = winnerIsA ? '#00b4ff' : '#7c3aed';
+        var wMax = Math.max(winsA, winsB), wMin = Math.min(winsA, winsB);
+        verdict.innerHTML = '<div style="font-size:13px;font-weight:800;animation:ofBattleWinner 0.6s ease 0.6s both;background:linear-gradient(135deg,#ffd700,' + winColor + ');-webkit-background-clip:text;-webkit-text-fill-color:transparent;">🏆 @' + winner.username + ' ' + t('compareWins') + '</div>'
+          + '<div style="font-size:9px;color:#5f7388;margin-top:2px;">' + wMax + ' – ' + wMin + ' ' + t('compareByMetrics') + '</div>';
+      } else {
+        verdict.innerHTML = '<div style="font-size:13px;font-weight:800;color:#8899aa;">⚖️ ' + t('compareTie') + ' ' + winsA + ' – ' + winsB + '</div>';
+      }
+      compView.appendChild(verdict);
+
+      // --- RADAR OVERLAY ---
+      var radarAngles2 = [-90, -18, 54, 126, 198].map(function(a) { return a * Math.PI / 180; });
+      var rR = 80;
+      function rPt(angle, r) { return [Math.cos(angle) * r, Math.sin(angle) * r]; }
+
+      var gridLevelsC = [1, 0.75, 0.5, 0.25];
+      var gridPolysC = gridLevelsC.map(function(lv) {
+        return radarAngles2.map(function(a) { var p = rPt(a, rR * lv); return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+      });
+      var axisLinesC = radarAngles2.map(function(a) { var p = rPt(a, rR); return '<line x1="0" y1="0" x2="' + p[0].toFixed(1) + '" y2="' + p[1].toFixed(1) + '"/>'; }).join('');
+
+      function modelPoly(model) {
+        return radarKeys.map(function(k, i) {
+          var ratio = Math.min((model[k[1]] || 0) / k[2], 1);
+          var p = rPt(radarAngles2[i], rR * ratio);
+          return p[0].toFixed(1) + ',' + p[1].toFixed(1);
+        }).join(' ');
+      }
+      function modelDots(model, color) {
+        return radarKeys.map(function(k, i) {
+          var ratio = Math.min((model[k[1]] || 0) / k[2], 1);
+          var p = rPt(radarAngles2[i], rR * ratio);
+          return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.5" fill="' + color + '" stroke="#0a0e1e" stroke-width="1"/>';
+        }).join('');
+      }
+
+      var labelCfg = [
+        { anchor: 'center', offx: 0, offy: -10 },
+        { anchor: 'left', offx: 6, offy: 0 },
+        { anchor: 'left', offx: 6, offy: 0 },
+        { anchor: 'right', offx: -6, offy: 0 },
+        { anchor: 'right', offx: -6, offy: 0 }
+      ];
+      var vbX = -130, vbY = -105, vbW = 260, vbH = 220;
+
+      var radarDiv = document.createElement('div');
+      radarDiv.style.cssText = 'position:relative;margin-bottom:8px;animation:ofBattleSlideIn 0.4s ease 0.15s both;';
+      radarDiv.innerHTML = '<svg width="100%" viewBox="-130 -105 260 220" style="filter:drop-shadow(0 0 8px rgba(0,180,255,0.15));display:block;">'
+        + '<g opacity="0.15" stroke="#5f7388" fill="none">'
+        + gridPolysC.map(function(pts) { return '<polygon points="' + pts + '"/>'; }).join('')
+        + '</g>'
+        + '<g stroke="rgba(0,180,255,0.08)">' + axisLinesC + '</g>'
+        + (winnerIsA
+          ? '<polygon fill="#7c3aed20" stroke="#7c3aed" stroke-width="2" points="' + modelPoly(modelB) + '" style="stroke-dasharray:600;animation:ofBattleRadarDraw 1s ease 0.3s both;"/>'
+            + '<g>' + modelDots(modelB, '#7c3aed') + '</g>'
+            + '<polygon fill="#00b4ff20" stroke="#00b4ff" stroke-width="2" points="' + modelPoly(modelA) + '" style="stroke-dasharray:600;animation:ofBattleRadarDraw 1s ease 0.5s both;"/>'
+            + '<g>' + modelDots(modelA, '#00b4ff') + '</g>'
+          : '<polygon fill="#00b4ff20" stroke="#00b4ff" stroke-width="2" points="' + modelPoly(modelA) + '" style="stroke-dasharray:600;animation:ofBattleRadarDraw 1s ease 0.3s both;"/>'
+            + '<g>' + modelDots(modelA, '#00b4ff') + '</g>'
+            + '<polygon fill="#7c3aed20" stroke="#7c3aed" stroke-width="2" points="' + modelPoly(modelB) + '" style="stroke-dasharray:600;animation:ofBattleRadarDraw 1s ease 0.5s both;"/>'
+            + '<g>' + modelDots(modelB, '#7c3aed') + '</g>'
+        )
+        + '</svg>';
+
+      var radarTipKeys = { MAT: 'compMAT', POP: 'compPOP', ORG: 'compORG', ACT: 'compACT', TRS: 'compTRS' };
+      radarKeys.forEach(function(k, i) {
+        var vtx = rPt(radarAngles2[i], rR + 12);
+        var cfg = labelCfg[i];
+        var pctLeft = ((vtx[0] - vbX) / vbW * 100).toFixed(1);
+        var pctTop = ((vtx[1] - vbY) / vbH * 100).toFixed(1);
+        var xform = cfg.anchor === 'center' ? 'translate(-50%,' + cfg.offy + 'px)' : cfg.anchor === 'right' ? 'translate(calc(-100% + ' + cfg.offx + 'px),' + cfg.offy + 'px)' : 'translate(' + cfg.offx + 'px,' + cfg.offy + 'px)';
+        var vA = modelA[k[1]] || 0, vB = modelB[k[1]] || 0;
+        var tipText = t(radarTipKeys[k[0]] || 'compMAT');
+        var lbl = document.createElement('span');
+        lbl.className = 'of-stats-tip';
+        lbl.style.cssText = 'position:absolute;top:' + pctTop + '%;left:' + pctLeft + '%;transform:' + xform + ';font-size:10px;font-weight:600;font-family:Inter,-apple-system,sans-serif;white-space:nowrap;z-index:2;';
+        lbl.innerHTML = '<span style="color:#00b4ff;">' + vA + '</span><span style="color:#3a4555;margin:0 2px;">·</span><span style="color:#7c3aed;">' + vB + '</span> <span style="color:#5f7388;">' + k[0] + '</span>'
+          + '<span class="of-stats-tiptext" style="display:none;">' + tipText + '<br><span style="color:#00b4ff;">@' + modelA.username + ': ' + vA + '/' + k[2] + '</span> · <span style="color:#7c3aed;">@' + modelB.username + ': ' + vB + '/' + k[2] + '</span></span>';
+        radarDiv.appendChild(lbl);
+      });
+
+      // Legend
+      var legend = document.createElement('div');
+      legend.style.cssText = 'display:flex;justify-content:center;gap:16px;margin-top:4px;font-size:9px;';
+      legend.innerHTML = '<div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:50%;background:#00b4ff;"></div><span style="color:#8899aa;">@' + modelA.username + '</span></div>'
+        + '<div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:50%;background:#7c3aed;"></div><span style="color:#8899aa;">@' + modelB.username + '</span></div>';
+      radarDiv.appendChild(legend);
+      compView.appendChild(radarDiv);
+
+      // --- METRIC BATTLE ROWS ---
+      function fmtVal(val, type) {
+        if (type === 'short') {
+          if (val >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+          if (val >= 1000) return (val / 1000).toFixed(1) + 'K';
+          return String(val);
+        }
+        if (type === 'pct') return (val || 0).toFixed(1) + '%';
+        if (type === 'dollar') return val === 0 ? 'FREE' : '$' + val;
+        return String(val);
+      }
+
+      var metPanel = document.createElement('div');
+      metPanel.style.cssText = 'background:rgba(0,0,0,0.25);border-radius:10px;padding:6px 0;box-shadow:inset 0 2px 10px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.03);margin-bottom:8px;';
+      metrics.forEach(function(m, idx) {
+        var label = m[0], key = m[1], type = m[2], higherBetter = m[3];
+        var vA = modelA[key] || 0, vB = modelB[key] || 0;
+        var aWin = false, bWin = false;
+        if (vA !== vB) {
+          if (higherBetter) { aWin = vA > vB; bWin = vB > vA; }
+          else {
+            if (vA === 0 && vB > 0) aWin = true;
+            else if (vB === 0 && vA > 0) bWin = true;
+            else { aWin = vA < vB; bWin = vB < vA; }
+          }
+        }
+
+        var cA = aWin ? '#22c55e' : (bWin ? '#ef4444' : '#667788');
+        var cB = bWin ? '#22c55e' : (aWin ? '#ef4444' : '#667788');
+        var arrow = aWin ? '◀' : (bWin ? '▶' : '–');
+        var arrowColor = aWin ? '#22c55e' : (bWin ? '#22c55e' : '#334455');
+        var delay = (0.2 + idx * 0.06).toFixed(2);
+
+        var row = document.createElement('div');
+        row.style.cssText = 'display:grid;grid-template-columns:1fr 18px auto 18px 1fr;align-items:center;padding:5px 12px;animation:ofBattleRowIn 0.3s ease ' + delay + 's both;' + (idx > 0 ? 'border-top:1px solid rgba(255,255,255,0.03);' : '');
+        row.innerHTML =
+          '<div style="text-align:right;padding-right:4px;font-size:12px;font-weight:700;color:' + cA + ';">' + fmtVal(vA, type) + '</div>'
+          + '<div style="text-align:center;font-size:8px;color:' + arrowColor + ';">' + arrow + '</div>'
+          + '<div style="text-align:center;font-size:8px;color:#c8d6e5;text-transform:uppercase;letter-spacing:0.4px;min-width:44px;font-weight:600;">' + label + '</div>'
+          + '<div style="text-align:center;font-size:8px;color:' + arrowColor + ';">' + arrow + '</div>'
+          + '<div style="text-align:left;padding-left:4px;font-size:12px;font-weight:700;color:' + cB + ';">' + fmtVal(vB, type) + '</div>';
+        metPanel.appendChild(row);
+      });
+      compView.appendChild(metPanel);
+
+      // --- ACTION ROW: clear + back ---
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;justify-content:center;padding:6px 0 2px;animation:ofBattleSlideIn 0.3s ease 0.9s both;';
+
+      var clearBtn2 = document.createElement('button');
+      clearBtn2.style.cssText = 'padding:5px 14px;border-radius:6px;border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.06);color:#ef4444;font-size:10px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.2s;';
+      clearBtn2.textContent = '🗑 ' + t('compareClear');
+      clearBtn2.onmouseenter = function() { this.style.background = 'rgba(239,68,68,0.12)'; };
+      clearBtn2.onmouseleave = function() { this.style.background = 'rgba(239,68,68,0.06)'; };
+
+      actions.appendChild(clearBtn2);
+      compView.appendChild(actions);
+
+      // --- SWAP CONTENT: hide front/back, show comparison ---
+      flipFront.style.display = 'none';
+      flipBack.style.display = 'none';
+      if (flipInner.classList.contains('flipped')) flipInner.classList.remove('flipped');
+      flipInner.appendChild(compView);
+      flipInner.style.minHeight = '';
+      flipInner.offsetHeight;
+      flipInner.style.minHeight = compView.scrollHeight + 'px';
+
+      function restoreCard() {
+        compView.remove();
+        flipFront.style.display = '';
+        flipBack.style.display = '';
+        flipInner.style.minHeight = '';
+        flipInner.offsetHeight;
+        flipInner.style.minHeight = flipFront.scrollHeight + 'px';
+      }
+
+      hdr.querySelector('#of-battle-back-btn').onclick = restoreCard;
+      hdr.querySelector('#of-battle-close-btn').onclick = function() { badgeEl.remove(); };
+
+      clearBtn2.onclick = function() {
+        chrome.storage.local.remove('ofStatsCompareModel', function() {
+          _compareModelData = null;
+          restoreCard();
+          if (typeof updateCompareButtonCb === 'function') updateCompareButtonCb();
+        });
+      };
+    }
+
     // Function to display profile data badge on the page
     function displayProfileData(profileData) {
       // Check if user is authenticated - don't show if not logged in
@@ -1111,7 +1522,41 @@
       }
 
       // Read settings from chrome.storage.local (shared with popup)
-      chrome.storage.local.get(['ofStatsBadgeEnabled', 'ofStatsVerdictEnabled', 'ofStatsLang'], function(settings) {
+      chrome.storage.local.get(['ofStatsBadgeEnabled', 'ofStatsVerdictEnabled', 'ofStatsLang', 'ofStatsSubscriptionActive'], function(settings) {
+
+      // Subscription paywall flag — use cached value initially
+      var _subExpired = settings.ofStatsSubscriptionActive === false;
+
+      // Live server check: verify subscription is still active
+      // Must use the same logic as popup.js: trust server `isActive`, then fallback to status
+      try {
+        chrome.runtime.sendMessage({ action: 'getSubscriptionStatus' }, function(resp) {
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.success && resp.subscription) {
+            var sub = resp.subscription || {};
+            var serverActive = (typeof sub.isActive === 'boolean')
+              ? sub.isActive
+              : (sub.status === 'active' || sub.status === 'trial');
+            if (!serverActive && !_subExpired) {
+              // Server says expired but badge thinks active — update storage and reload page
+              chrome.storage.local.set({ ofStatsSubscriptionActive: false });
+              log('OF Stats: Subscription expired on server, reloading badge');
+              var oldBadge = document.getElementById('of-stats-profile-badge');
+              if (oldBadge) oldBadge.remove();
+              displayProfileData(profileData);
+              return;
+            } else if (serverActive && _subExpired) {
+              // Server says active but badge thinks expired — update storage and reload
+              chrome.storage.local.set({ ofStatsSubscriptionActive: true });
+              log('OF Stats: Subscription renewed on server, reloading badge');
+              var oldBadge2 = document.getElementById('of-stats-profile-badge');
+              if (oldBadge2) oldBadge2.remove();
+              displayProfileData(profileData);
+              return;
+            }
+          }
+        });
+      } catch (e) {}
 
       // Check if badge is enabled in settings
       if (settings.ofStatsBadgeEnabled === false) {
@@ -1400,6 +1845,13 @@
           <span style="color:#00b4ff;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Profile Stats</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
+          <div id="of-stats-alerts-btn" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;cursor:pointer;border-radius:6px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.15);transition:all 0.2s;opacity:0.65;position:relative;" title="Smart Alerts">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <div id="of-stats-alerts-badge" style="display:none;position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:#ef4444;color:#fff;font-size:8px;font-weight:700;line-height:14px;text-align:center;"></div>
+          </div>
+          <div id="of-stats-notes-btn" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;cursor:pointer;border-radius:6px;background:rgba(0,180,255,0.08);border:1px solid rgba(0,180,255,0.15);transition:all 0.2s;opacity:0.65;" title="Quick Notes">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </div>
           <div id="of-stats-flip-btn" style="display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;opacity:0.65;transition:opacity 0.2s;padding:2px 6px;border-radius:6px;background:rgba(0,180,255,0.08);border:1px solid rgba(0,180,255,0.15);">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
             <span style="color:#00b4ff;font-size:9px;font-weight:600;letter-spacing:0.5px;" id="of-flip-label">Details</span>
@@ -1408,6 +1860,1143 @@
         </div>
       `;
       flipFront.appendChild(header);
+
+      // ==================== QUICK NOTES PANEL (Feature #7) ====================
+      var _notesUsername = (profileData.username || '').toLowerCase();
+      var _notesTAG_COLORS = [
+        { bg:'rgba(0,180,255,0.15)', border:'rgba(0,180,255,0.3)', color:'#00b4ff' },
+        { bg:'rgba(34,197,94,0.15)', border:'rgba(34,197,94,0.3)', color:'#22c55e' },
+        { bg:'rgba(239,68,68,0.15)', border:'rgba(239,68,68,0.3)', color:'#ef4444' },
+        { bg:'rgba(234,179,8,0.15)', border:'rgba(234,179,8,0.3)', color:'#eab308' },
+        { bg:'rgba(168,85,247,0.15)', border:'rgba(168,85,247,0.3)', color:'#a855f7' },
+        { bg:'rgba(244,114,182,0.15)', border:'rgba(244,114,182,0.3)', color:'#f472b6' },
+        { bg:'rgba(251,146,60,0.15)', border:'rgba(251,146,60,0.3)', color:'#fb923c' },
+        { bg:'rgba(45,212,191,0.15)', border:'rgba(45,212,191,0.3)', color:'#2dd4bf' }
+      ];
+      function _notesTagStyle(ci) {
+        var c = _notesTAG_COLORS[ci] || _notesTAG_COLORS[0];
+        return 'background:'+c.bg+';border:1px solid '+c.border+';color:'+c.color+';';
+      }
+      function _notesLoadTags() {
+        try { var d = localStorage.getItem('ofStatsTags'); return d ? JSON.parse(d) : []; } catch(e) { return []; }
+      }
+      function _notesSaveTags(tags) {
+        localStorage.setItem('ofStatsTags', JSON.stringify(tags));
+        // Sync tags to server (fire-and-forget)
+        try {
+          chrome.runtime.sendMessage({ action: 'syncNoteTags', tags: tags }, function(r) {
+            if (r && r.success && r.tags) {
+              // Update local tags with server IDs
+              localStorage.setItem('ofStatsTags', JSON.stringify(r.tags));
+            }
+          });
+        } catch(e) {}
+      }
+      function _notesLoadNote(username) {
+        try { var d = localStorage.getItem('ofStatsNotes'); var all = d ? JSON.parse(d) : {}; return all[username] || { text: '', tags: [] }; } catch(e) { return { text: '', tags: [] }; }
+      }
+      function _notesSaveNote(username, note) {
+        try { var d = localStorage.getItem('ofStatsNotes'); var all = d ? JSON.parse(d) : {}; all[username] = note; localStorage.setItem('ofStatsNotes', JSON.stringify(all)); } catch(e) {}
+        // Sync single note to server
+        try {
+          chrome.runtime.sendMessage({
+            action: 'saveNote',
+            username: username,
+            text: note.text || '',
+            tags: note.tags || [],
+            date: note.date || Date.now(),
+            avatarUrl: _notesGetAvatar(username)
+          }, function(r) {});
+        } catch(e) {}
+      }
+      function _notesDeleteFromServer(username) {
+        try {
+          chrome.runtime.sendMessage({ action: 'deleteNote', username: username }, function(r) {});
+        } catch(e) {}
+      }
+      // Save avatar URL for current model (called once on badge render)
+      function _notesSaveAvatar(username, avatarUrl) {
+        if (!username || !avatarUrl) return;
+        try { var d = localStorage.getItem('ofStatsAvatars'); var all = d ? JSON.parse(d) : {}; all[username] = avatarUrl; localStorage.setItem('ofStatsAvatars', JSON.stringify(all)); } catch(e) {}
+      }
+      function _notesGetAvatar(username) {
+        try { var d = localStorage.getItem('ofStatsAvatars'); var all = d ? JSON.parse(d) : {}; return all[username] || ''; } catch(e) { return ''; }
+      }
+      // Store current profile avatar
+      if (profileData.avatar) _notesSaveAvatar(_notesUsername, profileData.avatar);
+      function _notesLoadAllNotes() {
+        try { var d = localStorage.getItem('ofStatsNotes'); return d ? JSON.parse(d) : {}; } catch(e) { return {}; }
+      }
+
+      // Sync notes & tags from server to local (called on panel open & page load)
+      var _notesSyncedOnce = false;
+      function _notesSyncFromServer(callback) {
+        try {
+          // Sync tags first, then notes
+          chrome.runtime.sendMessage({ action: 'getNoteTags' }, function(tagResp) {
+            if (tagResp && tagResp.success && Array.isArray(tagResp.tags)) {
+              localStorage.setItem('ofStatsTags', JSON.stringify(tagResp.tags));
+            }
+            chrome.runtime.sendMessage({ action: 'getNotes' }, function(notesResp) {
+              if (notesResp && notesResp.success) {
+                if (notesResp.notes && typeof notesResp.notes === 'object') {
+                  var serverNotes = notesResp.notes;
+                  var localNotes = _notesLoadAllNotes();
+                  // Merge: server wins, but keep local-only entries
+                  var merged = {};
+                  // Add all server notes
+                  Object.keys(serverNotes).forEach(function(u) { merged[u] = serverNotes[u]; });
+                  // Add local-only notes that don't exist on server
+                  Object.keys(localNotes).forEach(function(u) {
+                    if (!merged[u]) merged[u] = localNotes[u];
+                  });
+                  localStorage.setItem('ofStatsNotes', JSON.stringify(merged));
+                }
+                if (notesResp.avatars && typeof notesResp.avatars === 'object') {
+                  var localAvatars = {};
+                  try { localAvatars = JSON.parse(localStorage.getItem('ofStatsAvatars') || '{}'); } catch(e) {}
+                  Object.keys(notesResp.avatars).forEach(function(u) { localAvatars[u] = notesResp.avatars[u]; });
+                  localStorage.setItem('ofStatsAvatars', JSON.stringify(localAvatars));
+                }
+                _notesSyncedOnce = true;
+              }
+              if (callback) callback();
+            });
+          });
+        } catch(e) {
+          if (callback) callback();
+        }
+      }
+
+      // Upload all local notes to server on first load (one-time migration)
+      function _notesUploadLocalToServer() {
+        var localNotes = _notesLoadAllNotes();
+        var localAvatars = {};
+        try { localAvatars = JSON.parse(localStorage.getItem('ofStatsAvatars') || '{}'); } catch(e) {}
+        if (Object.keys(localNotes).length === 0) return;
+        try {
+          chrome.runtime.sendMessage({
+            action: 'syncNotes',
+            notes: localNotes,
+            avatars: localAvatars
+          }, function(r) {
+            if (r && r.success) log('OF Stats: Local notes uploaded to server');
+          });
+        } catch(e) {}
+        // Also sync tags
+        var localTags = _notesLoadTags();
+        if (localTags.length > 0) {
+          try {
+            chrome.runtime.sendMessage({ action: 'syncNoteTags', tags: localTags }, function(r) {
+              if (r && r.success && r.tags) {
+                localStorage.setItem('ofStatsTags', JSON.stringify(r.tags));
+              }
+            });
+          } catch(e) {}
+        }
+      }
+
+      // Initial sync: try to merge server data on page load
+      (function() {
+        var migrationKey = 'ofStatsNotesMigrated';
+        if (!localStorage.getItem(migrationKey)) {
+          // First time: upload local to server, then sync back
+          _notesUploadLocalToServer();
+          localStorage.setItem(migrationKey, '1');
+        }
+        _notesSyncFromServer(function() {
+          _notesRenderStrip();
+        });
+      })();
+      function _notesEsc(s) { var d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
+      // Inject notes panel styles
+      if (!document.getElementById('of-stats-notes-styles')) {
+        var nsEl = document.createElement('style');
+        nsEl.id = 'of-stats-notes-styles';
+        nsEl.textContent = [
+          '#of-stats-tab-notes .nv-tabs{display:flex;gap:3px;background:rgba(0,0,0,0.25);border-radius:8px;padding:3px;margin-bottom:12px;}',
+          '#of-stats-tab-notes .nv-tab{flex:1;padding:7px 0;text-align:center;font-size:10px;font-weight:600;color:#556677;cursor:pointer;border-radius:6px;transition:all 0.2s;}',
+          '#of-stats-tab-notes .nv-tab:hover{color:#8899aa;}',
+          '#of-stats-tab-notes .nv-tab.active{background:rgba(0,180,255,0.12);color:#00b4ff;}',
+          '#of-stats-tab-notes .nv-view{display:none;}',
+          '#of-stats-tab-notes .nv-view.active{display:block;}',
+          '#of-stats-tab-notes .nv-editor-label{font-size:9px;color:#556677;margin-bottom:5px;display:flex;align-items:center;gap:4px;}',
+          '#of-stats-tab-notes .nv-textarea{width:100%;min-height:100px;max-height:160px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,0.3) !important;border:1px solid #1e2d3d !important;color:#e0e6ef !important;font-size:11px;font-family:inherit;resize:vertical;outline:none;transition:border-color 0.2s;line-height:1.5;box-sizing:border-box;}',
+          '#of-stats-tab-notes .nv-textarea:focus{border-color:rgba(0,180,255,0.4) !important;box-shadow:0 0 8px rgba(0,180,255,0.08);}',
+          '#of-stats-tab-notes .nv-textarea::placeholder{color:#445566 !important;}',
+          '#of-stats-tab-notes .nv-chips-label{font-size:8px;color:#556677;margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.5px;}',
+          '#of-stats-tab-notes .nv-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;}',
+          '#of-stats-tab-notes .nv-chip{font-size:9px;padding:5px 12px;border-radius:8px;font-weight:600;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:3px;}',
+          '#of-stats-tab-notes .nv-chip.assigned{opacity:1;}',
+          '#of-stats-tab-notes .nv-chip.available{opacity:0.7;border-style:dashed !important;}',
+          '#of-stats-tab-notes .nv-chip.available:hover{opacity:1;}',
+          '#of-stats-tab-notes .nv-save-row{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;}',
+          '#of-stats-tab-notes .nv-save-btn{padding:8px 28px;border-radius:8px;border:none;background:linear-gradient(135deg,#00b4ff,#7c3aed);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.3s;letter-spacing:0.3px;box-shadow:0 2px 10px rgba(0,180,255,0.2);flex:0 0 auto;position:relative;display:inline-flex;align-items:center;justify-content:center;}',
+          '#of-stats-tab-notes .nv-save-btn:hover{box-shadow:0 2px 18px rgba(0,180,255,0.35);filter:brightness(1.1);}',
+          '@keyframes nv-save-flash{0%{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 0 18px rgba(34,197,94,0.4);}100%{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 2px 10px rgba(34,197,94,0.2);}}',
+          '#of-stats-tab-notes .nv-save-btn.saved{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;animation:nv-save-flash 0.5s ease-out;}',
+          '#of-stats-tab-notes .nv-save-btn.saved:hover{box-shadow:0 2px 14px rgba(34,197,94,0.3);}',
+          '#of-stats-tab-notes .nv-save-btn .nv-save-check{position:absolute;left:0;right:0;text-align:center;opacity:0;transition:opacity 0.3s;}',
+          '#of-stats-tab-notes .nv-save-btn.saved .nv-save-check{opacity:1;}',
+          '#of-stats-tab-notes .nv-save-btn .nv-save-label{transition:opacity 0.3s;}',
+          '#of-stats-tab-notes .nv-save-btn.saved .nv-save-label{opacity:0;}',
+          '#of-stats-tab-notes .nv-search-input{width:100%;padding:7px 10px 7px 30px;border-radius:8px;background:rgba(0,0,0,0.3) !important;border:1px solid #1e2d3d !important;color:#e0e6ef !important;font-size:10px;font-family:inherit;outline:none;box-sizing:border-box;transition:border-color 0.2s;-webkit-text-fill-color:#e0e6ef !important;}',
+          '#of-stats-tab-notes .nv-search-input:focus{border-color:rgba(0,180,255,0.4) !important;box-shadow:0 0 8px rgba(0,180,255,0.08);}',
+          '#of-stats-tab-notes .nv-search-input::placeholder{color:#445566 !important;-webkit-text-fill-color:#445566 !important;font-style:italic;}',
+          '#of-stats-tab-notes .nv-search-wrap{position:relative;margin-bottom:8px;}',
+          '#of-stats-tab-notes .nv-search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);pointer-events:none;color:#556677;}',
+          '#of-stats-tab-notes .nv-delete-btn{padding:6px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.08);color:#ef4444;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s;letter-spacing:0.3px;}',
+          '#of-stats-tab-notes .nv-delete-btn:hover{background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.4);box-shadow:0 0 10px rgba(239,68,68,0.15);}',
+          '#of-stats-tab-notes .nv-saved-msg{font-size:9px;color:#22c55e;opacity:0;transition:opacity 0.3s;display:flex;align-items:center;gap:3px;}',
+          '#of-stats-tab-notes .nv-saved-msg.show{opacity:1;}',
+          '#of-stats-tab-notes .nv-tag-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,0.15);transition:background 0.15s;margin-bottom:5px;}',
+          '#of-stats-tab-notes .nv-tag-row:hover{background:rgba(0,0,0,0.25);}',
+          '#of-stats-tab-notes .nv-tag-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}',
+          '#of-stats-tab-notes .nv-tag-name{font-size:12px;color:#ccc;flex:1;font-weight:600;}',
+          '#of-stats-tab-notes .nv-tag-count{font-size:9px;color:#556677;}',
+          '#of-stats-tab-notes .nv-tag-del{width:20px;height:20px;border-radius:50%;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:all 0.15s;flex-shrink:0;}',
+          '#of-stats-tab-notes .nv-tag-row:hover .nv-tag-del{opacity:1;}',
+          '#of-stats-tab-notes .nv-tag-del:hover{background:rgba(239,68,68,0.25);}',
+          '#of-stats-tab-notes .nv-create-row{display:flex;gap:6px;margin-top:10px;align-items:center;}',
+          '#of-stats-tab-notes .nv-create-input{flex:1;padding:7px 10px;border-radius:8px;background:rgba(0,0,0,0.3) !important;border:1px solid #1e2d3d !important;color:#e0e6ef !important;-webkit-text-fill-color:#e0e6ef !important;font-size:11px;font-family:inherit;outline:none;min-width:0;box-sizing:border-box;transition:border-color 0.2s;}',
+          '#of-stats-tab-notes .nv-create-input:focus{border-color:rgba(0,180,255,0.4) !important;box-shadow:0 0 8px rgba(0,180,255,0.08);}',
+          '#of-stats-tab-notes .nv-create-input::placeholder{color:#445566 !important;-webkit-text-fill-color:#445566 !important;font-style:italic;}',
+          '#of-stats-tab-notes .nv-create-label{font-size:10px;color:#556677;margin-bottom:6px;}',
+          '#of-stats-tab-notes .nv-cdots{display:flex;gap:3px;align-items:center;}',
+          '#of-stats-tab-notes .nv-cdot{width:12px;height:12px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}',
+          '#of-stats-tab-notes .nv-cdot:hover{transform:scale(1.2);}',
+          '#of-stats-tab-notes .nv-cdot.sel{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.2);}',
+          '#of-stats-tab-notes .nv-create-add{padding:5px 10px;border-radius:8px;border:1px solid rgba(0,180,255,0.2);background:rgba(0,180,255,0.1);color:#00b4ff;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s;}',
+          '#of-stats-tab-notes .nv-create-add:hover{background:rgba(0,180,255,0.2);}',
+          '#of-stats-tab-notes .nv-filter-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;}',
+          '#of-stats-tab-notes .nv-filter-btn{font-size:8px;padding:4px 9px;border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.15s;opacity:0.65;}',
+          '#of-stats-tab-notes .nv-filter-btn.active{opacity:1;}',
+          '#of-stats-tab-notes .nv-filter-btn:hover{opacity:0.8;}',
+          '#of-stats-tab-notes .nv-filter-all{font-size:9px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);color:#8899aa;cursor:pointer;font-weight:600;border:1px solid rgba(255,255,255,0.08);transition:all 0.15s;}',
+          '#of-stats-tab-notes .nv-filter-all.active{background:rgba(0,180,255,0.1);color:#00b4ff;border-color:rgba(0,180,255,0.2);}',
+          '#of-stats-tab-notes .nv-model-row{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:10px;cursor:pointer;transition:all 0.2s;border-bottom:1px solid rgba(255,255,255,0.03);}',
+          '#of-stats-tab-notes .nv-model-row:last-child{border-bottom:none;}',
+          '#of-stats-tab-notes .nv-model-row:hover{background:rgba(0,180,255,0.05);box-shadow:inset 0 0 0 1px rgba(0,180,255,0.08),0 0 12px rgba(0,180,255,0.04);}',
+          '#of-stats-tab-notes .nv-model-ava{width:36px;height:36px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,#1a2535,#0d1117);border:1.5px solid #1e2d3d;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:12px;color:#556677;transition:border-color 0.2s,box-shadow 0.2s;}',
+          '#of-stats-tab-notes .nv-model-row:hover .nv-model-ava{border-color:rgba(0,180,255,0.4);box-shadow:0 0 8px rgba(0,180,255,0.15);}',
+          '#of-stats-tab-notes .nv-model-ava img{width:100%;height:100%;object-fit:cover;border-radius:50%;}',
+          '#of-stats-tab-notes .nv-model-info{flex:1;min-width:0;}',
+          '#of-stats-tab-notes .nv-model-name{font-size:11px;font-weight:600;color:#fff;}',
+          '#of-stats-tab-notes .nv-model-note{font-size:10px;color:#556677;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}',
+          '#of-stats-tab-notes .nv-model-tags{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}',
+          '#of-stats-tab-notes .nv-mtag{font-size:8px;padding:2px 7px;border-radius:5px;font-weight:700;}',
+          '#of-stats-tab-notes .nv-model-arrow{font-size:11px;color:#445566;flex-shrink:0;transition:color 0.15s;}',
+          '#of-stats-tab-notes .nv-model-row:hover .nv-model-arrow{color:#00b4ff;}',
+          '#of-stats-tab-notes .nv-empty{text-align:center;padding:16px;color:#445566;font-size:10px;}',
+          '#of-stats-tab-notes .nv-models-scroll{max-height:350px;overflow-y:auto;}',
+          '#of-stats-tab-notes .nv-models-scroll::-webkit-scrollbar{width:3px;}',
+          '#of-stats-tab-notes .nv-models-scroll::-webkit-scrollbar-track{background:transparent;}',
+          '#of-stats-tab-notes .nv-models-scroll::-webkit-scrollbar-thumb{background:#1e2d3d;border-radius:2px;}',
+          '#of-stats-tab-notes .nv-sep{height:1px;background:#1a2535;margin:10px 0;}',
+          '@keyframes ofAlertSlide{from{opacity:0;transform:translateX(-10px);}to{opacity:1;transform:translateX(0);}}',
+        ].join('\n');
+        document.head.appendChild(nsEl);
+      }
+
+      var _notesSelColor = 0;
+      var _notesFilterTag = null;
+      var _notesActiveView = 'editor';
+      var _notesDraftText = '';
+      var _notesDraftTagName = '';
+      var _notesSearchQuery = '';
+
+      // Build notes tab content
+      function _notesRebuildPanel() {
+        var notesContainer = document.getElementById('of-stats-tab-notes');
+        if (!notesContainer) return;
+        var tags = _notesLoadTags();
+        var note = _notesLoadNote(_notesUsername);
+        notesContainer.innerHTML = '';
+        var inner = document.createElement('div');
+
+        // Sub-view tabs
+        var viewTabs = document.createElement('div');
+        viewTabs.className = 'nv-tabs';
+        [{ k:'editor', label: t('notesTab') }, { k:'tags', label: t('notesTagsTab') }, { k:'models', label: t('notesModelsTab') }].forEach(function(vt) {
+          var tab = document.createElement('div');
+          tab.className = 'nv-tab' + (_notesActiveView === vt.k ? ' active' : '');
+          tab.textContent = vt.label;
+          tab.onclick = function() { _notesActiveView = vt.k; _notesRebuildPanel(); };
+          viewTabs.appendChild(tab);
+        });
+        inner.appendChild(viewTabs);
+
+        // === View: Editor ===
+        if (_notesActiveView === 'editor') {
+          // Show which model is being edited
+          var editorHeader = document.createElement('div');
+          editorHeader.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+          var profileLink = 'https://onlyfans.com/' + _notesUsername;
+          var editorAvaUrl = _notesGetAvatar(_notesUsername);
+          if (editorAvaUrl) {
+            var editorAva = document.createElement('img');
+            editorAva.src = editorAvaUrl;
+            editorAva.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #1e2d3d;flex-shrink:0;cursor:pointer;transition:border-color 0.2s;';
+            editorAva.title = 'Open profile';
+            editorAva.onmouseenter = function() { this.style.borderColor='rgba(0,180,255,0.5)'; };
+            editorAva.onmouseleave = function() { this.style.borderColor='#1e2d3d'; };
+            editorAva.onclick = function(e) { e.stopPropagation(); window.open(profileLink, '_blank'); };
+            editorAva.onerror = function() { this.style.display='none'; };
+            editorHeader.appendChild(editorAva);
+          }
+          var editorLabel = document.createElement('span');
+          editorLabel.style.cssText = 'font-size:13px;color:#cdd6e0;font-weight:700;cursor:pointer;transition:color 0.2s;';
+          editorLabel.textContent = '@' + _notesUsername;
+          editorLabel.title = 'Open profile';
+          editorLabel.onmouseenter = function() { this.style.color='#00b4ff'; };
+          editorLabel.onmouseleave = function() { this.style.color='#cdd6e0'; };
+          editorLabel.onclick = function(e) { e.stopPropagation(); window.open(profileLink, '_blank'); };
+          editorHeader.appendChild(editorLabel);
+          // Rating on the right
+          if (typeof scoreResult !== 'undefined' && scoreResult.grade) {
+            var editorSpacer = document.createElement('div');
+            editorSpacer.style.cssText = 'flex:1;';
+            editorHeader.appendChild(editorSpacer);
+            var editorRating = document.createElement('div');
+            editorRating.style.cssText = 'display:flex;align-items:center;gap:5px;flex-shrink:0;';
+            var rScore = document.createElement('span');
+            rScore.style.cssText = 'font-size:15px;font-weight:800;color:' + scoreResult.gradeColor + ';';
+            rScore.textContent = scoreResult.score;
+            editorRating.appendChild(rScore);
+            var rGrade = document.createElement('span');
+            rGrade.style.cssText = 'font-size:12px;font-weight:700;color:' + scoreResult.gradeColor + ';opacity:0.8;';
+            rGrade.textContent = scoreResult.grade;
+            editorRating.appendChild(rGrade);
+            editorHeader.appendChild(editorRating);
+          }
+          inner.appendChild(editorHeader);
+
+          var textarea = document.createElement('textarea');
+          textarea.className = 'nv-textarea';
+          textarea.placeholder = t('notesPlaceholder');
+          textarea.value = _notesDraftText || note.text;
+          textarea.id = 'of-notes-textarea';
+          textarea.addEventListener('input', function() { _notesDraftText = this.value; });
+          inner.appendChild(textarea);
+
+          var chipsRow = document.createElement('div');
+          chipsRow.className = 'nv-chips';
+          // Helper: capture current textarea text before any rebuild
+          function _notesCaptureText(n) {
+            var ta = document.getElementById('of-notes-textarea');
+            if (ta) { n.text = ta.value; _notesDraftText = ta.value; }
+          }
+          // assigned
+          (note.tags || []).forEach(function(tid) {
+            var tag = tags.find(function(tg){return tg.id===tid;});
+            if (!tag) return;
+            var chip = document.createElement('div');
+            chip.className = 'nv-chip assigned';
+            chip.style.cssText = _notesTagStyle(tag.ci);
+            chip.textContent = tag.name;
+            chip.title = 'Click to remove';
+            chip.onclick = function() {
+              _notesCaptureText(note);
+              note.tags = note.tags.filter(function(id){return id!==tid;});
+              _notesSaveNote(_notesUsername, note);
+              _notesRebuildPanel();
+            };
+            chipsRow.appendChild(chip);
+          });
+          // available
+          tags.filter(function(tg){ return (note.tags||[]).indexOf(tg.id)===-1; }).forEach(function(tag) {
+            var chip = document.createElement('div');
+            chip.className = 'nv-chip available';
+            chip.style.cssText = _notesTagStyle(tag.ci);
+            chip.textContent = '+ ' + tag.name;
+            chip.onclick = function() {
+              _notesCaptureText(note);
+              if (!note.tags) note.tags = [];
+              note.tags.push(tag.id);
+              _notesSaveNote(_notesUsername, note);
+              _notesRebuildPanel();
+            };
+            chipsRow.appendChild(chip);
+          });
+          inner.appendChild(chipsRow);
+
+          var saveRow = document.createElement('div');
+          saveRow.className = 'nv-save-row';
+          var saveBtn = document.createElement('button');
+          saveBtn.className = 'nv-save-btn';
+          saveBtn.innerHTML = '<span class="nv-save-label">' + t('notesSave') + '</span><span class="nv-save-check">\u2713 ' + t('notesSaved') + '</span>';
+          saveBtn.onclick = function() {
+            var ta = document.getElementById('of-notes-textarea');
+            note.text = ta ? ta.value.trim() : '';
+            note.date = Date.now();
+            _notesSaveNote(_notesUsername, note);
+            _notesDraftText = '';
+            _notesRenderStrip();
+            saveBtn.classList.add('saved');
+            setTimeout(function(){ saveBtn.classList.remove('saved'); }, 2000);
+          };
+          saveRow.appendChild(saveBtn);
+          // Delete button — clears note text and tags for this model
+          var deleteBtn = document.createElement('button');
+          deleteBtn.className = 'nv-delete-btn';
+          deleteBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+          deleteBtn.title = 'Delete note';
+          deleteBtn.onclick = function() {
+            var allNotes3 = _notesLoadAllNotes();
+            delete allNotes3[_notesUsername];
+            try { localStorage.setItem('ofStatsNotes', JSON.stringify(allNotes3)); } catch(e) {}
+            _notesDeleteFromServer(_notesUsername);
+            _notesDraftText = '';
+            _notesRenderStrip();
+            _notesClosePanel();
+          };
+          saveRow.appendChild(deleteBtn);
+          inner.appendChild(saveRow);
+        }
+
+        // === View: Tags Manager ===
+        if (_notesActiveView === 'tags') {
+          var allNotes = _notesLoadAllNotes();
+          tags.forEach(function(tag) {
+            var count = 0;
+            Object.keys(allNotes).forEach(function(u) { if ((allNotes[u].tags||[]).indexOf(tag.id)!==-1) count++; });
+            var row = document.createElement('div');
+            row.className = 'nv-tag-row';
+            var dot = document.createElement('div');
+            dot.className = 'nv-tag-dot';
+            dot.style.background = _notesTAG_COLORS[tag.ci].color;
+            row.appendChild(dot);
+            var nm = document.createElement('div');
+            nm.className = 'nv-tag-name';
+            nm.textContent = tag.name;
+            row.appendChild(nm);
+            var cnt = document.createElement('div');
+            cnt.className = 'nv-tag-count';
+            cnt.textContent = count + ' ' + (count===1 ? t('notesModel') : t('notesModels'));
+            row.appendChild(cnt);
+            var del = document.createElement('div');
+            del.className = 'nv-tag-del';
+            del.innerHTML = '<svg width="8" height="8" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/></svg>';
+            del.onclick = function() {
+              var newTags = tags.filter(function(tg){return tg.id!==tag.id;});
+              _notesSaveTags(newTags);
+              // Remove from all notes
+              Object.keys(allNotes).forEach(function(u) {
+                if (allNotes[u].tags) allNotes[u].tags = allNotes[u].tags.filter(function(id){return id!==tag.id;});
+              });
+              localStorage.setItem('ofStatsNotes', JSON.stringify(allNotes));
+              _notesRebuildPanel();
+            };
+            row.appendChild(del);
+            inner.appendChild(row);
+          });
+
+          var sep = document.createElement('div');
+          sep.className = 'nv-sep';
+          inner.appendChild(sep);
+
+          var createLabel = document.createElement('div');
+          createLabel.style.cssText = 'font-size:9px;color:#556677;margin-bottom:4px;';
+          createLabel.textContent = t('notesCreateTag');
+          inner.appendChild(createLabel);
+
+          var createRow = document.createElement('div');
+          createRow.className = 'nv-create-row';
+          var cInput = document.createElement('input');
+          cInput.type = 'text';
+          cInput.className = 'nv-create-input';
+          cInput.placeholder = t('notesTagName');
+          cInput.maxLength = 16;
+          cInput.style.cssText = 'color:#e0e6ef !important;background:rgba(0,0,0,0.3) !important;border:1px solid #1e2d3d !important;-webkit-text-fill-color:#e0e6ef !important;';
+          if (_notesDraftTagName) cInput.value = _notesDraftTagName;
+          createRow.appendChild(cInput);
+          cInput.addEventListener('input', function() { _notesDraftTagName = this.value; });
+          var cDots = document.createElement('div');
+          cDots.className = 'nv-cdots';
+          _notesTAG_COLORS.forEach(function(c,i) {
+            var d = document.createElement('div');
+            d.className = 'nv-cdot' + (i===_notesSelColor?' sel':'');
+            d.style.background = c.color;
+            d.onclick = function() {
+              // Preserve tag name input before rebuild
+              var ci2 = badge.querySelector('.nv-create-input');
+              if (ci2) _notesDraftTagName = ci2.value;
+              _notesSelColor = i;
+              _notesRebuildPanel();
+            };
+            cDots.appendChild(d);
+          });
+          createRow.appendChild(cDots);
+          var cAdd = document.createElement('button');
+          cAdd.className = 'nv-create-add';
+          cAdd.textContent = '+';
+          cAdd.onclick = function() {
+            var name = cInput.value.trim();
+            if (!name || name.length > 16) return;
+            if (tags.some(function(tg){ return tg.name.toLowerCase()===name.toLowerCase(); })) return;
+            var maxId = tags.reduce(function(m,tg){return Math.max(m,tg.id);},0);
+            tags.push({ id: maxId+1, name: name, ci: _notesSelColor });
+            _notesSaveTags(tags);
+            _notesDraftTagName = '';
+            _notesRebuildPanel();
+          };
+          createRow.appendChild(cAdd);
+          inner.appendChild(createRow);
+
+          cInput.addEventListener('keydown', function(e) { if (e.key==='Enter') cAdd.click(); });
+        }
+
+        // === View: Models List ===
+        if (_notesActiveView === 'models') {
+          var allNotes2 = _notesLoadAllNotes();
+          var tags2 = _notesLoadTags();
+
+          // Search bar
+          var searchWrap = document.createElement('div');
+          searchWrap.className = 'nv-search-wrap';
+          var searchIcon = document.createElement('div');
+          searchIcon.className = 'nv-search-icon';
+          searchIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+          searchWrap.appendChild(searchIcon);
+          var searchInput = document.createElement('input');
+          searchInput.className = 'nv-search-input';
+          searchInput.type = 'text';
+          searchInput.placeholder = 'Search models...';
+          searchInput.value = _notesSearchQuery;
+          searchInput.style.cssText += '-webkit-text-fill-color:#e0e6ef !important;';
+          searchInput.addEventListener('input', function() { _notesSearchQuery = this.value; _notesRebuildPanel(); });
+          searchWrap.appendChild(searchInput);
+          inner.appendChild(searchWrap);
+
+          // Filter bar
+          var filterRow = document.createElement('div');
+          filterRow.className = 'nv-filter-row';
+          var allBtn = document.createElement('div');
+          allBtn.className = 'nv-filter-all' + (_notesFilterTag===null?' active':'');
+          allBtn.textContent = t('notesAll');
+          allBtn.onclick = function() { _notesFilterTag = null; _notesRebuildPanel(); };
+          filterRow.appendChild(allBtn);
+          tags2.forEach(function(tag) {
+            var fb = document.createElement('div');
+            fb.className = 'nv-filter-btn' + (_notesFilterTag===tag.id?' active':'');
+            fb.style.cssText = _notesTagStyle(tag.ci);
+            fb.textContent = tag.name;
+            fb.onclick = function() { _notesFilterTag = (_notesFilterTag===tag.id?null:tag.id); _notesRebuildPanel(); };
+            filterRow.appendChild(fb);
+          });
+          inner.appendChild(filterRow);
+
+          var scrollDiv = document.createElement('div');
+          scrollDiv.className = 'nv-models-scroll';
+          var usernames = Object.keys(allNotes2);
+          if (_notesFilterTag !== null) {
+            usernames = usernames.filter(function(u) { return (allNotes2[u].tags||[]).indexOf(_notesFilterTag)!==-1; });
+          }
+          if (_notesSearchQuery) {
+            var sq = _notesSearchQuery.toLowerCase();
+            usernames = usernames.filter(function(u) {
+              if (u.toLowerCase().indexOf(sq) !== -1) return true;
+              var mn2 = allNotes2[u];
+              if (mn2.text && mn2.text.toLowerCase().indexOf(sq) !== -1) return true;
+              if (mn2.tags && mn2.tags.length > 0) {
+                return mn2.tags.some(function(tid) {
+                  var tg2 = tags2.find(function(t3){return t3.id===tid;});
+                  return tg2 && tg2.name.toLowerCase().indexOf(sq) !== -1;
+                });
+              }
+              return false;
+            });
+          }
+          if (usernames.length === 0) {
+            scrollDiv.innerHTML = '<div class="nv-empty">' + t('notesNoModels') + '</div>';
+          } else {
+            usernames.forEach(function(u) {
+              var mn = allNotes2[u];
+              var row = document.createElement('div');
+              row.className = 'nv-model-row';
+              row.onclick = function() { _notesUsername = u; _notesActiveView = 'editor'; _notesRebuildPanel(); _notesRenderStrip(); };
+              // Avatar
+              var ava = document.createElement('div');
+              ava.className = 'nv-model-ava';
+              var savedAva = _notesGetAvatar(u);
+              if (savedAva) {
+                var avaImg = document.createElement('img');
+                avaImg.src = savedAva;
+                avaImg.onerror = function() { this.parentNode.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#556677" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>'; };
+                ava.appendChild(avaImg);
+              } else {
+                ava.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#556677" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>';
+              }
+              row.appendChild(ava);
+              var info = document.createElement('div');
+              info.className = 'nv-model-info';
+              info.innerHTML = '<div class="nv-model-name">@' + _notesEsc(u) + '</div>' + (mn.text ? '<div class="nv-model-note">' + _notesEsc(mn.text) + '</div>' : '');
+              if ((mn.tags||[]).length > 0) {
+                var mTags = document.createElement('div');
+                mTags.className = 'nv-model-tags';
+                (mn.tags||[]).forEach(function(tid) {
+                  var tg = tags2.find(function(t2){return t2.id===tid;});
+                  if (!tg) return;
+                  var mt = document.createElement('span');
+                  mt.className = 'nv-mtag';
+                  mt.style.cssText = _notesTagStyle(tg.ci);
+                  mt.textContent = tg.name;
+                  mTags.appendChild(mt);
+                });
+                info.appendChild(mTags);
+              }
+              row.appendChild(info);
+              // Delete button for model note
+              var delModel = document.createElement('div');
+              delModel.style.cssText = 'display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;flex-shrink:0;opacity:0;transition:all 0.2s;background:rgba(239,68,68,0.08);';
+              delModel.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+              delModel.title = 'Delete note';
+              delModel.onclick = function(e) {
+                e.stopPropagation();
+                // Confirmation overlay on the row
+                var existingOv = row.querySelector('.nv-del-confirm');
+                if (existingOv) { existingOv.remove(); return; }
+                var ov = document.createElement('div');
+                ov.className = 'nv-del-confirm';
+                ov.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(13,17,23,0.95);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;z-index:10;';
+                ov.innerHTML = '<span style="font-size:9px;color:#ef4444;font-weight:600;">Delete note?</span>';
+                var yBtn = document.createElement('button');
+                yBtn.style.cssText = 'padding:3px 12px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.15);color:#ef4444;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;';
+                yBtn.textContent = 'Yes';
+                yBtn.onclick = function(ev) {
+                  ev.stopPropagation();
+                  var allNotes4 = _notesLoadAllNotes();
+                  delete allNotes4[u];
+                  try { localStorage.setItem('ofStatsNotes', JSON.stringify(allNotes4)); } catch(ex) {}
+                  _notesDeleteFromServer(u);
+                  _notesRenderStrip();
+                  _notesRebuildPanel();
+                };
+                var nBtn = document.createElement('button');
+                nBtn.style.cssText = 'padding:3px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#8899aa;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;';
+                nBtn.textContent = 'No';
+                nBtn.onclick = function(ev) { ev.stopPropagation(); ov.remove(); };
+                ov.appendChild(yBtn);
+                ov.appendChild(nBtn);
+                row.style.position = 'relative';
+                row.appendChild(ov);
+              };
+              delModel.onmouseenter = function() { this.style.background = 'rgba(239,68,68,0.2)'; };
+              delModel.onmouseleave = function() { this.style.background = 'rgba(239,68,68,0.08)'; };
+              row.appendChild(delModel);
+              var arrow = document.createElement('div');
+              arrow.className = 'nv-model-arrow';
+              arrow.textContent = '\u203A';
+              row.appendChild(arrow);
+              // Show delete on row hover
+              row.addEventListener('mouseenter', function() { delModel.style.opacity = '1'; });
+              row.addEventListener('mouseleave', function() { delModel.style.opacity = '0'; });
+              scrollDiv.appendChild(row);
+            });
+          }
+          inner.appendChild(scrollDiv);
+        }
+
+        notesContainer.appendChild(inner);
+        // Re-focus search input after rebuild to maintain cursor position
+        if (_notesActiveView === 'models' && _notesSearchQuery) {
+          var si = notesContainer.querySelector('.nv-search-input');
+          if (si) { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
+        }
+      }
+
+      // ==================== SMART ALERTS (Feature #8) ====================
+      // Storage helpers (local cache)
+      function _alertsLoadAll() { try { return JSON.parse(localStorage.getItem('ofStatsAlerts') || '[]'); } catch(e) { return []; } }
+      function _alertsSave(arr) { try { localStorage.setItem('ofStatsAlerts', JSON.stringify(arr)); } catch(e) {} }
+      function _alertsLoadSnap(u) { try { var s = JSON.parse(localStorage.getItem('ofStatsSnapshots') || '{}'); return s[u] || null; } catch(e) { return null; } }
+      function _alertsSaveSnap(u, snap) { try { var s = JSON.parse(localStorage.getItem('ofStatsSnapshots') || '{}'); s[u] = snap; localStorage.setItem('ofStatsSnapshots', JSON.stringify(s)); } catch(e) {} }
+      function _alertsGetUnread(username) {
+        var alerts = _alertsLoadAll();
+        var readSet = {};
+        try { readSet = JSON.parse(localStorage.getItem('ofStatsAlertsRead') || '{}'); } catch(e) {}
+        return alerts.filter(function(a) { return a.username === username && !readSet[a.id]; });
+      }
+      function _alertsMarkRead(username) {
+        var alerts = _alertsLoadAll();
+        var readSet = {};
+        try { readSet = JSON.parse(localStorage.getItem('ofStatsAlertsRead') || '{}'); } catch(e) {}
+        alerts.forEach(function(a) { if (a.username === username) readSet[a.id] = true; });
+        try { localStorage.setItem('ofStatsAlertsRead', JSON.stringify(readSet)); } catch(e) {}
+      }
+
+      // Server sync: send new alerts to backend (global for all users)
+      function _alertsSendToServer(username, newAlerts) {
+        if (!newAlerts || newAlerts.length === 0) return;
+        try {
+          chrome.runtime.sendMessage({
+            action: 'reportAlerts',
+            username: username,
+            alerts: newAlerts
+          }, function(resp) {
+            if (resp && resp.success) log('OF Stats: Alerts reported to server:', resp.inserted);
+          });
+        } catch(e) { log('OF Stats: Could not report alerts to server:', e); }
+      }
+
+      // Server sync: fetch alerts from server for a model
+      var _alertsServerCache = {};
+      function _alertsFetchFromServer(username, callback) {
+        try {
+          chrome.runtime.sendMessage({ action: 'getAlerts', username: username }, function(resp) {
+            if (resp && resp.success && Array.isArray(resp.alerts)) {
+              _alertsServerCache[username] = resp.alerts;
+              // Merge server alerts into local storage
+              var local = _alertsLoadAll();
+              var localIds = {};
+              local.forEach(function(a) { localIds[a.id] = true; });
+              var merged = false;
+              resp.alerts.forEach(function(a) {
+                if (!localIds[a.id]) {
+                  local.unshift(a);
+                  merged = true;
+                }
+              });
+              if (merged) {
+                local.sort(function(a,b) { return (b.date||0) - (a.date||0); });
+                if (local.length > 100) local = local.slice(0, 100);
+                _alertsSave(local);
+              }
+              if (callback) callback(resp.alerts);
+            } else {
+              if (callback) callback(null);
+            }
+          });
+        } catch(e) {
+          if (callback) callback(null);
+        }
+      }
+
+      // Detect anomalies for current model
+      function _alertsDetect(username, profileData, scoreResult) {
+        var snap = _alertsLoadSnap(username);
+        var now = Date.now();
+        var todayStr = new Date().toISOString().slice(0, 10);
+        var newSnap = {
+          fans: profileData.subscribersCount || 0,
+          likes: profileData.favoritedCount || 0,
+          posts: profileData.postsCount || 0,
+          score: scoreResult ? scoreResult.score : 0,
+          grade: scoreResult ? scoreResult.grade : '',
+          date: todayStr,
+          ts: now
+        };
+
+        if (!snap || snap.date === todayStr) {
+          // First visit or already checked today — just save snapshot
+          _alertsSaveSnap(username, newSnap);
+          return;
+        }
+
+        var alerts = _alertsLoadAll();
+        var newAlerts = [];
+        var daysDiff = Math.max(1, Math.round((now - snap.ts) / 86400000));
+
+        // Fans change detection
+        if (snap.fans > 0 && newSnap.fans > 0) {
+          var fansDiff = newSnap.fans - snap.fans;
+          var fansPct = (fansDiff / snap.fans * 100);
+          if (fansPct >= 3 || fansDiff >= 500) {
+            newAlerts.push({
+              id: username + '_fans_surge_' + todayStr,
+              username: username,
+              type: 'fans_surge',
+              icon: '📈',
+              color: '#22c55e',
+              diff: '+' + fansDiff.toLocaleString(),
+              pct: '+' + fansPct.toFixed(1) + '%',
+              date: now
+            });
+          } else if (fansPct <= -3 || fansDiff <= -500) {
+            newAlerts.push({
+              id: username + '_fans_drop_' + todayStr,
+              username: username,
+              type: 'fans_drop',
+              icon: '🚨',
+              color: '#ef4444',
+              diff: fansDiff.toLocaleString(),
+              pct: fansPct.toFixed(1) + '%',
+              date: now
+            });
+          }
+        }
+
+        // Likes anomaly detection
+        if (snap.likes > 0 && newSnap.likes > 0) {
+          var likesDiff = newSnap.likes - snap.likes;
+          var likesPct = (likesDiff / snap.likes * 100);
+          if (likesPct >= 10 || likesDiff >= 10000) {
+            newAlerts.push({
+              id: username + '_likes_surge_' + todayStr,
+              username: username,
+              type: 'likes_surge',
+              icon: '⚡',
+              color: '#eab308',
+              diff: '+' + likesDiff.toLocaleString(),
+              pct: '+' + likesPct.toFixed(1) + '%',
+              date: now
+            });
+          } else if (likesPct <= -5 || likesDiff <= -5000) {
+            newAlerts.push({
+              id: username + '_likes_drop_' + todayStr,
+              username: username,
+              type: 'likes_drop',
+              icon: '⚠️',
+              color: '#eab308',
+              diff: likesDiff.toLocaleString(),
+              pct: likesPct.toFixed(1) + '%',
+              date: now
+            });
+          }
+        }
+
+        // Score change detection
+        if (snap.score > 0 && newSnap.score > 0) {
+          var scoreDiff = newSnap.score - snap.score;
+          if (scoreDiff >= 5) {
+            newAlerts.push({
+              id: username + '_score_up_' + todayStr,
+              username: username,
+              type: 'score_up',
+              icon: '🏆',
+              color: '#22c55e',
+              diff: '+' + scoreDiff,
+              oldScore: snap.score,
+              newScore: newSnap.score,
+              oldGrade: snap.grade,
+              newGrade: newSnap.grade,
+              date: now
+            });
+          } else if (scoreDiff <= -5) {
+            newAlerts.push({
+              id: username + '_score_down_' + todayStr,
+              username: username,
+              type: 'score_down',
+              icon: '📉',
+              color: '#ef4444',
+              diff: String(scoreDiff),
+              oldScore: snap.score,
+              newScore: newSnap.score,
+              oldGrade: snap.grade,
+              newGrade: newSnap.grade,
+              date: now
+            });
+          }
+        }
+
+        // Add new alerts (deduplicate by id)
+        var existingIds = {};
+        alerts.forEach(function(a) { existingIds[a.id] = true; });
+        var trulyNew = [];
+        newAlerts.forEach(function(a) {
+          if (!existingIds[a.id]) {
+            alerts.unshift(a);
+            trulyNew.push(a);
+          }
+        });
+
+        // Keep max 100 alerts, trim old ones
+        if (alerts.length > 100) alerts = alerts.slice(0, 100);
+        _alertsSave(alerts);
+        _alertsSaveSnap(username, newSnap);
+
+        // Sync new alerts to server (global)
+        _alertsSendToServer(username, trulyNew);
+      }
+
+      // Alert text builder
+      function _alertText(a) {
+        var u = '@' + a.username;
+        switch(a.type) {
+          case 'fans_surge': return u + ' ' + t('alertFansSurge') + ' <strong style="color:' + a.color + ';">' + a.diff + ' ' + t('alertFans') + '</strong> (' + a.pct + ')';
+          case 'fans_drop': return u + ' ' + t('alertFansDrop') + ' <strong style="color:' + a.color + ';">' + a.diff + ' ' + t('alertFans') + '</strong> (' + a.pct + ')';
+          case 'likes_surge': return u + ' ' + t('alertLikesSurge') + ' <strong style="color:' + a.color + ';">' + a.diff + ' ' + t('alertLikes') + '</strong> (' + a.pct + ')';
+          case 'likes_drop': return u + ' ' + t('alertLikesDrop') + ' <strong style="color:' + a.color + ';">' + a.diff + ' ' + t('alertLikes') + '</strong> (' + a.pct + ')';
+          case 'score_up': return u + ' — ' + t('alertScoreUp') + ' <strong style="color:' + a.color + ';">' + a.oldScore + ' → ' + a.newScore + '</strong> (' + a.oldGrade + ' → ' + a.newGrade + ')';
+          case 'score_down': return u + ' — ' + t('alertScoreDown') + ' <strong style="color:' + a.color + ';">' + a.oldScore + ' → ' + a.newScore + '</strong> (' + a.oldGrade + ' → ' + a.newGrade + ')';
+          default: return u;
+        }
+      }
+
+      // Build alerts panel content
+      function _alertsRebuildPanel() {
+        var container = document.getElementById('of-stats-tab-alerts');
+        if (!container) return;
+        container.innerHTML = '';
+        var alerts = _alertsLoadAll();
+        var modelAlerts = alerts.filter(function(a) { return a.username === _notesUsername; });
+
+        if (modelAlerts.length === 0) {
+          container.innerHTML = '<div style="text-align:center;padding:20px;color:#445566;font-size:11px;">' + t('alertsEmpty') + '</div>';
+          return;
+        }
+
+        var scroll = document.createElement('div');
+        scroll.style.cssText = 'max-height:380px;overflow-y:auto;';
+        scroll.className = 'nv-models-scroll';
+
+        modelAlerts.forEach(function(a) {
+          var item = document.createElement('div');
+          var bgColor = a.color === '#ef4444' ? 'rgba(239,68,68,0.06)' : a.color === '#eab308' ? 'rgba(234,179,8,0.06)' : 'rgba(34,197,94,0.06)';
+          var borderColor = a.color === '#ef4444' ? 'rgba(239,68,68,0.15)' : a.color === '#eab308' ? 'rgba(234,179,8,0.15)' : 'rgba(34,197,94,0.15)';
+          item.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:8px;margin-bottom:6px;background:' + bgColor + ';border:1px solid ' + borderColor + ';animation:ofAlertSlide 0.4s ease;';
+          var iconEl = document.createElement('div');
+          iconEl.style.cssText = 'font-size:16px;flex-shrink:0;line-height:1;padding-top:1px;';
+          iconEl.textContent = a.icon;
+          item.appendChild(iconEl);
+          var textWrap = document.createElement('div');
+          textWrap.style.cssText = 'flex:1;min-width:0;';
+          var textEl = document.createElement('div');
+          textEl.style.cssText = 'font-size:11px;color:#ccc;line-height:1.5;';
+          textEl.innerHTML = _alertText(a);
+          textWrap.appendChild(textEl);
+          var timeEl = document.createElement('div');
+          timeEl.style.cssText = 'font-size:9px;color:#556677;margin-top:3px;';
+          var nd = new Date(a.date);
+          var dd = ('0'+nd.getDate()).slice(-2), mm = ('0'+(nd.getMonth()+1)).slice(-2), yy = String(nd.getFullYear()).slice(-2);
+          timeEl.textContent = dd + '.' + mm + '.' + yy;
+          textWrap.appendChild(timeEl);
+          item.appendChild(textWrap);
+          scroll.appendChild(item);
+        });
+
+        container.appendChild(scroll);
+
+        // Clear all button
+        if (modelAlerts.length > 1) {
+          var clearRow = document.createElement('div');
+          clearRow.style.cssText = 'text-align:center;margin-top:8px;';
+          var clearBtn = document.createElement('button');
+          clearBtn.style.cssText = 'padding:5px 16px;border-radius:6px;border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.06);color:#ef4444;font-size:9px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s;';
+          clearBtn.textContent = t('alertsClearAll');
+          clearBtn.onmouseenter = function() { this.style.background='rgba(239,68,68,0.15)'; };
+          clearBtn.onmouseleave = function() { this.style.background='rgba(239,68,68,0.06)'; };
+          clearBtn.onclick = function() {
+            var allAlerts = _alertsLoadAll();
+            allAlerts = allAlerts.filter(function(a) { return a.username !== _notesUsername; });
+            _alertsSave(allAlerts);
+            _alertsRebuildPanel();
+            _alertsUpdateBadge();
+          };
+          clearRow.appendChild(clearBtn);
+          container.appendChild(clearRow);
+        }
+      }
+
+      // Update bell badge counter
+      function _alertsUpdateBadge() {
+        var badgeEl = document.getElementById('of-stats-alerts-badge');
+        if (!badgeEl) return;
+        var unread = _alertsGetUnread(_notesUsername);
+        if (unread.length > 0) {
+          badgeEl.style.display = '';
+          badgeEl.textContent = unread.length > 9 ? '9+' : String(unread.length);
+        } else {
+          badgeEl.style.display = 'none';
+        }
+      }
+
+      // Open alerts panel
+      function _alertsOpenPanel() {
+        _alertsMarkRead(_notesUsername);
+        _alertsUpdateBadge();
+        var badgeHeight = flipInner.offsetHeight || flipFront.scrollHeight;
+        flipInner.style.display = 'none';
+        // Hide notes panel if open
+        var np = badge.querySelector('#of-stats-notes-panel');
+        if (np) np.style.display = 'none';
+        var ap = badge.querySelector('#of-stats-alerts-panel');
+        if (ap) {
+          ap.style.display = '';
+          ap.style.minHeight = badgeHeight + 'px';
+          // Show local data immediately, then refresh from server
+          _alertsRebuildPanel();
+          _alertsFetchFromServer(_notesUsername, function() {
+            _alertsRebuildPanel();
+            _alertsUpdateBadge();
+          });
+        }
+      }
+
+      // Close alerts panel
+      function _alertsClosePanel() {
+        var ap = badge.querySelector('#of-stats-alerts-panel');
+        if (ap) ap.style.display = 'none';
+        flipInner.style.display = '';
+        flipInner.classList.remove('flipped');
+        flipInner.style.minHeight = flipFront.scrollHeight + 'px';
+      }
+
+      // Init badge count (deferred — see after scoreResult)
+
+      // Mini note strip renderer (shown on badge front)
+      var noteStripEl = document.createElement('div');
+      noteStripEl.id = 'of-notes-strip';
+      noteStripEl.style.cssText = 'display:none;padding:6px 10px;border-radius:7px;background:rgba(0,180,255,0.03);border:1px solid rgba(0,180,255,0.08);cursor:pointer;transition:all 0.3s ease;margin-top:6px;position:relative;z-index:1;overflow:hidden;';
+      noteStripEl.onclick = function() { _notesOpenPanel(); };
+
+      // Animate strip hide with collapse
+      function _notesHideStrip() {
+        if (noteStripEl.style.display === 'none') return;
+        noteStripEl.style.opacity = '0';
+        noteStripEl.style.maxHeight = '0';
+        noteStripEl.style.padding = '0 10px';
+        noteStripEl.style.marginTop = '0';
+        noteStripEl.style.borderColor = 'transparent';
+        setTimeout(function() {
+          noteStripEl.style.display = 'none';
+          // Update flipInner height to match new front size
+          if (flipInner && !flipInner.classList.contains('flipped')) {
+            flipInner.style.minHeight = flipFront.scrollHeight + 'px';
+          }
+        }, 300);
+      }
+
+      function _notesRenderStrip() {
+        var note = _notesLoadNote(_notesUsername);
+        var tags = _notesLoadTags();
+        if (!note.text && (!note.tags || note.tags.length === 0)) {
+          _notesHideStrip();
+          return;
+        }
+        noteStripEl.style.display = 'flex';
+        noteStripEl.style.alignItems = 'center';
+        noteStripEl.style.gap = '8px';
+        noteStripEl.style.position = 'relative';
+        noteStripEl.style.opacity = '1';
+        noteStripEl.style.maxHeight = '80px';
+        noteStripEl.style.padding = '6px 10px';
+        noteStripEl.style.marginTop = '6px';
+        noteStripEl.style.borderColor = 'rgba(0,180,255,0.08)';
+        noteStripEl.innerHTML = '';
+
+        // Left: note content
+        var contentDiv = document.createElement('div');
+        contentDiv.style.cssText = 'flex:1;min-width:0;';
+        if (note.text) {
+          var textDiv = document.createElement('div');
+          textDiv.style.cssText = 'font-size:10px;color:#8899aa;line-height:1.4;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;';
+          textDiv.textContent = note.text;
+          contentDiv.appendChild(textDiv);
+        }
+        if ((note.tags||[]).length > 0) {
+          var tagsDiv = document.createElement('div');
+          tagsDiv.style.cssText = 'display:flex;gap:3px;margin-top:' + (note.text ? '3px' : '0') + ';flex-wrap:wrap;';
+          (note.tags||[]).forEach(function(tid) {
+            var tg = tags.find(function(t2){return t2.id===tid;});
+            if (!tg) return;
+            var sp = document.createElement('span');
+            sp.style.cssText = 'font-size:7px;padding:1px 5px;border-radius:6px;font-weight:600;' + _notesTagStyle(tg.ci);
+            sp.textContent = tg.name;
+            tagsDiv.appendChild(sp);
+          });
+          contentDiv.appendChild(tagsDiv);
+        }
+        noteStripEl.appendChild(contentDiv);
+
+        // Right: date + arrow
+        var rightDiv = document.createElement('div');
+        rightDiv.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+        if (note.date) {
+          var dateSpan = document.createElement('span');
+          dateSpan.style.cssText = 'font-size:9px;color:#8899aa;white-space:nowrap;font-weight:600;';
+          var nd = new Date(note.date);
+          var dd = ('0'+nd.getDate()).slice(-2), mm = ('0'+(nd.getMonth()+1)).slice(-2), yy = String(nd.getFullYear()).slice(-2);
+          dateSpan.textContent = dd+'.'+mm+'.'+yy;
+          rightDiv.appendChild(dateSpan);
+        }
+        // Delete button
+        var stripDel = document.createElement('div');
+        stripDel.style.cssText = 'width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:all 0.2s;background:rgba(239,68,68,0.08);flex-shrink:0;';
+        stripDel.innerHTML = '<svg width="8" height="8" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/></svg>';
+        stripDel.onmouseenter = function() { this.style.background='rgba(239,68,68,0.25)'; };
+        stripDel.onmouseleave = function() { this.style.background='rgba(239,68,68,0.08)'; };
+        stripDel.onclick = function(e) {
+          e.stopPropagation();
+          // Confirmation overlay
+          var overlay = document.createElement('div');
+          overlay.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(13,17,23,0.95);border-radius:7px;display:flex;align-items:center;justify-content:center;gap:8px;z-index:10;';
+          overlay.innerHTML = '<span style="font-size:9px;color:#ef4444;font-weight:600;">Delete note?</span>';
+          var btnYes = document.createElement('button');
+          btnYes.style.cssText = 'padding:3px 12px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.15);color:#ef4444;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;';
+          btnYes.textContent = 'Yes';
+          btnYes.onclick = function(ev) {
+            ev.stopPropagation();
+            var allN = _notesLoadAllNotes();
+            delete allN[_notesUsername];
+            try { localStorage.setItem('ofStatsNotes', JSON.stringify(allN)); } catch(ex) {}
+            _notesDeleteFromServer(_notesUsername);
+            _notesDraftText = '';
+            _notesRenderStrip();
+          };
+          var btnNo = document.createElement('button');
+          btnNo.style.cssText = 'padding:3px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#8899aa;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;';
+          btnNo.textContent = 'No';
+          btnNo.onclick = function(ev) { ev.stopPropagation(); overlay.remove(); };
+          overlay.appendChild(btnYes);
+          overlay.appendChild(btnNo);
+          noteStripEl.appendChild(overlay);
+        };
+        rightDiv.appendChild(stripDel);
+        // Arrow
+        var arrowSpan = document.createElement('span');
+        arrowSpan.style.cssText = 'font-size:10px;color:#445566;';
+        arrowSpan.textContent = '\u203A';
+        rightDiv.appendChild(arrowSpan);
+        noteStripEl.appendChild(rightDiv);
+
+        // Show delete on hover
+        noteStripEl.onmouseenter = function() { this.style.background='rgba(0,180,255,0.06)'; this.style.borderColor='rgba(0,180,255,0.15)'; stripDel.style.opacity='1'; };
+        noteStripEl.onmouseleave = function() { this.style.background='rgba(0,180,255,0.03)'; this.style.borderColor='rgba(0,180,255,0.08)'; stripDel.style.opacity='0'; };
+      }
+
+      // Open independent Notes panel (hide flip card, show notes)
+      function _notesOpenPanel() {
+        _notesDraftText = '';
+        _notesDraftTagName = '';
+        // Capture current badge height before hiding
+        var badgeHeight = flipInner.offsetHeight || flipFront.scrollHeight;
+        flipInner.style.display = 'none';
+        // Hide alerts panel if open
+        var ap = badge.querySelector('#of-stats-alerts-panel');
+        if (ap) ap.style.display = 'none';
+        var np = badge.querySelector('#of-stats-notes-panel');
+        if (np) {
+          np.style.display = '';
+          np.style.minHeight = badgeHeight + 'px';
+          // Show local data immediately
+          _notesRebuildPanel();
+          // Then refresh from server
+          _notesSyncFromServer(function() {
+            _notesRebuildPanel();
+            _notesRenderStrip();
+          });
+        }
+      }
+
+      // Close Notes panel and return to front side
+      function _notesClosePanel() {
+        var np = badge.querySelector('#of-stats-notes-panel');
+        if (np) np.style.display = 'none';
+        flipInner.style.display = '';
+        // Ensure we're on front side
+        flipInner.classList.remove('flipped');
+        flipInner.style.minHeight = flipFront.scrollHeight + 'px';
+        var frontLabel = document.getElementById('of-flip-label');
+        var backLabel = document.getElementById('of-flip-label-back');
+        if (frontLabel) frontLabel.textContent = 'Details';
+        if (backLabel) backLabel.textContent = 'Details';
+        var fb = badge.querySelector('#of-stats-flip-btn');
+        if (fb) fb.style.opacity = '0.65';
+      }
+
+      _notesRenderStrip();
       
       // Username with verification badge
       if (profileData.username || profileData.name) {
@@ -1428,6 +3017,15 @@
       // First scan for social links immediately
       profileData._detectedSocials = scanSocialLinksFromDOM();
       const scoreResult = calculateModelScore(profileData);
+
+      // Run Smart Alerts detection (must be after scoreResult)
+      _alertsDetect(_notesUsername, profileData, scoreResult);
+      _alertsUpdateBadge();
+
+      // Pre-fetch alerts from server to merge with local
+      _alertsFetchFromServer(_notesUsername, function() {
+        _alertsUpdateBadge();
+      });
       
       // Inject tooltip styles once
       if (!document.getElementById('of-stats-tooltip-styles')) {
@@ -1680,22 +3278,61 @@
         }
       }
       
-      // AI Verdict (async)
+      // AI Verdict (async) — styled card with grade accent
+      var _vGradeColor = scoreResult.gradeColor || '#00b4ff';
+      var _vGradeLabel = (t('verdictGrade') || {})[scoreResult.grade] || '';
+
       const verdictDiv = document.createElement('div');
-      verdictDiv.style.cssText = 'color:#8a96a3;font-size:11px;font-style:italic;line-height:1.4;margin-top:4px;';
-      // Hide verdict if disabled in settings
-      if (settings.ofStatsVerdictEnabled === false) {
+      verdictDiv.style.cssText = 'margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid ' + _vGradeColor + '20;background:linear-gradient(135deg,' + _vGradeColor + '08,' + _vGradeColor + '03);';
+      // Hide verdict if disabled in settings OR subscription expired
+      if (settings.ofStatsVerdictEnabled === false || _subExpired) {
         verdictDiv.style.display = 'none';
       }
       analysisGroup.appendChild(verdictDiv);
+
+      // Render helper for verdict card content
+      function _renderVerdict(text, state) {
+        // state: 'loading', 'error', 'ready'
+        var sparkSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;"><path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" fill="' + _vGradeColor + '"/><path d="M19 15L19.7 17.3L22 18L19.7 18.7L19 21L18.3 18.7L16 18L18.3 17.3L19 15Z" fill="' + _vGradeColor + '" opacity="0.6"/></svg>';
+        var html = '<div style="display:flex;align-items:center;gap:6px;padding:8px 10px 4px;">';
+        html += sparkSvg;
+        html += '<span style="font-size:10px;font-weight:700;letter-spacing:0.5px;color:' + _vGradeColor + ';text-transform:uppercase;">' + t('verdictAI') + '</span>';
+        if (_vGradeLabel) {
+          html += '<span style="font-size:9px;color:' + _vGradeColor + ';opacity:0.6;margin-left:auto;font-weight:600;">' + _vGradeLabel + '</span>';
+        }
+        html += '</div>';
+        // Accent line
+        html += '<div style="height:1px;background:linear-gradient(90deg,transparent,' + _vGradeColor + '30,transparent);margin:0 10px;"></div>';
+        // Body
+        html += '<div style="padding:6px 10px 9px;">';
+        if (state === 'loading') {
+          html += '<div style="display:flex;align-items:center;gap:6px;"><div style="width:8px;height:8px;border-radius:50%;border:2px solid ' + _vGradeColor + ';border-top-color:transparent;animation:ofSpin 0.8s linear infinite;"></div><span style="color:#64748b;font-size:11px;font-style:italic;">' + t('analyzing') + '</span></div>';
+        } else if (state === 'error') {
+          html += '<span style="color:#64748b;font-size:11px;font-style:italic;">' + t('unavailable') + '</span>';
+        } else {
+          html += '<span style="color:#c9d1d9;font-size:11px;line-height:1.5;">' + text + '</span>';
+        }
+        html += '</div>';
+        return html;
+      }
+
+      // Spin animation for loading
+      if (!document.getElementById('ofSpinStyle')) {
+        var spinStyle = document.createElement('style');
+        spinStyle.id = 'ofSpinStyle';
+        spinStyle.textContent = '@keyframes ofSpin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(spinStyle);
+      }
       
       // analysisGroup appended to scoreSection in assembly below
       
-      // Request AI verdict from background (use cached if already fetched)
-      if (profileData._aiVerdict) {
-        verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span>' + profileData._aiVerdict;
+      // Request AI verdict from background (skip if subscription expired to save AI resources)
+      if (_subExpired) {
+        // Do nothing — verdict hidden and not generated
+      } else if (profileData._aiVerdict && profileData._aiVerdictLang === _ofLang) {
+        verdictDiv.innerHTML = _renderVerdict(profileData._aiVerdict, 'ready');
       } else {
-        verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('analyzing') + '</span>';
+        verdictDiv.innerHTML = _renderVerdict('', 'loading');
         try {
           var lastKnownFansInfo = '';
           if (profileData.showSubscribersCount === false && profileData._lastKnownFans) {
@@ -1704,6 +3341,7 @@
           chrome.runtime.sendMessage({
             action: 'getAIVerdict',
             scoreData: {
+              lang: _ofLang || 'ru',
               username: profileData.username || '',
               score: scoreResult.score,
               grade: scoreResult.grade,
@@ -1729,15 +3367,16 @@
           }).then(function(response) {
             if (response && response.verdict) {
               profileData._aiVerdict = response.verdict;
-              verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span>' + response.verdict;
+              profileData._aiVerdictLang = _ofLang;
+              verdictDiv.innerHTML = _renderVerdict(response.verdict, 'ready');
             } else {
-              verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('unavailable') + '</span>';
+              verdictDiv.innerHTML = _renderVerdict('', 'error');
             }
           }).catch(function() {
-            verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('unavailable') + '</span>';
+            verdictDiv.innerHTML = _renderVerdict('', 'error');
           });
         } catch (e) {
-          verdictDiv.innerHTML = '<span style="color:#ffffff;font-weight:700;font-style:normal;">' + t('verdictAI') + '</span><span style="color:#64748b;">' + t('unavailable') + '</span>';
+          verdictDiv.innerHTML = _renderVerdict('', 'error');
         }
       }
 
@@ -1797,9 +3436,13 @@
       var svgRadarIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="22" y1="8.5" x2="2" y2="15.5"/><line x1="2" y1="8.5" x2="22" y2="15.5"/></svg>';
       var svgTrendIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 6 13 11 8 4 2 12"/><polyline points="22 12 22 20 2 20 2 12"/></svg>';
       var tabRadar = document.createElement('div');
+      tabRadar.className = 'of-tab-btn';
+      tabRadar.dataset.tab = 'radar';
       tabRadar.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:10px;font-weight:600;color:#00b4ff;cursor:pointer;border-bottom:2px solid #00b4ff;transition:all 0.2s;';
       tabRadar.innerHTML = svgRadarIcon + ' ' + t('radarTab');
       var tabTrend = document.createElement('div');
+      tabTrend.className = 'of-tab-btn';
+      tabTrend.dataset.tab = 'trend';
       tabTrend.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;font-size:10px;font-weight:600;color:#556677;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;';
       tabTrend.innerHTML = svgTrendIcon + ' ' + t('trendTab');
       tabBar.appendChild(tabRadar);
@@ -1899,156 +3542,22 @@
               var dbBetter = Math.max(1, Math.min(99, Number(resp.betterPercent)));
               var dbTop = Math.max(1, Math.min(99, Number(resp.topPercent)));
               if (topEl) topEl.textContent = 'Top ' + dbTop + '%';
-              if (betterEl) betterEl.textContent = t('betterThanModels') + dbBetter + '% ' + dbModels + ' ' + t('analyzedModelsSuffix');
-              if (basisEl) basisEl.textContent = 'aggregated DB percentile';
+              if (betterEl) betterEl.textContent = t('betterThanModels') + dbBetter + '% ' + t('analyzedModelsSuffix');
+              if (basisEl) basisEl.textContent = t('aggregatedDB');
               if (markerEl) markerEl.style.left = dbBetter + '%';
             } else {
               // Keep local heuristic, just update model count and basis text
-              if (basisEl) basisEl.textContent = 'quality score estimate (' + dbModels + ' in DB)';
+              if (basisEl) basisEl.textContent = t('qualityEstimate');
             }
           }).catch(function() {});
         } catch (e) {}
       }
-      flipBack.appendChild(radarTabContent);
 
-      // --- TREND TAB CONTENT ---
-      var trendTabContent = document.createElement('div');
-      trendTabContent.id = 'of-stats-tab-trend';
-      trendTabContent.style.display = 'none';
-
-      if (hasTrend) {
-        var tpts = profileData._fansTrend;
-        var tVals = tpts.map(function(p) { return p.f; });
-        var tMin = Math.min.apply(null, tVals);
-        var tMax = Math.max.apply(null, tVals);
-        var tRange = tMax - tMin || 1;
-        var tFirst = tVals[0], tLast = tVals[tVals.length - 1];
-        var tPctChange = ((tLast - tFirst) / tFirst * 100);
-        var tIsUp = tPctChange >= 0;
-        var tColor = tIsUp ? '#22c55e' : '#ef4444';
-        var tArrow = tIsUp ? '▲' : '▼';
-        var tPctText = tArrow + ' ' + (tIsUp ? '+' : '') + tPctChange.toFixed(1) + '%';
-        var tGained = tLast - tFirst;
-        var tDays = tpts.length > 1 ? Math.max(1, Math.round((new Date(tpts[tpts.length-1].d) - new Date(tpts[0].d)) / 86400000)) : 1;
-        var tPerDay = (tGained / tDays).toFixed(0);
-
-        // Build full sparkline SVG for trend tab
-        var tW = 240, tH = 56;
-        var tPadTop = 8, tPadBottom = 8;
-        var tCoords = tVals.map(function(v, i) {
-          var x = (i / (tVals.length - 1)) * tW;
-          var y = tPadTop + (1 - ((v - tMin) / tRange)) * (tH - tPadTop - tPadBottom);
-          return x.toFixed(1) + ',' + y.toFixed(1);
-        });
-        var tLine = tCoords.join(' ');
-        var tArea = tLine + ' ' + tW + ',' + tH + ' 0,' + tH;
-        var tFirstDate = tpts[0].d;
-        var tLastDate = tpts[tpts.length - 1].d;
-        var tMidDate = tpts[Math.floor(tpts.length / 2)] ? tpts[Math.floor(tpts.length / 2)].d : '';
-        function fmtTrendDate(d) { var p = d.split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
-
-        // Build interactive dots for hover tooltips
-        var tDots = '';
-        tCoords.forEach(function(coord, idx) {
-          var cx = coord.split(',')[0];
-          var cy = coord.split(',')[1];
-          tDots += '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="' + tColor + '" stroke="#0d1117" stroke-width="2" style="cursor:pointer;" data-idx="' + idx + '"/>';
-          tDots += '<circle cx="' + cx + '" cy="' + cy + '" r="12" fill="transparent" style="cursor:pointer;" data-idx="' + idx + '"/>';
-        });
-
-        trendTabContent.innerHTML =
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
-          + '<span style="font-size:10px;color:#8899aa;text-transform:uppercase;letter-spacing:0.3px;">' + t('fansTrend') + ' (' + tDays + 'd)</span>'
-          + '<div style="display:flex;align-items:center;gap:6px;">'
-          + '<span style="font-size:18px;font-weight:700;color:#fff;">' + Number(tLast).toLocaleString() + '</span>'
-          + '<span style="font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;color:' + tColor + ';background:' + tColor + '18;">' + tPctText + '</span>'
-          + '</div></div>'
-          + '<div style="position:relative;margin:6px 0;">'
-          + '<svg viewBox="0 0 ' + tW + ' ' + tH + '" width="100%" height="68" preserveAspectRatio="none" id="of-trend-svg">'
-          + '<defs><linearGradient id="ofTrendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + tColor + '" stop-opacity="0.25"/><stop offset="100%" stop-color="' + tColor + '" stop-opacity="0"/></linearGradient></defs>'
-          + '<polygon points="' + tArea + '" fill="url(#ofTrendGrad)"/>'
-          + '<polyline points="' + tLine + '" fill="none" stroke="' + tColor + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
-          + tDots
-          + '</svg>'
-          + '<div id="of-trend-tooltip" style="display:none;position:absolute;bottom:2px;left:0;background:#1a2535ee;border:1px solid ' + tColor + '44;border-radius:6px;padding:4px 8px;pointer-events:none;white-space:nowrap;z-index:10;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
-          + '<div style="font-size:11px;font-weight:700;color:#fff;" id="of-trend-tip-fans"></div>'
-          + '<div style="font-size:9px;color:#8899aa;" id="of-trend-tip-date"></div>'
-          + '</div></div>'
-          + '<div style="display:flex;justify-content:space-between;font-size:9px;color:#667788;margin-bottom:8px;">'
-          + '<span>' + fmtTrendDate(tFirstDate) + '</span>'
-          + (tMidDate ? '<span>' + fmtTrendDate(tMidDate) + '</span>' : '')
-          + '<span>' + fmtTrendDate(tLastDate) + '</span>'
-          + '</div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">'
-          + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
-          + '<div style="font-size:13px;font-weight:700;color:' + tColor + ';">' + (tGained >= 0 ? '+' : '') + Number(tGained).toLocaleString() + '</div>'
-          + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendGained') + '</div></div>'
-          + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
-          + '<div style="font-size:13px;font-weight:700;color:#00b4ff;">~' + tPerDay + '/d</div>'
-          + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendPerDay') + '</div></div>'
-          + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
-          + '<div style="font-size:13px;font-weight:700;color:#00b4ff;">' + tpts.length + '</div>'
-          + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendReports') + '</div></div>'
-          + '</div>';
-
-        // Attach hover listeners for interactive dots
-        setTimeout(function() {
-          var svg = document.getElementById('of-trend-svg');
-          var tip = document.getElementById('of-trend-tooltip');
-          var tipFans = document.getElementById('of-trend-tip-fans');
-          var tipDate = document.getElementById('of-trend-tip-date');
-          if (!svg || !tip) return;
-          var dots = svg.querySelectorAll('circle[data-idx]');
-          dots.forEach(function(dot) {
-            dot.addEventListener('mouseenter', function() {
-              var idx = parseInt(dot.getAttribute('data-idx'));
-              var pt = tpts[idx];
-              if (!pt) return;
-              tipFans.textContent = Number(pt.f).toLocaleString() + ' fans';
-              tipDate.textContent = fmtTrendDate(pt.d);
-              var pct = (idx / (tpts.length - 1)) * 100;
-              var clampedPct = Math.max(12, Math.min(88, pct));
-              tip.style.left = clampedPct + '%';
-              tip.style.display = '';
-            });
-            dot.addEventListener('mouseleave', function() {
-              tip.style.display = 'none';
-            });
-          });
-        }, 50);
-      } else {
-        trendTabContent.innerHTML = '<div style="text-align:center;padding:30px 10px;color:#556677;font-size:12px;">'
-          + '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#334455" stroke-width="1.5" style="margin:0 auto 8px;display:block;"><path d="M22 12H18L15 21L9 3L6 12H2"/></svg>'
-          + t('trendNoData')
-          + '</div>';
-      }
-      flipBack.appendChild(trendTabContent);
-
-      // --- TAB SWITCHING LOGIC ---
-      tabRadar.addEventListener('click', function() {
-        tabRadar.style.color = '#00b4ff';
-        tabRadar.style.borderBottomColor = '#00b4ff';
-        tabTrend.style.color = '#556677';
-        tabTrend.style.borderBottomColor = 'transparent';
-        document.getElementById('of-stats-tab-radar').style.display = '';
-        document.getElementById('of-stats-tab-trend').style.display = 'none';
-        adjustFlipHeight(true);
-      });
-      tabTrend.addEventListener('click', function() {
-        tabTrend.style.color = '#00b4ff';
-        tabTrend.style.borderBottomColor = '#00b4ff';
-        tabRadar.style.color = '#556677';
-        tabRadar.style.borderBottomColor = 'transparent';
-        document.getElementById('of-stats-tab-radar').style.display = 'none';
-        document.getElementById('of-stats-tab-trend').style.display = '';
-        adjustFlipHeight(true);
-      });
-
-      // X-Ray section on back
+      // X-Ray section inside Radar tab
       var xrayTitle = document.createElement('div');
-      xrayTitle.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;';
+      xrayTitle.style.cssText = 'display:flex;align-items:center;gap:6px;margin:10px 0 8px 0;';
       xrayTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span style="color:#00b4ff;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">' + t('xrayMode') + '</span>';
-      flipBack.appendChild(xrayTitle);
+      radarTabContent.appendChild(xrayTitle);
 
       var xrayPanel = document.createElement('div');
       xrayPanel.style.cssText = 'background:rgba(0,180,255,0.04);border:1px solid rgba(0,180,255,0.12);border-radius:8px;padding:10px;';
@@ -2059,19 +3568,687 @@
                  : '<svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" style="flex-shrink:0"><path d="M12 2L1 21h22L12 2zm0 4l7.5 13h-15L12 6z"/><rect x="11" y="10" width="2" height="5" rx="1"/><rect x="11" y="16" width="2" height="2" rx="1"/></svg>';
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:11px;' + (r !== xrayRows[xrayRows.length - 1] ? 'border-bottom:1px solid rgba(255,255,255,0.04);' : '') + '"><span style="color:#64748b;">' + r.key + '</span><span style="display:flex;align-items:center;gap:4px;color:' + valColor + ';font-weight:600;">' + r.val + icon + '</span></div>';
       }).join('');
-      flipBack.appendChild(xrayPanel);
+      radarTabContent.appendChild(xrayPanel);
+
+      flipBack.appendChild(radarTabContent);
+
+      // --- TREND TAB CONTENT ---
+      var trendTabContent = document.createElement('div');
+      trendTabContent.id = 'of-stats-tab-trend';
+      trendTabContent.style.display = 'none';
+
+      if (hasTrend) {
+        var tAllPts = profileData._fansTrendRaw || profileData._fansTrend;
+        var tActiveRange = 'all';
+        function fmtTrendDate(d) { var p = d.split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
+
+        // Filter points by range
+        function filterByRange(range) {
+          var now = new Date();
+          var pts = tAllPts.slice();
+          if (range === '24h') {
+            var yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+            var yStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0');
+            pts = pts.filter(function(p) { return p.d >= yStr; });
+          } else if (range === '7d') {
+            var d7 = new Date(now); d7.setDate(d7.getDate() - 7);
+            var s7 = d7.getFullYear() + '-' + String(d7.getMonth() + 1).padStart(2, '0') + '-' + String(d7.getDate()).padStart(2, '0');
+            pts = pts.filter(function(p) { return p.d >= s7; });
+          } else if (range === '30d') {
+            var d30 = new Date(now); d30.setDate(d30.getDate() - 30);
+            var s30 = d30.getFullYear() + '-' + String(d30.getMonth() + 1).padStart(2, '0') + '-' + String(d30.getDate()).padStart(2, '0');
+            pts = pts.filter(function(p) { return p.d >= s30; });
+          }
+          // "all" uses everything
+          // LTTB downsample for "all" if too many points
+          if (range === 'all' && pts.length > 30) {
+            pts = lttbDownsample(pts, 30);
+          }
+          if (pts.length < 2) pts = tAllPts.slice(-2);
+          return pts;
+        }
+
+        function buildChart(pts) {
+          var vals = pts.map(function(p) { return p.f; });
+          var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+          var rng = mx - mn || 1;
+          var first = vals[0], last = vals[vals.length - 1];
+          var pctCh = ((last - first) / (first || 1) * 100);
+          var isUp = pctCh >= 0;
+          var col = isUp ? '#22c55e' : '#ef4444';
+          var arrow = isUp ? '\u25b2' : '\u25bc';
+          var pctTxt = arrow + ' ' + (isUp ? '+' : '') + pctCh.toFixed(1) + '%';
+          var gained = last - first;
+          var days = pts.length > 1 ? Math.max(1, Math.round((new Date(pts[pts.length - 1].d) - new Date(pts[0].d)) / 86400000)) : 1;
+          var perDay = (gained / days).toFixed(0);
+          var W = 240, H = 56, padT = 8, padB = 8;
+          var coords = vals.map(function(v, i) {
+            var x = (i / (vals.length - 1)) * W;
+            var y = padT + (1 - ((v - mn) / rng)) * (H - padT - padB);
+            return x.toFixed(1) + ',' + y.toFixed(1);
+          });
+          var line = coords.join(' ');
+          var area = line + ' ' + W + ',' + H + ' 0,' + H;
+          var dots = '';
+          coords.forEach(function(c, idx) {
+            var cx = c.split(',')[0], cy = c.split(',')[1];
+            dots += '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="' + col + '" stroke="#0d1117" stroke-width="2" style="cursor:pointer;" data-idx="' + idx + '"/>';
+            dots += '<circle cx="' + cx + '" cy="' + cy + '" r="12" fill="transparent" style="cursor:pointer;" data-idx="' + idx + '"/>';
+          });
+          var firstD = pts[0].d, lastD = pts[pts.length - 1].d;
+          var midD = pts[Math.floor(pts.length / 2)] ? pts[Math.floor(pts.length / 2)].d : '';
+          return {
+            html: '<div id="of-trend-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+              + '<span style="font-size:10px;color:#8899aa;text-transform:uppercase;letter-spacing:0.3px;">' + t('fansTrend') + ' (' + days + 'd)</span>'
+              + '<div style="display:flex;align-items:center;gap:6px;">'
+              + '<span style="font-size:18px;font-weight:700;color:#fff;">' + Number(last).toLocaleString() + '</span>'
+              + '<span style="font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;color:' + col + ';background:' + col + '18;">' + pctTxt + '</span>'
+              + '</div></div>'
+              + '<div style="position:relative;margin:6px 0;">'
+              + '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="68" preserveAspectRatio="none" id="of-trend-svg" style="opacity:0;animation:ofTrendFadeIn 0.3s ease forwards;">'
+              + '<defs><linearGradient id="ofTrendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + col + '" stop-opacity="0.25"/><stop offset="100%" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs>'
+              + '<polygon points="' + area + '" fill="url(#ofTrendGrad)"/>'
+              + '<polyline points="' + line + '" fill="none" stroke="' + col + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+              + dots
+              + '</svg>'
+              + '<div id="of-trend-tooltip" style="display:none;position:absolute;bottom:2px;left:0;background:#1a2535ee;border:1px solid ' + col + '44;border-radius:6px;padding:4px 8px;pointer-events:none;white-space:nowrap;z-index:10;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
+              + '<div style="font-size:11px;font-weight:700;color:#fff;" id="of-trend-tip-fans"></div>'
+              + '<div style="font-size:9px;color:#8899aa;" id="of-trend-tip-date"></div>'
+              + '</div></div>'
+              + '<div style="display:flex;justify-content:space-between;font-size:9px;color:#667788;margin-bottom:8px;">'
+              + '<span>' + fmtTrendDate(firstD) + '</span>'
+              + (midD ? '<span>' + fmtTrendDate(midD) + '</span>' : '')
+              + '<span>' + fmtTrendDate(lastD) + '</span>'
+              + '</div>'
+              + '<div id="of-trend-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">'
+              + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
+              + '<div style="font-size:13px;font-weight:700;color:' + col + ';">' + (gained >= 0 ? '+' : '') + Number(gained).toLocaleString() + '</div>'
+              + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendGained') + '</div></div>'
+              + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
+              + '<div style="font-size:13px;font-weight:700;color:#00b4ff;">~' + perDay + '/d</div>'
+              + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendPerDay') + '</div></div>'
+              + '<div style="text-align:center;padding:6px 4px;background:rgba(0,180,255,0.04);border-radius:6px;border:1px solid rgba(0,180,255,0.12);">'
+              + '<div style="font-size:13px;font-weight:700;color:#00b4ff;">' + pts.length + '</div>'
+              + '<div style="font-size:8px;color:#8899aa;margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;">' + t('trendReports') + '</div></div>'
+              + '</div>',
+            pts: pts, col: col
+          };
+        }
+
+        // Inject animation keyframe for chart fade
+        if (!document.getElementById('of-trend-anim-style')) {
+          var animSty = document.createElement('style');
+          animSty.id = 'of-trend-anim-style';
+          animSty.textContent = '@keyframes ofTrendFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}';
+          document.head.appendChild(animSty);
+        }
+
+        // Chart container
+        var chartWrap = document.createElement('div');
+        chartWrap.id = 'of-trend-chart-wrap';
+        trendTabContent.appendChild(chartWrap);
+
+        // Range buttons row
+        var rangeBtns = document.createElement('div');
+        rangeBtns.style.cssText = 'display:flex;gap:4px;margin-top:8px;';
+        var ranges = [
+          { key: '24h', label: '24h' },
+          { key: '7d', label: '7d' },
+          { key: '30d', label: '30d' },
+          { key: 'all', label: t('trendAll') }
+        ];
+        var btnEls = {};
+        ranges.forEach(function(r) {
+          var b = document.createElement('button');
+          b.style.cssText = 'flex:1;padding:5px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:#667788;font-size:9px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit;letter-spacing:0.3px;';
+          b.textContent = r.label;
+          b.onmouseenter = function() { if (tActiveRange !== r.key) { b.style.background = 'rgba(0,180,255,0.06)'; b.style.borderColor = 'rgba(0,180,255,0.15)'; b.style.color = '#8899aa'; } };
+          b.onmouseleave = function() { if (tActiveRange !== r.key) { b.style.background = 'rgba(255,255,255,0.03)'; b.style.borderColor = 'rgba(255,255,255,0.06)'; b.style.color = '#667788'; } };
+          b.onclick = function() { setRange(r.key); };
+          btnEls[r.key] = b;
+          rangeBtns.appendChild(b);
+        });
+        trendTabContent.appendChild(rangeBtns);
+
+        function highlightBtn(key) {
+          ranges.forEach(function(r) {
+            var b = btnEls[r.key];
+            if (r.key === key) {
+              b.style.background = 'rgba(0,180,255,0.1)';
+              b.style.borderColor = 'rgba(0,180,255,0.25)';
+              b.style.color = '#00b4ff';
+            } else {
+              b.style.background = 'rgba(255,255,255,0.03)';
+              b.style.borderColor = 'rgba(255,255,255,0.06)';
+              b.style.color = '#667788';
+            }
+          });
+        }
+
+        function attachDotListeners(pts) {
+          var svg = document.getElementById('of-trend-svg');
+          var tip = document.getElementById('of-trend-tooltip');
+          var tipFans = document.getElementById('of-trend-tip-fans');
+          var tipDate = document.getElementById('of-trend-tip-date');
+          if (!svg || !tip) return;
+          svg.querySelectorAll('circle[data-idx]').forEach(function(dot) {
+            dot.addEventListener('mouseenter', function() {
+              var idx = parseInt(dot.getAttribute('data-idx'));
+              var pt = pts[idx];
+              if (!pt) return;
+              tipFans.textContent = Number(pt.f).toLocaleString() + ' fans';
+              tipDate.textContent = fmtTrendDate(pt.d);
+              var pct = (idx / (pts.length - 1)) * 100;
+              tip.style.left = Math.max(12, Math.min(88, pct)) + '%';
+              tip.style.display = '';
+            });
+            dot.addEventListener('mouseleave', function() { tip.style.display = 'none'; });
+          });
+        }
+
+        function setRange(key) {
+          tActiveRange = key;
+          highlightBtn(key);
+          var pts = filterByRange(key);
+          var result = buildChart(pts);
+          chartWrap.innerHTML = result.html;
+          setTimeout(function() { attachDotListeners(result.pts); }, 30);
+          adjustFlipHeight(true);
+        }
+
+        // Initial render
+        setRange(tActiveRange);
+
+      } else {
+        trendTabContent.innerHTML = '<div style="text-align:center;padding:30px 10px;color:#556677;font-size:12px;">'
+          + '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#334455" stroke-width="1.5" style="margin:0 auto 8px;display:block;"><path d="M22 12H18L15 21L9 3L6 12H2"/></svg>'
+          + t('trendNoData')
+          + '</div>';
+      }
+
+      // === MILESTONE TIMELINE (inside Trend tab) ===
+      var msTitle = document.createElement('div');
+      msTitle.style.cssText = 'display:flex;align-items:center;gap:6px;margin:16px 0 10px 0;';
+      msTitle.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C6 4 6 6 6 6s0 0 0 3z" fill="#00b4ff"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C18 4 18 6 18 6s0 0 0 3z" fill="#00b4ff"/><path d="M6 9h12v4c0 3.3-2.7 6-6 6s-6-2.7-6-6V9z" fill="#00b4ff"/><rect x="5" y="8" width="14" height="2" rx="1" fill="#4dc9ff"/><path d="M12 15v4M12 19l-2 2M12 19l2 2" stroke="#0080b3" stroke-width="1.5" stroke-linecap="round"/></svg><span style="color:#00b4ff;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">' + t('milestoneTitle') + '</span>';
+      trendTabContent.appendChild(msTitle);
+
+      var msPanel = document.createElement('div');
+      msPanel.style.cssText = 'background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 14px 14px 16px;margin-bottom:6px;';
+
+      // Milestone thresholds & unique SVG icons per tier (placed ON the timeline)
+      var msTiers = [500, 1000, 2000, 3000, 5000, 10000, 25000, 50000, 100000];
+      var msTierIcons = {
+        500: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#06b6d4" opacity="0.15"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" fill="none" stroke="#06b6d4" stroke-width="1.5"/><path d="M8 12l2.5 3L16 9" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+        1000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" fill="#ef4444" opacity="0.15"/><path d="M12 6v5l3 3" stroke="#ef4444" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="12" cy="12" r="9" stroke="#ef4444" stroke-width="1.5" fill="none"/></svg>',
+        2000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7v6c0 5.5 4.3 10.7 10 12 5.7-1.3 10-6.5 10-12V7L12 2z" fill="#8b5cf6" opacity="0.15" stroke="#8b5cf6" stroke-width="1.5"/><path d="M9 12l2 2 4-4" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+        3000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f97316" opacity="0.15" stroke="#f97316" stroke-width="1.5"/><path d="M12 8v4l3 1.5" stroke="#f97316" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="12" cy="12" r="2" fill="#f97316"/></svg>',
+        5000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 4.8 5.3.8-3.8 3.7.9 5.3L12 14l-4.8 2.5.9-5.3-3.8-3.7 5.3-.8z" fill="#f59e0b" stroke="#f59e0b" stroke-width="1" stroke-linejoin="round"/></svg>',
+        10000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 4.8 5.3.8-3.8 3.7.9 5.3L12 14l-4.8 2.5.9-5.3-3.8-3.7 5.3-.8z" fill="#ec4899" stroke="#ec4899" stroke-width="1"/><circle cx="12" cy="10" r="3" fill="none" stroke="#fff" stroke-width="1.5"/></svg>',
+        25000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C6 4 6 7 6 7z" fill="#10b981"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C18 4 18 7 18 7z" fill="#10b981"/><path d="M6 9h12v5c0 3-2.7 5.5-6 5.5S6 17 6 14V9z" fill="#10b981"/><rect x="5" y="8" width="14" height="2" rx="1" fill="#34d399"/></svg>',
+        50000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#3b82f6" opacity="0.15" stroke="#3b82f6" stroke-width="1.5"/><path d="M12 6l1.5 3 3.3.5-2.4 2.3.6 3.2L12 13.5 8.9 15l.6-3.2L7.2 9.5l3.3-.5z" fill="#3b82f6"/></svg>',
+        100000: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7v6c0 5.5 4.3 10.7 10 12 5.7-1.3 10-6.5 10-12V7L12 2z" fill="#f59e0b" stroke="#f59e0b" stroke-width="1.5"/><path d="M12 8l1.2 2.4 2.6.4-1.9 1.8.4 2.6L12 14l-2.3 1.2.4-2.6-1.9-1.8 2.6-.4z" fill="#fff"/></svg>'
+      };
+      var msIconCurrent = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" fill="#ef4444" opacity="0.12"/><circle cx="12" cy="12" r="4" fill="#ef4444"><animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0.6;1" dur="2s" repeatCount="indefinite"/></circle><circle cx="12" cy="12" r="9" stroke="#ef4444" stroke-width="1.5" fill="none" opacity="0.4"/></svg>';
+      var msIconFuture = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 3" fill="none"/><circle cx="12" cy="12" r="3" fill="#94a3b8" opacity="0.5"/></svg>';
+
+      var msCurrentFans = xrayEffectiveFans || 0;
+      var msTrendPts = (profileData._fansTrendRaw || profileData._fansTrend || []);
+      var msPerDay = 0;
+      if (msTrendPts.length >= 2) {
+        var msFirst = msTrendPts[0], msLast = msTrendPts[msTrendPts.length - 1];
+        var msDaySpan = (new Date(msLast.d) - new Date(msFirst.d)) / 86400000;
+        if (msDaySpan > 0) msPerDay = (msLast.f - msFirst.f) / msDaySpan;
+      }
+
+      // Join date for duration calculation
+      var msJoinDate = profileData.joinDate ? new Date(profileData.joinDate) : null;
+      var msNow = new Date();
+
+      function msFormatNum(n) {
+        return n >= 1000 ? n.toLocaleString('ru-RU') : n.toString();
+      }
+
+      function msDurationFromJoin(dateStr) {
+        if (!msJoinDate || !dateStr) return '';
+        var d = new Date(dateStr);
+        var months = (d.getFullYear() - msJoinDate.getFullYear()) * 12 + (d.getMonth() - msJoinDate.getMonth());
+        if (months < 1) return '';
+        var y = Math.floor(months / 12);
+        var m = months % 12;
+        if (y > 0 && m > 0) return y + ' ' + t('msYr') + ' ' + m + ' ' + t('msMo');
+        if (y > 0) return y + ' ' + t('msYr');
+        return m + ' ' + t('msMo');
+      }
+
+      function msAccountAge() {
+        if (!msJoinDate) return '';
+        var months = (msNow.getFullYear() - msJoinDate.getFullYear()) * 12 + (msNow.getMonth() - msJoinDate.getMonth());
+        if (months < 1) return '';
+        var y = Math.floor(months / 12);
+        var m = months % 12;
+        if (y > 0 && m > 0) return y + ' ' + t('msYr') + ' ' + m + ' ' + t('msMo');
+        if (y > 0) return y + ' ' + t('msYr');
+        return m + ' ' + t('msMo');
+      }
+
+      function msHumanDate(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        var monthNames = t('msMonthsFull');
+        return d.getDate() + ' ' + monthNames[d.getMonth()] + ' ' + d.getFullYear();
+      }
+
+      // Find achieved & future tiers
+      var msAchieved = msTiers.filter(function(v) { return v <= msCurrentFans; });
+      var msFuture = msTiers.filter(function(v) { return v > msCurrentFans; }).slice(0, 2);
+
+      // Build items: all achieved + current + next 2 future
+      var msItems = [];
+      msAchieved.forEach(function(tier) {
+        var reachedDate = '';
+        for (var i = 0; i < msTrendPts.length; i++) {
+          if (msTrendPts[i].f >= tier) { reachedDate = msTrendPts[i].d; break; }
+        }
+        msItems.push({ val: tier, state: 'done', date: reachedDate });
+      });
+      msItems.push({ val: msCurrentFans, state: 'current' });
+      msFuture.forEach(function(tier) {
+        var daysNeeded = msPerDay > 0 ? Math.ceil((tier - msCurrentFans) / msPerDay) : 0;
+        msItems.push({ val: tier, state: 'future', days: daysNeeded });
+      });
+
+      if (msCurrentFans <= 0 && msTrendPts.length < 2) {
+        msPanel.innerHTML = '<div style="text-align:center;padding:16px 0;color:#64748b;font-size:11px;">' + t('milestoneNoData') + '</div>';
+      } else {
+        var msDoneCount = msAchieved.length;
+        var msTotalCount = msItems.length;
+        var msLineBluePct = msTotalCount > 1 ? Math.round(((msDoneCount + 0.5) / msTotalCount) * 100) : 50;
+
+        var msHtml = '<div style="position:relative;padding-left:32px;">';
+        // Vertical timeline line: blue for achieved, grey for future
+        msHtml += '<div style="position:absolute;left:8px;top:10px;bottom:10px;width:3px;border-radius:2px;background:linear-gradient(to bottom,#00b4ff ' + msLineBluePct + '%,#334155 ' + msLineBluePct + '%);"></div>';
+
+        msItems.forEach(function(item, idx) {
+          var isLast = idx === msItems.length - 1;
+          // SVG icon placed directly on the timeline line
+          var lineIcon = item.state === 'done' ? msTierIcons[500] : item.state === 'current' ? msIconCurrent : msIconFuture;
+
+          msHtml += '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;position:relative;">';
+          // Icon on the timeline line (centered on the 3px line at left:8px, center=9.5px)
+          msHtml += '<div style="position:absolute;left:-22px;top:8px;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;z-index:1;background:#141625;border-radius:50%;padding:1px;">' + lineIcon + '</div>';
+          msHtml += '<div style="flex:1;">';
+
+          if (item.state === 'done') {
+            msHtml += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;">';
+            msHtml += '<span style="color:#e2e8f0;font-size:13px;font-weight:700;">' + msFormatNum(item.val) + ' ' + t('milestoneFans') + '</span>';
+            msHtml += '</div>';
+            var dateText = msHumanDate(item.date);
+            var durText = msDurationFromJoin(item.date);
+            if (dateText || durText) {
+              msHtml += '<div style="color:#64748b;font-size:10px;margin-top:1px;">';
+              if (dateText) msHtml += dateText;
+              if (dateText && durText) msHtml += ' \u00b7 ';
+              if (durText) msHtml += t('milestoneFor') + ' ' + durText;
+              msHtml += '</div>';
+            }
+          } else if (item.state === 'current') {
+            msHtml += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;">';
+            msHtml += '<span style="color:#00b4ff;font-size:13px;font-weight:700;">' + msFormatNum(item.val) + ' ' + t('milestoneFans') + ' \u2014 ' + t('milestoneCurrent') + '</span>';
+            msHtml += '</div>';
+            var todayStr2 = msNow.getFullYear() + '-' + String(msNow.getMonth()+1).padStart(2,'0') + '-' + String(msNow.getDate()).padStart(2,'0');
+            var ageText = msAccountAge();
+            msHtml += '<div style="color:#64748b;font-size:10px;margin-top:1px;">';
+            msHtml += msHumanDate(todayStr2);
+            if (ageText) msHtml += ' \u00b7 ' + ageText;
+            msHtml += '</div>';
+          } else {
+            msHtml += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;">';
+            msHtml += '<span style="color:#94a3b8;font-size:13px;font-weight:700;">' + msFormatNum(item.val) + ' ' + t('milestoneFans') + '</span>';
+            msHtml += '</div>';
+            var forecastDays = item.days > 0 ? '~' + item.days + ' ' + t('milestoneDays') : '';
+            if (forecastDays) {
+              msHtml += '<div style="color:#64748b;font-size:10px;font-style:italic;margin-top:1px;">' + forecastDays + ' \u00b7 ' + t('milestoneForecast') + '</div>';
+            }
+          }
+
+          msHtml += '</div></div>';
+        });
+
+        msHtml += '</div>';
+        msPanel.innerHTML = msHtml;
+      }
+      trendTabContent.appendChild(msPanel);
+
+      flipBack.appendChild(trendTabContent);
+
+      // --- TAB SWITCHING LOGIC (2 tabs: Radar, Trend) ---
+      function _switchBackTab(active) {
+        var allTabs = [tabRadar, tabTrend];
+        var allPanels = { radar: 'of-stats-tab-radar', trend: 'of-stats-tab-trend' };
+        allTabs.forEach(function(tb) {
+          if (tb.dataset.tab === active) { tb.style.color = '#00b4ff'; tb.style.borderBottomColor = '#00b4ff'; }
+          else { tb.style.color = '#556677'; tb.style.borderBottomColor = 'transparent'; }
+        });
+        Object.keys(allPanels).forEach(function(k) {
+          var el = document.getElementById(allPanels[k]);
+          if (el) el.style.display = (k === active) ? '' : 'none';
+        });
+        adjustFlipHeight(true);
+      }
+      tabRadar.addEventListener('click', function() { _switchBackTab('radar'); });
+      tabTrend.addEventListener('click', function() { _switchBackTab('trend'); });
 
       // Assemble: scoreSection goes into flipFront
       scoreSection.appendChild(scoreHeader);
       scoreSection.appendChild(progressBar);
       scoreSection.appendChild(compDiv);
       scoreSection.appendChild(analysisGroup);
+
+      // === PAYWALL: mask real data if subscription expired ===
+      if (_subExpired) {
+        // Replace score number with "??"
+        scoreHeader.innerHTML = scoreHeader.innerHTML
+          .replace(/>(\d+)<\/span>\s*<span[^>]*>\/100/g, '>??</span><span style="color:#64748b;font-size:11px;">/100');
+        // Replace grade text
+        scoreHeader.querySelectorAll('span').forEach(function(s) {
+          if (['S','A+','A','B+','B','C','D','F','Good','Average','Suspicious','Likely Fake','TOP'].indexOf(s.textContent.trim()) !== -1) {
+            s.textContent = '???';
+          }
+        });
+        // Mask progress bar
+        progressBar.innerHTML = '<div style="width:0%;height:100%;background:#475569;border-radius:3px;"></div>';
+        // Mask component values
+        compDiv.querySelectorAll('span[style*="font-weight:700"]').forEach(function(s) {
+          if (/^\d+$/.test(s.textContent.trim())) {
+            s.textContent = '?';
+          }
+        });
+        // Mask badge texts in analysisGroup — wipe text content
+        analysisGroup.querySelectorAll('span[style*="border-radius:10px"]').forEach(function(badge) {
+          badge.textContent = '\u2022\u2022\u2022\u2022\u2022\u2022';
+          badge.style.color = '#334155';
+          badge.style.pointerEvents = 'none';
+          badge.style.userSelect = 'none';
+        });
+      }
+
+      // === COMPARE BUTTON (Feature #6) ===
+      var compareRow = document.createElement('div');
+      compareRow.style.cssText = 'margin-top:0px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:6px;';
+
+      var compareBtn = document.createElement('button');
+      compareBtn.id = 'of-stats-compare-btn';
+      var swordsIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="5" cy="6" r="3"/><path d="M12 6h5a2 2 0 0 1 2 2v7"/><path d="m15 9-3-3 3-3"/><circle cx="19" cy="18" r="3"/><path d="M12 18H7a2 2 0 0 1-2-2V9"/><path d="m9 15 3 3-3 3"/></svg>';
+      compareBtn.style.cssText = 'flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(0,180,255,0.15);background:rgba(0,180,255,0.06);color:#00b4ff;font-size:10px;font-weight:600;cursor:pointer;text-align:center;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px;font-family:inherit;letter-spacing:0.3px;';
+      compareBtn.onmouseenter = function() { if (!this.dataset.locked) { this.style.background = 'rgba(0,180,255,0.12)'; this.style.borderColor = 'rgba(0,180,255,0.3)'; this.style.boxShadow = '0 0 8px rgba(0,180,255,0.1)'; } };
+      compareBtn.onmouseleave = function() { if (!this.dataset.locked) { this.style.background = 'rgba(0,180,255,0.06)'; this.style.borderColor = 'rgba(0,180,255,0.15)'; this.style.boxShadow = 'none'; } };
+
+      // X button to clear saved model (shows only when model is saved)
+      var clearXBtn = document.createElement('div');
+      clearXBtn.id = 'of-stats-compare-clear-x';
+      clearXBtn.style.cssText = 'display:none;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#ef4444;font-size:13px;cursor:pointer;flex-shrink:0;align-items:center;justify-content:center;transition:all 0.2s;font-weight:700;line-height:22px;text-align:center;';
+      clearXBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" style="display:block;"><line x1="1" y1="1" x2="9" y2="9" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/></svg>';
+      clearXBtn.title = t('compareClear');
+      clearXBtn.onmouseenter = function() { this.style.background = 'rgba(239,68,68,0.25)'; this.style.borderColor = '#ef4444'; };
+      clearXBtn.onmouseleave = function() { this.style.background = 'rgba(239,68,68,0.12)'; this.style.borderColor = 'rgba(239,68,68,0.25)'; };
+      clearXBtn.onclick = function(e) {
+        e.stopPropagation();
+        chrome.storage.local.remove('ofStatsCompareModel', function() {
+          _compareModelData = null;
+          updateCompareButton();
+        });
+      };
+
+      // Current model data snapshot for comparison
+      var currentModelSnap = {
+        username: profileData.username || '',
+        name: profileData.name || profileData.username || '',
+        score: scoreResult.score,
+        grade: scoreResult.grade,
+        gradeColor: scoreResult.gradeColor,
+        gradeIcon: scoreResult.gradeIcon,
+        fans: profileData.subscribersCount || 0,
+        fansVisible: profileData.showSubscribersCount !== false,
+        posts: profileData.postsCount || 0,
+        likes: profileData.favoritedCount || 0,
+        videos: profileData.videosCount || 0,
+        streams: profileData.finishedStreamsCount || 0,
+        price: profileData.subscribePrice || 0,
+        verified: profileData.isVerified || false,
+        mat: components.maturity,
+        pop: components.popularity,
+        org: components.organicity,
+        act: components.activity,
+        trs: components.transparency,
+        engagement: xrayEngagement,
+        organicityScore: components.organicity,
+        avatar: profileData.avatar || ''
+      };
+
+      function updateCompareButton() {
+        chrome.storage.local.get(['ofStatsCompareModel'], function(data) {
+          var saved = data.ofStatsCompareModel || null;
+          _compareModelData = saved;
+
+          if (!saved || saved.username === currentModelSnap.username) {
+            // No saved model or same model — show "Сравнить"
+            compareBtn.innerHTML = swordsIcon + '<span>' + t('compareBtn') + '</span>';
+            compareBtn.style.borderColor = 'rgba(0,180,255,0.15)';
+            compareBtn.style.background = 'rgba(0,180,255,0.06)';
+            compareBtn.style.color = '#00b4ff';
+            compareBtn.dataset.locked = '';
+            clearXBtn.style.display = 'none';
+            compareBtn.onclick = function() {
+              // Save current model
+              chrome.storage.local.set({ ofStatsCompareModel: currentModelSnap }, function() {
+                _compareModelData = currentModelSnap;
+                compareBtn.innerHTML = '<span>✓</span><span>' + t('compareSaved') + '</span>';
+                compareBtn.style.borderColor = 'rgba(34,197,94,0.2)';
+                compareBtn.style.color = '#22c55e';
+                compareBtn.style.background = 'rgba(34,197,94,0.06)';
+                compareBtn.dataset.locked = '1';
+                clearXBtn.style.display = 'flex';
+                compareBtn.onclick = null;
+              });
+            };
+          } else {
+            // Different model saved — show "vs @saved_model"
+            compareBtn.innerHTML = swordsIcon + '<span>vs @' + saved.username + '</span>';
+            compareBtn.style.background = 'rgba(0,180,255,0.08)';
+            compareBtn.style.color = '#00b4ff';
+            compareBtn.style.borderColor = 'rgba(0,180,255,0.18)';
+            compareBtn.dataset.locked = '';
+            compareBtn.onmouseenter = function() { this.style.background = 'rgba(0,180,255,0.15)'; this.style.borderColor = 'rgba(0,180,255,0.35)'; this.style.boxShadow = '0 0 10px rgba(0,180,255,0.12)'; };
+            compareBtn.onmouseleave = function() { this.style.background = 'rgba(0,180,255,0.08)'; this.style.borderColor = 'rgba(0,180,255,0.18)'; this.style.boxShadow = 'none'; };
+            clearXBtn.style.display = 'flex';
+            compareBtn.onclick = function() {
+              showComparisonInBadge(saved, currentModelSnap, badge, flipInner, flipFront, flipBack, adjustFlipHeight, updateCompareButton);
+            };
+          }
+        });
+      }
+
+      compareRow.appendChild(compareBtn);
+      compareRow.appendChild(clearXBtn);
+      scoreSection.appendChild(compareRow);
+
+      // Init compare button state
+      updateCompareButton();
+
       flipFront.appendChild(scoreSection);
+
+      // === PAYWALL BLUR OVERLAY (if subscription expired) ===
+      if (_subExpired) {
+        // Blur the scoreSection content
+        scoreSection.style.filter = 'blur(5px)';
+        scoreSection.style.pointerEvents = 'none';
+        scoreSection.style.userSelect = 'none';
+        scoreSection.style.position = 'relative';
+
+        // Create overlay with renew button
+        var paywallOverlay = document.createElement('div');
+        paywallOverlay.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(10,12,30,0.4);border-radius:10px;';
+
+        // Lock icon
+        paywallOverlay.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" style="opacity:0.7;"><rect x="3" y="11" width="18" height="11" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#475569" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5" fill="#64748b"/></svg>'
+          + '<div style="color:#94a3b8;font-size:10px;font-weight:600;">' + t('paywallExpired') + '</div>';
+
+        // Renew button
+        var renewBtn = document.createElement('button');
+        renewBtn.style.cssText = 'padding:7px 20px;border-radius:8px;border:1px solid rgba(0,180,255,0.3);background:rgba(0,180,255,0.12);color:#00b4ff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s;letter-spacing:0.3px;';
+        renewBtn.textContent = t('paywallRenew');
+        renewBtn.onmouseenter = function() { this.style.background = 'rgba(0,180,255,0.25)'; this.style.boxShadow = '0 0 12px rgba(0,180,255,0.2)'; };
+        renewBtn.onmouseleave = function() { this.style.background = 'rgba(0,180,255,0.12)'; this.style.boxShadow = 'none'; };
+        renewBtn.onclick = function(e) {
+          e.stopPropagation();
+          // Ask background to open subscription tab
+          chrome.runtime.sendMessage({ action: 'openSubscriptionTab' });
+        };
+        paywallOverlay.appendChild(renewBtn);
+
+        // Wrap scoreSection with a relative container, cap height so card doesn't stretch
+        var paywallWrap = document.createElement('div');
+        paywallWrap.style.cssText = 'position:relative;max-height:160px;overflow:hidden;border-radius:10px;';
+        flipFront.removeChild(scoreSection);
+        paywallWrap.appendChild(scoreSection);
+        paywallWrap.appendChild(paywallOverlay);
+        flipFront.appendChild(paywallWrap);
+      }
+
+      // Note strip stays on front side (after score)
+      flipFront.appendChild(noteStripEl);
 
       // Assemble flip card into badge
       flipInner.appendChild(flipFront);
+
+      // === PAYWALL on BACK SIDE — lock Radar & Trend tab CONTENT only ===
+      if (_subExpired) {
+        // Keep backHeader and tabBar visible, only lock tab content areas
+        [radarTabContent, trendTabContent].forEach(function(tabEl) {
+          // Wipe real data from this tab
+          while (tabEl.firstChild) tabEl.removeChild(tabEl.firstChild);
+          tabEl.style.position = 'relative';
+          tabEl.style.minHeight = '200px';
+
+          // Skeleton placeholder (blurred)
+          var tabDummy = document.createElement('div');
+          tabDummy.style.cssText = 'filter:blur(6px);pointer-events:none;user-select:none;padding:10px;opacity:0.4;';
+          if (tabEl === radarTabContent) {
+            tabDummy.innerHTML = '<div style="width:120px;height:120px;margin:0 auto 12px;border-radius:50%;border:2px solid #1e293b;"></div>'
+              + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+              + '<div style="height:20px;background:#1e293b;border-radius:6px;"></div>'.repeat(6)
+              + '</div>';
+          } else {
+            tabDummy.innerHTML = '<div style="height:100px;background:#1e293b;border-radius:8px;margin-bottom:10px;"></div>'
+              + '<div style="display:flex;gap:6px;">'
+              + '<div style="flex:1;height:24px;background:#1e293b;border-radius:6px;"></div>'.repeat(3)
+              + '</div>';
+          }
+          tabEl.appendChild(tabDummy);
+
+          // Overlay with lock + renew
+          var tabPaywall = document.createElement('div');
+          tabPaywall.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(10,12,30,0.45);border-radius:8px;';
+          tabPaywall.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="opacity:0.7;"><rect x="3" y="11" width="18" height="11" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#475569" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5" fill="#64748b"/></svg>'
+            + '<div style="color:#94a3b8;font-size:10px;font-weight:600;">' + t('paywallExpired') + '</div>';
+          var tabRenewBtn = document.createElement('button');
+          tabRenewBtn.style.cssText = 'padding:6px 18px;border-radius:8px;border:1px solid rgba(0,180,255,0.3);background:rgba(0,180,255,0.12);color:#00b4ff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s;letter-spacing:0.3px;';
+          tabRenewBtn.textContent = t('paywallRenew');
+          tabRenewBtn.onmouseenter = function() { this.style.background = 'rgba(0,180,255,0.25)'; this.style.boxShadow = '0 0 12px rgba(0,180,255,0.2)'; };
+          tabRenewBtn.onmouseleave = function() { this.style.background = 'rgba(0,180,255,0.12)'; this.style.boxShadow = 'none'; };
+          tabRenewBtn.onclick = function(e) { e.stopPropagation(); chrome.runtime.sendMessage({ action: 'openSubscriptionTab' }); };
+          tabPaywall.appendChild(tabRenewBtn);
+          tabEl.appendChild(tabPaywall);
+        });
+      }
+
       flipInner.appendChild(flipBack);
       badge.appendChild(flipInner);
+
+      // === INDEPENDENT NOTES PANEL (separate from flip card) ===
+      var notesPanel = document.createElement('div');
+      notesPanel.id = 'of-stats-notes-panel';
+      notesPanel.style.cssText = 'display:none;transition:min-height 0.3s ease;display:none;';
+      // Notes panel header
+      var notesPanelHeader = document.createElement('div');
+      notesPanelHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(0, 180, 255, 0.15);';
+      var notesPanelTitle = document.createElement('div');
+      notesPanelTitle.style.cssText = 'display:flex;align-items:center;gap:6px;';
+      notesPanelTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span style="color:#00b4ff;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Quick Notes</span>';
+      var notesPanelActions = document.createElement('div');
+      notesPanelActions.style.cssText = 'display:flex;align-items:center;gap:8px;';
+      // Back button
+      var notesBackBtn = document.createElement('div');
+      notesBackBtn.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;opacity:1;transition:opacity 0.2s;padding:2px 6px;border-radius:6px;background:rgba(0,180,255,0.08);border:1px solid rgba(0,180,255,0.15);';
+      notesBackBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00b4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m0 0l7 7m-7-7l7-7"/></svg><span style="color:#00b4ff;font-size:9px;font-weight:600;letter-spacing:0.5px;">Back</span>';
+      notesBackBtn.addEventListener('click', function() { _notesClosePanel(); });
+      notesBackBtn.addEventListener('mouseenter', function() { this.style.background = 'rgba(0,180,255,0.15)'; });
+      notesBackBtn.addEventListener('mouseleave', function() { this.style.background = 'rgba(0,180,255,0.08)'; });
+      notesPanelActions.appendChild(notesBackBtn);
+      // Close button
+      var notesCloseBtn = document.createElement('button');
+      notesCloseBtn.className = 'of-stats-close-btn';
+      notesCloseBtn.style.cssText = 'background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;padding:0 2px;line-height:1;transition:color 0.2s;';
+      notesCloseBtn.innerHTML = '&times;';
+      notesCloseBtn.addEventListener('click', function() { badge.remove(); });
+      notesPanelActions.appendChild(notesCloseBtn);
+      notesPanelHeader.appendChild(notesPanelTitle);
+      notesPanelHeader.appendChild(notesPanelActions);
+      notesPanel.appendChild(notesPanelHeader);
+      // Notes content container (reuses same ID for CSS and _notesRebuildPanel)
+      var notesPanelContent = document.createElement('div');
+      notesPanelContent.id = 'of-stats-tab-notes';
+      notesPanel.appendChild(notesPanelContent);
+      badge.appendChild(notesPanel);
+
+      // === INDEPENDENT ALERTS PANEL (Feature #8) ===
+      var alertsPanel = document.createElement('div');
+      alertsPanel.id = 'of-stats-alerts-panel';
+      alertsPanel.style.cssText = 'display:none;transition:min-height 0.3s ease;';
+      // Alerts panel header
+      var alertsPanelHeader = document.createElement('div');
+      alertsPanelHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(234,179,8,0.15);';
+      var alertsPanelTitle = document.createElement('div');
+      alertsPanelTitle.style.cssText = 'display:flex;align-items:center;gap:6px;';
+      alertsPanelTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span style="color:#eab308;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">' + t('alertsTitle') + '</span>';
+      var alertsPanelActions = document.createElement('div');
+      alertsPanelActions.style.cssText = 'display:flex;align-items:center;gap:8px;';
+      var alertsBackBtn = document.createElement('div');
+      alertsBackBtn.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;padding:2px 6px;border-radius:6px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.15);transition:all 0.2s;';
+      alertsBackBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m0 0l7 7m-7-7l7-7"/></svg><span style="color:#eab308;font-size:9px;font-weight:600;letter-spacing:0.5px;">Back</span>';
+      alertsBackBtn.addEventListener('click', function() { _alertsClosePanel(); });
+      alertsBackBtn.addEventListener('mouseenter', function() { this.style.background = 'rgba(234,179,8,0.15)'; });
+      alertsBackBtn.addEventListener('mouseleave', function() { this.style.background = 'rgba(234,179,8,0.08)'; });
+      alertsPanelActions.appendChild(alertsBackBtn);
+      var alertsCloseBtn = document.createElement('button');
+      alertsCloseBtn.className = 'of-stats-close-btn';
+      alertsCloseBtn.style.cssText = 'background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;padding:0 2px;line-height:1;transition:color 0.2s;';
+      alertsCloseBtn.innerHTML = '&times;';
+      alertsCloseBtn.addEventListener('click', function() { badge.remove(); });
+      alertsPanelActions.appendChild(alertsCloseBtn);
+      alertsPanelHeader.appendChild(alertsPanelTitle);
+      alertsPanelHeader.appendChild(alertsPanelActions);
+      alertsPanel.appendChild(alertsPanelHeader);
+      var alertsPanelContent = document.createElement('div');
+      alertsPanelContent.id = 'of-stats-tab-alerts';
+      alertsPanel.appendChild(alertsPanelContent);
+      badge.appendChild(alertsPanel);
+
+      // Alerts button click handler
+      var alertsBtnEl = badge.querySelector('#of-stats-alerts-btn');
+      if (alertsBtnEl) {
+        alertsBtnEl.addEventListener('mouseenter', function() { this.style.opacity = '1'; this.style.background = 'rgba(234,179,8,0.15)'; });
+        alertsBtnEl.addEventListener('mouseleave', function() { this.style.opacity = '0.65'; this.style.background = 'rgba(234,179,8,0.08)'; });
+        alertsBtnEl.addEventListener('click', function(e) { e.stopPropagation(); _alertsOpenPanel(); });
+      }
+
+      // Notes button click handler (must be after badge assembly for querySelector)
+      var notesBtnEl = badge.querySelector('#of-stats-notes-btn');
+      if (notesBtnEl) {
+        notesBtnEl.addEventListener('mouseenter', function() { this.style.opacity = '1'; this.style.background = 'rgba(0,180,255,0.15)'; });
+        notesBtnEl.addEventListener('mouseleave', function() { this.style.opacity = '0.65'; this.style.background = 'rgba(0,180,255,0.08)'; });
+        notesBtnEl.addEventListener('click', function(e) { e.stopPropagation(); _notesOpenPanel(); });
+      }
 
       // Helper: adjust flipInner height to fit active side
       function adjustFlipHeight(toBack) {
