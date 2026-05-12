@@ -31,7 +31,7 @@
   "web_accessible_resources": [
     {
       "resources": ["chart.min.js", "chart-drawer.js", "page-interceptor.js"],
-      "matches": ["https://onlyfans.com/my/*"]
+      "matches": ["https://onlyfans.com/*"]
     }
   ],
   "content_scripts": [
