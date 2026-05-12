@@ -558,10 +558,13 @@
         }
       }
       
-      displayProfileData(profileData);
+      // Badge UI moved to Profile Stats extension — Stats Editor only keeps the
+      // fans/following count modifier and the statements editor. The dead Badge
+      // code below stays in the file for now to avoid touching ~10k lines.
+      // displayProfileData(profileData);
       _lastBadgeProfileData = profileData;
     });
-    
+
     // ==================== MODEL SCORE CALCULATOR ====================
     function calculateModelScore(profileData) {
       const result = {
@@ -1543,7 +1546,8 @@
               log('OF Stats: Subscription expired on server, reloading badge');
               var oldBadge = document.getElementById('of-stats-profile-badge');
               if (oldBadge) oldBadge.remove();
-              displayProfileData(profileData);
+              // Badge UI moved to Profile Stats extension.
+              // displayProfileData(profileData);
               return;
             } else if (serverActive && _subExpired) {
               // Server says active but badge thinks expired — update storage and reload
@@ -1551,7 +1555,8 @@
               log('OF Stats: Subscription renewed on server, reloading badge');
               var oldBadge2 = document.getElementById('of-stats-profile-badge');
               if (oldBadge2) oldBadge2.remove();
-              displayProfileData(profileData);
+              // Badge UI moved to Profile Stats extension.
+              // displayProfileData(profileData);
               return;
             }
           }
@@ -4361,8 +4366,8 @@
             if (foundSocials.length > 0 && (!profileData._detectedSocials || profileData._detectedSocials.length === 0)) {
               log('OF Stats: Social links found on retry #' + socialRetry + ':', foundSocials);
               profileData._detectedSocials = foundSocials;
-              // Re-display badge with updated social data
-              displayProfileData(profileData);
+              // Re-display badge with updated social data — Badge moved to Profile Stats.
+              // displayProfileData(profileData);
             }
           }
         }, 500);
@@ -4371,13 +4376,13 @@
       }); // end chrome.storage.local.get settings callback
     }
 
-    // Re-render badge when language changes in popup settings
+    // Re-render badge when language changes in popup settings — Badge moved to Profile Stats.
     chrome.storage.onChanged.addListener(function(changes, area) {
       if (area === 'local' && changes.ofStatsLang && _lastBadgeProfileData) {
         _ofLang = changes.ofStatsLang.newValue || 'ru';
         var oldBadge = document.getElementById('of-stats-badge-card');
         if (oldBadge) oldBadge.remove();
-        displayProfileData(_lastBadgeProfileData);
+        // displayProfileData(_lastBadgeProfileData);
       }
     });
     
