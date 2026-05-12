@@ -108,16 +108,20 @@ router.post('/nowpayments', async (req, res) => {
         UPDATE users SET trial_used = true WHERE id = $1
       `, [payment.user_id]);
 
-      // Check if this is a plan upgrade (Plus → Pro)
-      const paymentMeta = typeof payment.metadata === 'string' 
-        ? JSON.parse(payment.metadata) 
+      // Resolve which product this payment belongs to. payment.metadata.product
+      // is set on /create-payment; for legacy payments without it fall back to
+      // the plan's static product mapping ('plus' / 'pro' -> stats_editor).
+      const paymentMeta = typeof payment.metadata === 'string'
+        ? JSON.parse(payment.metadata)
         : (payment.metadata || {});
       const isUpgrade = paymentMeta.is_upgrade === true;
+      const product = paymentMeta.product || planConfig.product || 'stats_editor';
 
-      // Check if user has existing subscription
+      // Existing subscription lookup is scoped to (user, product) so buying
+      // Profile Stats does not touch the user's Stats Editor row.
       const existingSub = await getOne(
-        'SELECT id, status, expires_at FROM subscriptions WHERE user_id = $1',
-        [payment.user_id]
+        'SELECT id, status, expires_at FROM subscriptions WHERE user_id = $1 AND product = $2',
+        [payment.user_id, product]
       );
 
       const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 days
@@ -145,23 +149,27 @@ router.post('/nowpayments', async (req, res) => {
           WHERE id = $5
         `, [payment.plan, planConfig.modelLimit, payment_id, finalExpiry, existingSub.id]);
 
-        if (!isUpgrade && (existingSub.status !== 'active' || currentExpiry <= now)) {
+        // user_models only lives on the Stats Editor product; never wipe it for
+        // a Profile Stats payment.
+        if (product === 'stats_editor' && !isUpgrade && (existingSub.status !== 'active' || currentExpiry <= now)) {
           await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
           console.log(`Cleared models for user ${payment.user_id} (new period)`);
         }
-        console.log(`Updated subscription for user ${payment.user_id}${isUpgrade ? ' (upgrade)' : ''}`);
+        console.log(`Updated ${product} subscription for user ${payment.user_id}${isUpgrade ? ' (upgrade)' : ''}`);
       } else {
-        // Create NEW subscription record
+        // Create NEW subscription record with the right product.
         await query(`
-          INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, payment_id, starts_at, expires_at, created_at, updated_at)
-          VALUES ($1, $2, $3, 'active', 'nowpayments', $4, NOW(), $5, NOW(), NOW())
-        `, [payment.user_id, payment.plan, planConfig.modelLimit, payment_id, newExpiry]);
+          INSERT INTO subscriptions (user_id, plan, product, model_limit, status, payment_provider, payment_id, starts_at, expires_at, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, 'active', 'nowpayments', $5, NOW(), $6, NOW(), NOW())
+        `, [payment.user_id, payment.plan, product, planConfig.modelLimit, payment_id, newExpiry]);
 
-        await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
-        console.log(`Created new subscription for user ${payment.user_id}`);
+        if (product === 'stats_editor') {
+          await query(`DELETE FROM user_models WHERE user_id = $1`, [payment.user_id]);
+        }
+        console.log(`Created new ${product} subscription for user ${payment.user_id}`);
       }
 
-      console.log(`Subscription activated: ${payment.plan} for user ${payment.user_id}`);
+      console.log(`Subscription activated: ${payment.plan} (${product}) for user ${payment.user_id}`);
     }
 
     res.status(200).json({ received: true });

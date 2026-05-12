@@ -99,7 +99,10 @@ router.get('/status', authenticateToken, async (req, res) => {
         plan: subscription.plan,
         product: subscription.product || 'stats_editor',
         planName: subscription.plan === 'trial' ? 'Trial' :
-                  subscription.plan === 'plus' ? 'Plus ($30/mo)' : 'Pro ($50/mo)',
+                  subscription.plan === 'plus' ? 'Plus ($30/mo)' :
+                  subscription.plan === 'pro' ? 'Pro ($50/mo)' :
+                  subscription.plan === 'profile_stats' ? 'Profile Stats ($15/mo)' :
+                  subscription.plan,
         modelLimit: subscription.model_limit, // null = unlimited
         status: subscription.status,
         isActive: subscription.is_active,
@@ -120,39 +123,60 @@ router.get('/status', authenticateToken, async (req, res) => {
   }
 });
 
-// Get available plans
+// Get available plans (optionally scoped by ?product=stats_editor|profile_stats)
 router.get('/plans', async (req, res) => {
-  res.json({
-    plans: [
-      {
-        id: 'plus',
-        name: 'Plus',
-        price: 30,
-        currency: 'USD',
-        modelLimit: 10,
-        features: [
-          'Up to 10 models',
-          'All plugin features',
-          'Fan history tracking',
-          'Priority support'
-        ]
-      },
-      {
-        id: 'pro',
-        name: 'Pro',
-        price: 50,
-        currency: 'USD',
-        modelLimit: 50,
-        features: [
-          'Up to 50 models',
-          'All plugin features',
-          'Fan history tracking',
-          'Priority support',
-          'Early access to new features'
-        ]
-      }
-    ]
-  });
+  const product = typeof req.query.product === 'string' ? req.query.product : null;
+
+  const all = [
+    {
+      id: 'plus',
+      product: 'stats_editor',
+      name: 'Plus',
+      price: 30,
+      currency: 'USD',
+      modelLimit: 10,
+      features: [
+        'Up to 10 models',
+        'All plugin features',
+        'Fan history tracking',
+        'Priority support'
+      ]
+    },
+    {
+      id: 'pro',
+      product: 'stats_editor',
+      name: 'Pro',
+      price: 50,
+      currency: 'USD',
+      modelLimit: 50,
+      features: [
+        'Up to 50 models',
+        'All plugin features',
+        'Fan history tracking',
+        'Priority support',
+        'Profile Stats included for free',
+        'Early access to new features'
+      ]
+    },
+    {
+      id: 'profile_stats',
+      product: 'profile_stats',
+      name: 'Profile Stats',
+      price: 15,
+      currency: 'USD',
+      modelLimit: null,
+      features: [
+        'Badge on every OF profile (score, grade, percentile)',
+        'AI verdict on profile quality',
+        'Fan trend chart',
+        'Personal notes and tags (cloud sync)',
+        'Smart alerts on score changes'
+      ]
+    }
+  ];
+
+  const plans = product ? all.filter(p => p.product === product) : all;
+  res.json({ plans });
 });
 
 // Get available cryptocurrencies/networks for payment
@@ -207,18 +231,22 @@ router.post('/create-payment', authenticateToken, async (req, res) => {
     // Validate plan
     const planConfig = nowpayments.PLANS[plan];
     if (!planConfig) {
-      return res.status(400).json({ error: 'Invalid plan. Use "plus" or "pro"' });
+      return res.status(400).json({ error: 'Invalid plan. Use "plus", "pro" or "profile_stats"' });
     }
 
-    // Check if user already has active subscription
+    // Each product has its own subscription row, so the "already subscribed"
+    // check only fires against the same product. Buying Profile Stats while
+    // holding Stats Editor Pro is allowed (and will be refused as redundant
+    // earlier on the client side if needed).
+    const product = planConfig.product || 'stats_editor';
     const existingSub = await getOne(`
-      SELECT id FROM subscriptions 
-      WHERE user_id = $1 AND status = 'active' AND expires_at > NOW() AND plan != 'trial'
-    `, [req.user.id]);
+      SELECT id FROM subscriptions
+      WHERE user_id = $1 AND product = $2 AND status = 'active' AND expires_at > NOW() AND plan != 'trial'
+    `, [req.user.id, product]);
 
     if (existingSub) {
-      return res.status(400).json({ 
-        error: 'You already have an active subscription',
+      return res.status(400).json({
+        error: `You already have an active ${product === 'profile_stats' ? 'Profile Stats' : 'Stats Editor'} subscription`,
         code: 'ALREADY_SUBSCRIBED'
       });
     }
@@ -226,12 +254,13 @@ router.post('/create-payment', authenticateToken, async (req, res) => {
     // Create order ID
     const orderId = `order_${req.user.id}_${plan}_${Date.now()}`;
 
-    // Create payment record in DB
+    // Create payment record in DB — keep product in metadata so the webhook
+    // knows which product to bind the subscription to.
     const paymentRecord = await query(`
       INSERT INTO payments (user_id, provider, amount, currency, plan, status, metadata)
       VALUES ($1, 'nowpayments', $2, 'USD', $3, 'pending', $4)
       RETURNING id
-    `, [req.user.id, planConfig.price, plan, JSON.stringify({ orderId })]);
+    `, [req.user.id, planConfig.price, plan, JSON.stringify({ orderId, product })]);
 
     const paymentDbId = paymentRecord.rows[0].id;
 

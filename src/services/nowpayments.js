@@ -12,19 +12,29 @@ const api = axios.create({
   }
 });
 
-// Plans configuration
+// Plans configuration. `product` is which top-level product the plan belongs to
+// in the multi-product subscription model (see subscriptions.product column).
 const PLANS = {
   plus: {
     name: 'Plus',
     price: 30,
     modelLimit: 10,
-    currency: 'USD'
+    currency: 'USD',
+    product: 'stats_editor'
   },
   pro: {
     name: 'Pro',
     price: 50,
     modelLimit: 50,
-    currency: 'USD'
+    currency: 'USD',
+    product: 'stats_editor'
+  },
+  profile_stats: {
+    name: 'Profile Stats',
+    price: 15,
+    modelLimit: null, // model tracking lives in Profile Stats DB; no limit enforced here
+    currency: 'USD',
+    product: 'profile_stats'
   }
 };
 
