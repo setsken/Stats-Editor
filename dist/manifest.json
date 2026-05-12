@@ -31,17 +31,17 @@
   "web_accessible_resources": [
     {
       "resources": ["chart.min.js", "chart-drawer.js", "page-interceptor.js"],
-      "matches": ["https://onlyfans.com/*"]
+      "matches": ["https://onlyfans.com/my/*"]
     }
   ],
   "content_scripts": [
     {
-      "matches": ["https://onlyfans.com/*"],
+      "matches": ["https://onlyfans.com/my/*"],
       "js": ["inject-early.js"],
       "run_at": "document_start"
     },
     {
-      "matches": ["https://onlyfans.com/*"],
+      "matches": ["https://onlyfans.com/my/*"],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
