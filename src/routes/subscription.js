@@ -5,6 +5,28 @@ const nowpayments = require('../services/nowpayments');
 
 const router = express.Router();
 
+// Admin: re-run the broken-product cleanup on demand (in case the startup
+// migration didn't fire after a redeploy). Sets product based on plan name
+// for every row whose product is not one of the canonical values.
+router.post('/admin/fix-products', authenticateAdmin, async (req, res) => {
+  try {
+    const r = await query(`
+      UPDATE subscriptions
+         SET product = CASE
+           WHEN plan = 'profile_stats' THEN 'profile_stats'
+           ELSE 'stats_editor'
+         END,
+         updated_at = NOW()
+       WHERE product NOT IN ('stats_editor', 'profile_stats')
+       RETURNING id, plan, product
+    `);
+    res.json({ success: true, fixed: r.rows });
+  } catch (e) {
+    console.error('Admin fix-products error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Admin: dump all subscription + recent payment rows for a user. Diagnostic
 // only — pass ?email=foo@bar.com to look up.
 router.get('/admin/dump', authenticateAdmin, async (req, res) => {
