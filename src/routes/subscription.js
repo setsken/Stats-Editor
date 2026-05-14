@@ -5,6 +5,33 @@ const nowpayments = require('../services/nowpayments');
 
 const router = express.Router();
 
+// Admin: dump all subscription + recent payment rows for a user. Diagnostic
+// only — pass ?email=foo@bar.com to look up.
+router.get('/admin/dump', authenticateAdmin, async (req, res) => {
+  try {
+    const email = String(req.query.email || '').toLowerCase();
+    const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
+    const u = userId
+      ? await getOne('SELECT id, email FROM users WHERE id = $1', [userId])
+      : await getOne('SELECT id, email FROM users WHERE LOWER(email) = $1', [email]);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    const subs = await query(
+      `SELECT id, plan, product, status, payment_provider, starts_at, expires_at,
+              expires_at > NOW() as not_expired
+       FROM subscriptions WHERE user_id = $1 ORDER BY id`, [u.id]
+    );
+    const pays = await query(
+      `SELECT id, provider, amount, currency, plan, status, crypto_currency, crypto_amount,
+              metadata, created_at, updated_at, provider_payment_id
+       FROM payments WHERE user_id = $1 ORDER BY id DESC LIMIT 10`, [u.id]
+    );
+    res.json({ user: u, subscriptions: subs.rows, payments: pays.rows });
+  } catch (e) {
+    console.error('Admin dump error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Admin: revoke a user's subscription (sets status='cancelled' and expires_at
 // to NOW so the create-payment ALREADY_SUBSCRIBED guard lets through). Used
 // for end-to-end payment testing and for support tooling. Pass either
