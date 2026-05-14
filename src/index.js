@@ -154,6 +154,29 @@ async function runMigrations() {
       }
     }
 
+    // One-shot data fix: NOWPayments returns its own `product: 'api'` in the
+    // payment response, which used to merge into our metadata and overwrite
+    // our app product label. Webhook then INSERT'd subscriptions with
+    // product='api'. We now namespace ours as `appProduct`, but the rows
+    // already in the DB are still wrong — re-derive product from the plan
+    // name (only 'profile_stats' plan maps to product='profile_stats').
+    try {
+      const r = await query(`
+        UPDATE subscriptions
+           SET product = CASE
+             WHEN plan = 'profile_stats' THEN 'profile_stats'
+             ELSE 'stats_editor'
+           END
+         WHERE product NOT IN ('stats_editor', 'profile_stats')
+         RETURNING id, plan, product
+      `);
+      if (r.rows.length) {
+        console.log(`Fixed ${r.rows.length} subscriptions with bad product:`, r.rows);
+      }
+    } catch (e) {
+      console.warn('Subscription product cleanup skipped:', e.message);
+    }
+
     // Promo codes get the same product tag so a single codes pool can serve
     // both Stats Editor and Profile Stats. Existing rows default to
     // 'stats_editor' to preserve historical behaviour. Combined with a

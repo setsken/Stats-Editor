@@ -315,11 +315,14 @@ router.post('/create-payment', authenticateToken, async (req, res) => {
 
     // Create payment record in DB — keep product in metadata so the webhook
     // knows which product to bind the subscription to.
+    // IMPORTANT: store under `appProduct` (not `product`) because the
+    // NOWPayments invoice response also has a `product` field ('api'), and
+    // the JSONB `||` merge below would overwrite ours with theirs.
     const paymentRecord = await query(`
       INSERT INTO payments (user_id, provider, amount, currency, plan, status, metadata)
       VALUES ($1, 'nowpayments', $2, 'USD', $3, 'pending', $4)
       RETURNING id
-    `, [req.user.id, planConfig.price, plan, JSON.stringify({ orderId, product })]);
+    `, [req.user.id, planConfig.price, plan, JSON.stringify({ orderId, appProduct: product })]);
 
     const paymentDbId = paymentRecord.rows[0].id;
 
@@ -539,12 +542,13 @@ router.post('/create-upgrade-payment', authenticateToken, async (req, res) => {
 
     const orderId = `upgrade_${req.user.id}_pro_${Date.now()}`;
 
-    // Create payment record with is_upgrade flag
+    // Create payment record with is_upgrade flag. Same appProduct namespace
+    // trick as in /create-payment to survive the NOWPayments JSONB merge.
     const paymentRecord = await query(`
       INSERT INTO payments (user_id, provider, amount, currency, plan, status, metadata)
       VALUES ($1, 'nowpayments', $2, 'USD', 'pro', 'pending', $3)
       RETURNING id
-    `, [req.user.id, upgradePrice, JSON.stringify({ orderId, is_upgrade: true, from_plan: subscription.plan, discount })]);
+    `, [req.user.id, upgradePrice, JSON.stringify({ orderId, is_upgrade: true, from_plan: subscription.plan, discount, appProduct: 'stats_editor' })]);
 
     const paymentDbId = paymentRecord.rows[0].id;
 

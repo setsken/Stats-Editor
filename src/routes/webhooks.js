@@ -108,14 +108,18 @@ router.post('/nowpayments', async (req, res) => {
         UPDATE users SET trial_used = true WHERE id = $1
       `, [payment.user_id]);
 
-      // Resolve which product this payment belongs to. payment.metadata.product
-      // is set on /create-payment; for legacy payments without it fall back to
-      // the plan's static product mapping ('plus' / 'pro' -> stats_editor).
+      // Resolve which product this payment belongs to. We store it under
+      // `appProduct` because NOWPayments puts its own `product: 'api'` field
+      // in the merged metadata, which used to overwrite ours. Order of
+      // precedence: appProduct > legacy product (only safe if it isn't 'api'
+      // from NOWPayments) > planConfig.product mapping > stats_editor.
       const paymentMeta = typeof payment.metadata === 'string'
         ? JSON.parse(payment.metadata)
         : (payment.metadata || {});
       const isUpgrade = paymentMeta.is_upgrade === true;
-      const product = paymentMeta.product || planConfig.product || 'stats_editor';
+      const VALID_PRODUCTS = ['stats_editor', 'profile_stats'];
+      const legacyProduct = VALID_PRODUCTS.includes(paymentMeta.product) ? paymentMeta.product : null;
+      const product = paymentMeta.appProduct || legacyProduct || planConfig.product || 'stats_editor';
 
       // Existing subscription lookup is scoped to (user, product) so buying
       // Profile Stats does not touch the user's Stats Editor row.
