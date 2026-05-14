@@ -10,17 +10,41 @@ const router = express.Router();
 // for every row whose product is not one of the canonical values.
 router.post('/admin/fix-products', authenticateAdmin, async (req, res) => {
   try {
-    const r = await query(`
-      UPDATE subscriptions
-         SET product = CASE
-           WHEN plan = 'profile_stats' THEN 'profile_stats'
-           ELSE 'stats_editor'
-         END,
-         updated_at = NOW()
-       WHERE product NOT IN ('stats_editor', 'profile_stats')
-       RETURNING id, plan, product
+    const fixed = [];
+    const deleted = [];
+    // Find every row with a non-canonical product label (e.g. 'api' from
+    // the NOWPayments leak) and merge it into the (user_id, target_product)
+    // slot. If a duplicate already lives at that slot, keep the row whose
+    // (status='active', expires_at DESC) wins and delete the loser.
+    const broken = await query(`
+      SELECT id, user_id, plan, product, status, expires_at
+      FROM subscriptions
+      WHERE product NOT IN ('stats_editor', 'profile_stats')
     `);
-    res.json({ success: true, fixed: r.rows });
+    for (const row of broken.rows) {
+      const target = row.plan === 'profile_stats' ? 'profile_stats' : 'stats_editor';
+      // Sibling already at the target slot for this user
+      const sibling = await getOne(
+        `SELECT id, status, expires_at FROM subscriptions
+         WHERE user_id = $1 AND product = $2 AND id <> $3`,
+        [row.user_id, target, row.id]
+      );
+      if (sibling) {
+        const score = (s) => (s.status === 'active' ? 1 : 0) * 1e15
+          + (s.expires_at ? new Date(s.expires_at).getTime() : 0);
+        const keepRow = score(row) >= score(sibling) ? row : sibling;
+        const dropRow = keepRow === row ? sibling : row;
+        await query(`DELETE FROM subscriptions WHERE id = $1`, [dropRow.id]);
+        deleted.push({ id: dropRow.id, reason: 'duplicate of ' + keepRow.id });
+        if (keepRow !== row) continue; // sibling was kept; broken row is gone
+      }
+      await query(
+        `UPDATE subscriptions SET product = $1, updated_at = NOW() WHERE id = $2`,
+        [target, row.id]
+      );
+      fixed.push({ id: row.id, plan: row.plan, product: target });
+    }
+    res.json({ success: true, fixed, deleted });
   } catch (e) {
     console.error('Admin fix-products error:', e);
     res.status(500).json({ error: e.message });
