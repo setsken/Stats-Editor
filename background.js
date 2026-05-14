@@ -722,7 +722,11 @@ async function apiGetSubscriptionStatus() {
   }
   
   try {
-    const response = await authFetch(`${API_URL}/subscription/status`);
+    // Scope to Stats Editor — without ?product the backend returns the user's
+    // latest subscription across ALL products. After they buy Profile Stats
+    // it'd return that row and the popup would render its "PROFILE_STATS"
+    // plan as FREE (Stats Editor has no such plan key in its UI map).
+    const response = await authFetch(`${API_URL}/subscription/status?product=stats_editor`);
     
     if (response.status === 401) {
       return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
