@@ -1,9 +1,41 @@
 const express = require('express');
 const { query, getOne } = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, authenticateAdmin } = require('../middleware/auth');
 const nowpayments = require('../services/nowpayments');
 
 const router = express.Router();
+
+// Admin: revoke a user's subscription (sets status='cancelled' and expires_at
+// to NOW so the create-payment ALREADY_SUBSCRIBED guard lets through). Used
+// for end-to-end payment testing and for support tooling. Pass either
+// { userId, product } to scope, or { email, product } to look up by email.
+router.post('/admin/revoke', authenticateAdmin, async (req, res) => {
+  try {
+    const { userId, email, product } = req.body || {};
+    if (!product || !['stats_editor', 'profile_stats'].includes(product)) {
+      return res.status(400).json({ error: 'product must be "stats_editor" or "profile_stats"' });
+    }
+    let uid = userId;
+    if (!uid && email) {
+      const u = await getOne('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+      if (!u) return res.status(404).json({ error: 'User not found' });
+      uid = u.id;
+    }
+    if (!uid) return res.status(400).json({ error: 'Provide userId or email' });
+
+    const r = await query(
+      `UPDATE subscriptions
+       SET status = 'cancelled', expires_at = NOW() - INTERVAL '1 second', updated_at = NOW()
+       WHERE user_id = $1 AND product = $2
+       RETURNING id, plan, product, status, expires_at`,
+      [uid, product]
+    );
+    res.json({ success: true, revoked: r.rows });
+  } catch (error) {
+    console.error('Admin revoke subscription error:', error);
+    res.status(500).json({ error: 'Failed to revoke subscription' });
+  }
+});
 
 // Valid product identifiers for the multi-product subscription model.
 const VALID_PRODUCTS = ['stats_editor', 'profile_stats'];
