@@ -199,16 +199,51 @@ router.patch('/admin/:id/toggle', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin: clear a user's promo_code_uses record so they can re-apply a code
+// (used when a code was mistakenly applied from the wrong-product extension
+// before the WRONG_PRODUCT guard existed).
+router.post('/admin/clear-usage', authenticateAdmin, async (req, res) => {
+  try {
+    const { code, email, userId } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'code is required' });
+    const promo = await getOne('SELECT id FROM promo_codes WHERE code = $1', [code.toUpperCase().trim()]);
+    if (!promo) return res.status(404).json({ error: 'Promo code not found' });
+    let uid = userId;
+    if (!uid && email) {
+      const u = await getOne('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+      if (!u) return res.status(404).json({ error: 'User not found' });
+      uid = u.id;
+    }
+    if (!uid) return res.status(400).json({ error: 'Provide userId or email' });
+    const r = await query(
+      `DELETE FROM promo_code_uses WHERE promo_code_id = $1 AND user_id = $2 RETURNING id`,
+      [promo.id, uid]
+    );
+    // Decrement counter to match
+    if (r.rows.length) {
+      await query(`UPDATE promo_codes SET current_uses = GREATEST(current_uses - $1, 0) WHERE id = $2`,
+        [r.rows.length, promo.id]);
+    }
+    res.json({ success: true, removed: r.rows.length });
+  } catch (e) {
+    console.error('Admin clear-usage error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ==================== USER ENDPOINTS ====================
 
 // Apply promo code (authenticated users)
 router.post('/apply', authenticateToken, async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, product: requestedProduct } = req.body;
     const userId = req.user.id;
 
     if (!code) {
       return res.status(400).json({ error: 'Promo code is required', code: 'INVALID_CODE' });
+    }
+    if (requestedProduct && !['stats_editor', 'profile_stats'].includes(requestedProduct)) {
+      return res.status(400).json({ error: 'Invalid product', code: 'INVALID_CODE' });
     }
 
     // Find promo code
@@ -249,6 +284,22 @@ router.post('/apply', authenticateToken, async (req, res) => {
     // Multi-product split: each promo code carries its product. Older rows
     // default to 'stats_editor' via the migration, so legacy codes still work.
     const product = promoCode.product || 'stats_editor';
+
+    // Reject before recording usage if the caller is asking from a different
+    // product than the code targets. Without this guard, a Profile Stats
+    // promo entered in the Stats Editor popup would extend the PS subscription
+    // and "consume" the code — leaving the user with no way to redeem it
+    // again from the right place. The user gets a clear error and the code
+    // remains unused.
+    if (requestedProduct && requestedProduct !== product) {
+      return res.status(400).json({
+        error: product === 'profile_stats'
+          ? 'This code is for Profile Stats. Apply it inside the Profile Stats extension.'
+          : 'This code is for Stats Editor. Apply it inside the Stats Editor extension.',
+        code: 'WRONG_PRODUCT',
+        codeProduct: product
+      });
+    }
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + promoCode.days);
 

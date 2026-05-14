@@ -694,10 +694,13 @@ async function apiApplyPromoCode(code) {
   
   try {
     log('OF Stats: Applying promo code:', code);
+    // Tell the backend this code is being applied from the Stats Editor
+    // extension, so a Profile Stats promo entered here gets rejected with
+    // WRONG_PRODUCT instead of silently extending the user's PS sub.
     const response = await authFetch(`${API_URL}/promo/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code, product: 'stats_editor' })
     });
     
     const data = await response.json();
