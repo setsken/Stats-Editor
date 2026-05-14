@@ -238,6 +238,7 @@ const i18n = {
     promoActivatedTitle: 'Промокод активирован!',
     promoCodeDaysAdded: 'Код "{code}" активирован. {days} дн. плана {plan} добавлено к вашему аккаунту.',
     promoAlreadyUsed: 'Этот код уже был использован',
+    promoWrongProduct: 'Этот код для Profile Stats. Активируйте его в расширении Profile Stats.',
     promoAlreadyUsedTitle: 'Промокод уже использован',
     promoAlreadyUsedBody: 'Код "{code}" уже был активирован на вашем аккаунте.',
     promoInvalid: 'Неверный промокод',
@@ -413,6 +414,7 @@ const i18n = {
     promoActivatedTitle: 'Promo Code Activated!',
     promoCodeDaysAdded: 'Code "{code}" activated. {days} days of {plan} added to your account.',
     promoAlreadyUsed: 'This code has already been used',
+    promoWrongProduct: 'This code is for Profile Stats. Apply it inside the Profile Stats extension.',
     promoAlreadyUsedTitle: 'Promo Code Already Used',
     promoAlreadyUsedBody: 'The code "{code}" has already been activated on your account.',
     promoInvalid: 'Invalid promo code',
@@ -2923,6 +2925,12 @@ async function handleApplyPromoCode() {
         message.className = 'promo-code-message error';
       } else if (errorCode === 'LIMIT_REACHED' || errorMessageLower.includes('limit')) {
         message.textContent = dict.promoLimitReached || 'This promo code usage limit reached';
+        message.className = 'promo-code-message error';
+      } else if (errorCode === 'WRONG_PRODUCT' || errorMessageLower.includes('profile stats')) {
+        // Code belongs to Profile Stats — surface the upstream message, with
+        // an i18n fallback so RU users see Russian.
+        message.textContent = dict.promoWrongProduct || result?.error
+          || 'This code is for Profile Stats. Apply it inside the Profile Stats extension.';
         message.className = 'promo-code-message error';
       } else {
         message.textContent = dict.promoApplyFailed || 'Failed to apply promo code';
