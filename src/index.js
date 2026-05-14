@@ -122,6 +122,38 @@ async function runMigrations() {
       ON subscriptions(user_id, product, status, expires_at)
     `).catch(() => {});
 
+    // Drop the legacy single-column unique(user_id) constraint and replace
+    // it with unique(user_id, product). The old constraint blocked any
+    // second row per user — even with a different product — so promo apply
+    // for product=profile_stats failed when the user already had a
+    // stats_editor subscription. Defensive: handle both the old name and
+    // any auto-generated variant by introspecting pg_constraint.
+    try {
+      const legacy = await query(`
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'subscriptions'::regclass
+          AND contype = 'u'
+          AND pg_get_constraintdef(oid) ~* '^UNIQUE \\(user_id\\)$'
+      `);
+      for (const row of legacy.rows) {
+        await query(`ALTER TABLE subscriptions DROP CONSTRAINT "${row.conname}"`);
+        console.log(`Dropped legacy unique constraint: ${row.conname}`);
+      }
+    } catch (e) {
+      console.warn('Legacy unique(user_id) drop skipped:', e.message);
+    }
+    // Create the composite unique constraint, ignoring "already exists".
+    try {
+      await query(`
+        ALTER TABLE subscriptions
+        ADD CONSTRAINT subscriptions_user_id_product_unique UNIQUE (user_id, product)
+      `);
+    } catch (e) {
+      if (!/already exists/i.test(e.message)) {
+        console.warn('subscriptions_user_id_product_unique add skipped:', e.message);
+      }
+    }
+
     // Promo codes get the same product tag so a single codes pool can serve
     // both Stats Editor and Profile Stats. Existing rows default to
     // 'stats_editor' to preserve historical behaviour. Combined with a
