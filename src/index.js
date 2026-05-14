@@ -135,17 +135,22 @@ async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_promo_codes_product ON promo_codes(product)
     `).catch(() => {});
 
-    // Re-sync the promo_codes id sequence to MAX(id). Inserts were failing
-    // with duplicate-key on promo_codes_pkey because the sequence had
-    // fallen behind the real max id (typically after a manual insert or a
-    // DB import that didn't touch the seq). Idempotent and cheap.
-    await query(`
-      SELECT setval(
-        pg_get_serial_sequence('promo_codes', 'id'),
-        COALESCE((SELECT MAX(id) FROM promo_codes), 0) + 1,
-        false
-      )
-    `).catch((e) => console.warn('promo_codes seq resync skipped:', e.message));
+    // Re-sync id sequences that may have drifted behind MAX(id) — same
+    // failure mode kept tripping promo apply (subscriptions / promo_code_uses
+    // INSERTs). Idempotent and cheap; runs once per server start.
+    for (const tbl of ['promo_codes', 'subscriptions', 'promo_code_uses', 'payments', 'user_models']) {
+      try {
+        await query(`
+          SELECT setval(
+            pg_get_serial_sequence('${tbl}', 'id'),
+            COALESCE((SELECT MAX(id) FROM ${tbl}), 0) + 1,
+            false
+          )
+        `);
+      } catch (e) {
+        console.warn(`${tbl} seq resync skipped:`, e.message);
+      }
+    }
 
     // Backfill model_fans_daily from model_fans_history (one-time migration)
     try {
