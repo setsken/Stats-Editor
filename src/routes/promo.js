@@ -20,14 +20,19 @@ function generatePromoCode(length = 8) {
 // Create promo code (admin only)
 router.post('/admin/create', authenticateAdmin, async (req, res) => {
   try {
-    const { 
+    const {
       code, // Optional - if not provided, generate random
       plan = 'pro',
+      product = 'stats_editor', // 'stats_editor' | 'profile_stats'
       days = 30,
       modelLimit = 50,
       maxUses = 1, // null for unlimited
       expiresAt = null // Optional expiry date for the code itself
     } = req.body;
+
+    if (!['stats_editor', 'profile_stats'].includes(product)) {
+      return res.status(400).json({ error: 'Invalid product. Use "stats_editor" or "profile_stats".' });
+    }
 
     // Generate code if not provided
     const promoCode = code || generatePromoCode();
@@ -39,10 +44,10 @@ router.post('/admin/create', authenticateAdmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO promo_codes (code, plan, days, model_limit, max_uses, expires_at, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO promo_codes (code, plan, product, days, model_limit, max_uses, expires_at, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [promoCode.toUpperCase(), plan, days, modelLimit, maxUses, expiresAt, req.user.email]
+      [promoCode.toUpperCase(), plan, product, days, modelLimit, maxUses, expiresAt, req.user.email]
     );
 
     res.status(201).json({
@@ -59,15 +64,20 @@ router.post('/admin/create', authenticateAdmin, async (req, res) => {
 // Generate multiple promo codes (admin only)
 router.post('/admin/generate-batch', authenticateAdmin, async (req, res) => {
   try {
-    const { 
+    const {
       count = 10,
       prefix = '',
       plan = 'pro',
+      product = 'stats_editor',
       days = 30,
       modelLimit = 50,
       maxUses = 1,
       expiresAt = null
     } = req.body;
+
+    if (!['stats_editor', 'profile_stats'].includes(product)) {
+      return res.status(400).json({ error: 'Invalid product. Use "stats_editor" or "profile_stats".' });
+    }
 
     if (count > 100) {
       return res.status(400).json({ error: 'Maximum 100 codes per batch' });
@@ -76,13 +86,13 @@ router.post('/admin/generate-batch', authenticateAdmin, async (req, res) => {
     const codes = [];
     for (let i = 0; i < count; i++) {
       const code = prefix ? `${prefix.toUpperCase()}-${generatePromoCode(6)}` : generatePromoCode();
-      
+
       try {
         const result = await query(
-          `INSERT INTO promo_codes (code, plan, days, model_limit, max_uses, expires_at, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO promo_codes (code, plan, product, days, model_limit, max_uses, expires_at, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING *`,
-          [code.toUpperCase(), plan, days, modelLimit, maxUses, expiresAt, req.user.email]
+          [code.toUpperCase(), plan, product, days, modelLimit, maxUses, expiresAt, req.user.email]
         );
         codes.push(result.rows[0]);
       } catch (err) {
@@ -198,7 +208,7 @@ router.post('/apply', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     if (!code) {
-      return res.status(400).json({ error: 'Promo code is required' });
+      return res.status(400).json({ error: 'Promo code is required', code: 'INVALID_CODE' });
     }
 
     // Find promo code
@@ -208,22 +218,22 @@ router.post('/apply', authenticateToken, async (req, res) => {
     );
 
     if (!promoCode) {
-      return res.status(404).json({ error: 'Invalid promo code' });
+      return res.status(404).json({ error: 'Invalid promo code', code: 'INVALID_CODE' });
     }
 
     // Check if active
     if (!promoCode.is_active) {
-      return res.status(400).json({ error: 'This promo code is no longer active' });
+      return res.status(400).json({ error: 'This promo code is no longer active', code: 'EXPIRED' });
     }
 
     // Check if expired
     if (promoCode.expires_at && new Date(promoCode.expires_at) < new Date()) {
-      return res.status(400).json({ error: 'This promo code has expired' });
+      return res.status(400).json({ error: 'This promo code has expired', code: 'EXPIRED' });
     }
 
     // Check usage limit
     if (promoCode.max_uses !== null && promoCode.current_uses >= promoCode.max_uses) {
-      return res.status(400).json({ error: 'This promo code has reached its usage limit' });
+      return res.status(400).json({ error: 'This promo code has reached its usage limit', code: 'LIMIT_REACHED' });
     }
 
     // Check if user already used this code
@@ -233,59 +243,69 @@ router.post('/apply', authenticateToken, async (req, res) => {
     );
 
     if (alreadyUsed) {
-      return res.status(400).json({ error: 'You have already used this promo code' });
+      return res.status(400).json({ error: 'You have already used this promo code', code: 'ALREADY_USED' });
     }
 
-    // Apply the promo code - create or extend subscription
+    // Multi-product split: each promo code carries its product. Older rows
+    // default to 'stats_editor' via the migration, so legacy codes still work.
+    const product = promoCode.product || 'stats_editor';
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + promoCode.days);
 
-    // Use UPSERT to ensure only ONE subscription record per user
-    const result = await query(`
-      INSERT INTO subscriptions (
-        user_id, plan, model_limit, status, payment_provider, 
-        starts_at, expires_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, 'active', 'promo', NOW(), $4, NOW(), NOW())
-      ON CONFLICT (user_id) DO UPDATE SET
-        plan = EXCLUDED.plan,
-        model_limit = EXCLUDED.model_limit,
-        status = 'active',
-        payment_provider = 'promo',
-        starts_at = CASE 
-          WHEN subscriptions.status = 'active' AND subscriptions.expires_at > NOW() 
-          THEN subscriptions.starts_at
-          ELSE NOW()
-        END,
-        expires_at = CASE 
-          WHEN subscriptions.status = 'active' AND subscriptions.expires_at > NOW() 
-          THEN subscriptions.expires_at + INTERVAL '${promoCode.days} days'
-          ELSE EXCLUDED.expires_at
-        END,
-        updated_at = NOW()
-      RETURNING 
-        (xmax = 0) as is_insert,
-        (SELECT status FROM subscriptions WHERE user_id = $1) as old_status,
-        (SELECT expires_at FROM subscriptions WHERE user_id = $1) as old_expires
-    `, [userId, promoCode.plan, promoCode.model_limit, expiresAt]);
+    // Look up the existing subscription FOR THIS PRODUCT to decide whether to
+    // extend (active) or replace (inactive/missing). We can't rely on a single
+    // unique (user_id) constraint anymore since users can have one row per
+    // product — query first, then INSERT or UPDATE explicitly.
+    const existing = await getOne(
+      `SELECT id, status, expires_at FROM subscriptions
+       WHERE user_id = $1 AND product = $2
+       ORDER BY expires_at DESC LIMIT 1`,
+      [userId, product]
+    );
 
-    const wasInsert = result.rows[0]?.is_insert;
-    const oldStatus = result.rows[0]?.old_status;
-    const oldExpires = result.rows[0]?.old_expires;
-    
-    // Clear models only if this is a NEW subscription (not extension of active one)
-    const wasActive = oldStatus === 'active' && new Date(oldExpires) > new Date();
-    if (wasInsert || !wasActive) {
-      await query(`DELETE FROM user_models WHERE user_id = $1`, [userId]);
-      console.log(`Cleared models for user ${userId} (new promo subscription)`);
+    const wasActive = existing
+      && existing.status === 'active'
+      && new Date(existing.expires_at) > new Date();
+
+    if (existing) {
+      // Extend if currently active, otherwise restart from now.
+      const newExpires = wasActive
+        ? new Date(new Date(existing.expires_at).getTime() + promoCode.days * 86400000)
+        : expiresAt;
+      const newStarts = wasActive ? null : new Date(); // null = keep starts_at via COALESCE
+      await query(
+        `UPDATE subscriptions
+         SET plan = $1, model_limit = $2, status = 'active', payment_provider = 'promo',
+             starts_at = COALESCE($3, starts_at),
+             expires_at = $4,
+             updated_at = NOW(),
+             product = $5
+         WHERE id = $6`,
+        [promoCode.plan, promoCode.model_limit, newStarts, newExpires, product, existing.id]
+      );
+    } else {
+      await query(
+        `INSERT INTO subscriptions (
+           user_id, plan, product, model_limit, status, payment_provider,
+           starts_at, expires_at, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, 'active', 'promo', NOW(), $5, NOW(), NOW())`,
+        [userId, promoCode.plan, product, promoCode.model_limit, expiresAt]
+      );
     }
 
-    // Record usage
+    // Clear user_models ONLY for stats_editor sign-ups: the model slot list
+    // belongs to that product. Profile Stats has no per-model storage that
+    // needs resetting on a promo redemption.
+    if (product === 'stats_editor' && (!existing || !wasActive)) {
+      await query(`DELETE FROM user_models WHERE user_id = $1`, [userId]);
+      console.log(`Cleared models for user ${userId} (new promo subscription, product=stats_editor)`);
+    }
+
+    // Record usage + bump counter
     await query(
       'INSERT INTO promo_code_uses (promo_code_id, user_id) VALUES ($1, $2)',
       [promoCode.id, userId]
     );
-
-    // Increment usage count
     await query(
       'UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = $1',
       [promoCode.id]
@@ -296,6 +316,7 @@ router.post('/apply', authenticateToken, async (req, res) => {
       message: `Promo code applied! You now have ${promoCode.days} days of ${promoCode.plan.toUpperCase()} subscription.`,
       subscription: {
         plan: promoCode.plan,
+        product,
         days: promoCode.days,
         modelLimit: promoCode.model_limit
       }

@@ -273,11 +273,18 @@ router.post('/create-payment', authenticateToken, async (req, res) => {
     let paymentResponse;
 
     if (currency) {
-      // Create payment with specific currency
+      // Stablecoin pricing: when the user pays in a USDT-based network we
+      // quote the price *in that same currency* (price_currency = pay_currency).
+      // NOWPayments then skips USD→crypto FX conversion and the user pays
+      // exactly the listed amount (e.g. 15 USDT, not 18.7 USDT). For non-USDT
+      // currencies we fall back to USD pricing and let NOWPayments quote.
+      const cur = currency.toLowerCase();
+      const isStable = cur.startsWith('usdt') || cur.startsWith('usdc') || cur === 'dai' || cur === 'busd';
+
       paymentResponse = await nowpayments.createPayment({
         priceAmount: planConfig.price,
-        priceCurrency: 'usd',
-        payCurrency: currency.toLowerCase(),
+        priceCurrency: isStable ? cur : 'usd',
+        payCurrency: cur,
         orderId: `${orderId}_${paymentDbId}`,
         orderDescription: `OF Stats ${planConfig.name} Subscription - 1 Month`,
         ipnCallbackUrl,
@@ -490,10 +497,14 @@ router.post('/create-upgrade-payment', authenticateToken, async (req, res) => {
     let paymentResponse;
 
     if (currency) {
+      // Same stablecoin shortcut as in /create-payment — price in USDT directly
+      // so the displayed amount matches the user's actual transfer.
+      const cur = currency.toLowerCase();
+      const isStable = cur.startsWith('usdt') || cur.startsWith('usdc') || cur === 'dai' || cur === 'busd';
       paymentResponse = await nowpayments.createPayment({
         priceAmount: upgradePrice,
-        priceCurrency: 'usd',
-        payCurrency: currency.toLowerCase(),
+        priceCurrency: isStable ? cur : 'usd',
+        payCurrency: cur,
         orderId: `${orderId}_${paymentDbId}`,
         orderDescription: `OF Stats Upgrade to Pro - $${upgradePrice}`,
         ipnCallbackUrl,

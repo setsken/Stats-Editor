@@ -122,6 +122,19 @@ async function runMigrations() {
       ON subscriptions(user_id, product, status, expires_at)
     `).catch(() => {});
 
+    // Promo codes get the same product tag so a single codes pool can serve
+    // both Stats Editor and Profile Stats. Existing rows default to
+    // 'stats_editor' to preserve historical behaviour. Combined with a
+    // (user_id, product) uniqueness rule on application, a user can redeem
+    // one code per product.
+    await query(`
+      ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS product VARCHAR(20) DEFAULT 'stats_editor'
+    `).catch(() => {});
+    await query(`UPDATE promo_codes SET product = 'stats_editor' WHERE product IS NULL`).catch(() => {});
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_promo_codes_product ON promo_codes(product)
+    `).catch(() => {});
+
     // Backfill model_fans_daily from model_fans_history (one-time migration)
     try {
       const check = await query('SELECT COUNT(*) as cnt FROM model_fans_daily');

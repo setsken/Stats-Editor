@@ -738,7 +738,10 @@ async function apiGetSubscriptionStatus() {
 
 async function apiGetPlans() {
   try {
-    const response = await fetch(`${API_URL}/subscription/plans`);
+    // Scope to Stats Editor plans only — backend now serves Profile Stats
+    // ($15/mo) from the same endpoint, but that plan belongs in the
+    // Profile Stats extension, not the Stats Editor upgrade screen.
+    const response = await fetch(`${API_URL}/subscription/plans?product=stats_editor`);
     const data = await response.json();
     return { success: response.ok, ...data };
   } catch (error) {

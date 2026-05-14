@@ -363,23 +363,36 @@ router.get('/verify', authenticateToken, async (req, res) => {
 // Support email — user sends a bug report from inside the plugin
 router.post('/support', authenticateToken, async (req, res) => {
   try {
-    const { subject, message } = req.body;
+    const { subject, message, product } = req.body;
 
     if (!message || message.trim().length < 10) {
       return res.status(400).json({ error: 'Message is too short' });
     }
 
+    // Multi-product split: caller passes product='profile_stats' so we can
+    // tag the subject + email header and route oncall accordingly. Anything
+    // else (or absent) is treated as Stats Editor for backward compat.
+    const productKey = product === 'profile_stats' ? 'profile_stats' : 'stats_editor';
+    const productName = productKey === 'profile_stats' ? 'Profile Stats' : 'Of Stats Editor';
+    const defaultSubject = productKey === 'profile_stats'
+      ? 'Bug Report — Profile Stats'
+      : 'Bug Report — Of Stats Editor';
+
     const userEmail = req.user.email;
-    const emailSubject = subject?.trim() || 'Bug Report — Of Stats Editor';
+    const emailSubject = subject?.trim() || defaultSubject;
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0d1117; color: #c9d1d9; padding: 24px; border-radius: 8px;">
         <div style="border-bottom: 2px solid #00b4ff; padding-bottom: 16px; margin-bottom: 24px;">
-          <h2 style="margin: 0; color: #00b4ff; font-size: 18px;">📩 New Support Request — Of Stats Editor</h2>
+          <h2 style="margin: 0; color: #00b4ff; font-size: 18px;">📩 New Support Request — ${productName}</h2>
         </div>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
           <tr>
-            <td style="padding: 8px 0; color: #8b949e; width: 120px; font-size: 13px;">From (user):</td>
+            <td style="padding: 8px 0; color: #8b949e; width: 120px; font-size: 13px;">Product:</td>
+            <td style="padding: 8px 0; color: #e6edf3; font-size: 13px;"><strong>${productName}</strong></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #8b949e; font-size: 13px;">From (user):</td>
             <td style="padding: 8px 0; color: #e6edf3; font-size: 13px;"><strong>${userEmail}</strong></td>
           </tr>
           <tr>
@@ -393,9 +406,10 @@ router.post('/support', authenticateToken, async (req, res) => {
         <p style="color: #8b949e; font-size: 12px; margin: 0;">Reply to this user at: <a href="mailto:${userEmail}" style="color: #00b4ff;">${userEmail}</a></p>
       </div>`;
 
+    const tagPrefix = productKey === 'profile_stats' ? 'Support · Profile Stats' : 'Support';
     const sent = await sendEmail(
       'support@ofstats.pro',
-      `[Support] ${emailSubject} — ${userEmail}`,
+      `[${tagPrefix}] ${emailSubject} — ${userEmail}`,
       html
     );
 
