@@ -70,8 +70,26 @@ function renderWelcomeHtml(brand, email, trialDays) {
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="600" style="max-width: 600px; margin: 0 auto; background: #0f172a; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.4);">
       <tr>
         <td style="background: ${brand.gradient}; padding: 36px 32px; text-align: center;">
-          <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.01em;">${brand.name}</h1>
-          <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">${brand.tagline}</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+            <tr>
+              <td style="vertical-align: middle; padding-right: 12px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding: 0 2px;"><div style="width: 8px; height: 18px; background: #ffffff; border-radius: 2px;"></div></td>
+                    <td style="padding: 0 2px;"><div style="width: 8px; height: 30px; background: #ffffff; border-radius: 2px;"></div></td>
+                    <td style="padding: 0 2px;"><div style="width: 8px; height: 24px; background: #ffffff; border-radius: 2px;"></div></td>
+                  </tr>
+                  <tr>
+                    <td colspan="3" style="padding-top: 3px;"><div style="height: 3px; background: rgba(255,255,255,0.75); border-radius: 2px;"></div></td>
+                  </tr>
+                </table>
+              </td>
+              <td style="vertical-align: middle;">
+                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.01em; line-height: 1;">${brand.name}</h1>
+              </td>
+            </tr>
+          </table>
+          <p style="margin: 12px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">${brand.tagline}</p>
         </td>
       </tr>
       <tr>
@@ -82,13 +100,8 @@ function renderWelcomeHtml(brand, email, trialDays) {
           </p>
 
           <div style="background: #1e293b; border-radius: 12px; padding: 18px 20px; margin: 0 0 24px;">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-              <div>
-                <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Account</div>
-                <div style="font-size: 14px; color: #ffffff; margin-top: 4px;"><strong>${email}</strong></div>
-              </div>
-              <div style="background: ${brand.colorSoft}; color: ${brand.color}; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;">${trialDays}-DAY TRIAL</div>
-            </div>
+            <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Account</div>
+            <div style="font-size: 14px; color: #ffffff; margin-top: 4px;"><strong>${email}</strong></div>
           </div>
 
           <div style="margin-bottom: 8px;">
