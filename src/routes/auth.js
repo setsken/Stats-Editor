@@ -10,19 +10,114 @@ const router = express.Router();
 
 // Per-product branding for outbound emails so users see the product they're
 // actually using (Profile Stats vs Stats Editor) in From/subject/body.
+// `features` powers the welcome email checklist so each product shows
+// what the trial actually unlocks instead of a generic blurb.
 function getBrand(product) {
   if (product === 'profile_stats') {
     return {
       name: 'Profile Stats',
+      tagline: 'Real-time profile analytics on every OnlyFans page',
       color: '#8b5cf6',
+      colorSoft: 'rgba(139, 92, 246, 0.15)',
+      gradient: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
       from: process.env.SMTP_FROM_PS || 'Profile Stats <support@ofstats.pro>',
+      features: [
+        { icon: '📊', title: 'Live profile badge',     text: 'Score, fans, posts, likes and growth indicators on every OnlyFans profile.' },
+        { icon: '🏆', title: 'Top Models leaderboard', text: 'Ranked feed of the models you have viewed with deep filters by audience and quality.' },
+        { icon: '📈', title: 'Fans trend chart',       text: 'Day-by-day fan dynamics for every model so you can spot momentum early.' },
+        { icon: '📝', title: 'Notes & tags',           text: 'Private notes per model, grouped under colour-coded tags you control.' },
+        { icon: '🤖', title: 'Verdict AI',             text: 'AI-powered profile verdict to help you decide who is worth your time.' },
+      ],
     };
   }
   return {
     name: 'Stats Editor Pro',
+    tagline: 'Pro analytics & automation for your Stats Editor workflow',
     color: '#00d4ff',
+    colorSoft: 'rgba(0, 212, 255, 0.15)',
+    gradient: 'linear-gradient(135deg, #00d4ff 0%, #0ea5e9 100%)',
     from: process.env.SMTP_FROM || 'Stats Editor Pro <support@ofstats.pro>',
+    features: [
+      { icon: '📈', title: 'Advanced stats',        text: 'Detailed performance breakdowns across all the models you manage.' },
+      { icon: '💬', title: 'Mass messaging tools',  text: 'Pro-tier sending flows with templates and audience segmentation.' },
+      { icon: '🎯', title: 'Smart targeting',       text: 'Filter fans by spend, activity and tags to focus on the right audience.' },
+      { icon: '⚡', title: 'Workflow automation',   text: 'Speed up repetitive tasks with one-click actions in the editor.' },
+      { icon: '🔒', title: 'Priority support',      text: 'Get help from the team within hours, not days.' },
+    ],
   };
+}
+
+// Build a polished HTML welcome email for either product. Kept inline so
+// every Resend send is a single self-contained string — no template loader
+// to wire up, and the inline styles survive Gmail / Apple Mail rewrites.
+function renderWelcomeHtml(brand, email, trialDays) {
+  const featureRows = brand.features.map(f => `
+    <tr>
+      <td style="padding: 10px 0; vertical-align: top; width: 36px;">
+        <div style="width: 32px; height: 32px; border-radius: 8px; background: ${brand.colorSoft}; text-align: center; line-height: 32px; font-size: 18px;">${f.icon}</div>
+      </td>
+      <td style="padding: 10px 0 10px 12px; vertical-align: top; color: #e2e8f0;">
+        <div style="font-weight: 700; font-size: 14px; margin-bottom: 2px;">${f.title}</div>
+        <div style="font-size: 13px; color: #94a3b8; line-height: 1.5;">${f.text}</div>
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #0b1020; padding: 24px 12px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="600" style="max-width: 600px; margin: 0 auto; background: #0f172a; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.4);">
+      <tr>
+        <td style="background: ${brand.gradient}; padding: 36px 32px; text-align: center;">
+          <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.01em;">${brand.name}</h1>
+          <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">${brand.tagline}</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 32px;">
+          <h2 style="margin: 0 0 8px; color: #ffffff; font-size: 22px; font-weight: 700;">Welcome aboard! 🎉</h2>
+          <p style="margin: 0 0 20px; color: #cbd5e1; font-size: 14px; line-height: 1.6;">
+            Your account is ready. You have <strong style="color: ${brand.color};">${trialDays} days of full access</strong> to explore everything ${brand.name} offers — no payment required.
+          </p>
+
+          <div style="background: #1e293b; border-radius: 12px; padding: 18px 20px; margin: 0 0 24px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Account</div>
+                <div style="font-size: 14px; color: #ffffff; margin-top: 4px;"><strong>${email}</strong></div>
+              </div>
+              <div style="background: ${brand.colorSoft}; color: ${brand.color}; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;">${trialDays}-DAY TRIAL</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 8px;">
+            <div style="font-size: 11px; color: ${brand.color}; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 4px;">What's included</div>
+            <h3 style="margin: 0 0 12px; color: #ffffff; font-size: 18px; font-weight: 700;">Everything unlocked during your trial</h3>
+          </div>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            ${featureRows}
+          </table>
+
+          <hr style="border: none; border-top: 1px solid #1e293b; margin: 28px 0;">
+
+          <p style="margin: 0 0 6px; color: #cbd5e1; font-size: 13px; line-height: 1.6;">
+            <strong style="color: #ffffff;">Tip:</strong> Pin the extension to your toolbar so the badge appears on every profile you open.
+          </p>
+          <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.6;">
+            Questions or stuck somewhere? Just reply to this email — a real human reads every message.
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background: #0b1020; padding: 18px 32px; text-align: center; border-top: 1px solid #1e293b;">
+          <p style="margin: 0; color: #64748b; font-size: 11px;">
+            You received this because you signed up for ${brand.name}.<br>
+            One Monly account works across all our products — Stats Editor, Profile Stats and more.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </div>`;
 }
 
 // Helper to send email via Resend HTTP API (bypasses SMTP port blocks)
@@ -114,18 +209,14 @@ router.post('/register', async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
     );
 
-    // Send welcome email (non-blocking) — branded per product
-    sendEmail(user.email, `Welcome to ${brand.name}!`, `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
-        <h1 style="color: ${brand.color}; text-align: center;">${brand.name}</h1>
-        <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: ${brand.color};">Welcome!</h2>
-          <p>Your account has been created successfully.</p>
-          <p><strong>Email:</strong> ${user.email}</p>
-          <p><strong>Trial Period:</strong> ${trialDays} days</p>
-        </div>
-      </div>
-    `, brand.from);
+    // Send welcome email (non-blocking) — branded per product, with
+    // a feature list so the user knows what the trial actually unlocks.
+    sendEmail(
+      user.email,
+      `Welcome to ${brand.name} — your ${trialDays}-day trial is live`,
+      renderWelcomeHtml(brand, user.email, trialDays),
+      brand.from
+    );
 
     res.status(201).json({
       message: 'Registration successful',
