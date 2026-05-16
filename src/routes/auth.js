@@ -8,10 +8,27 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Per-product branding for outbound emails so users see the product they're
+// actually using (Profile Stats vs Stats Editor) in From/subject/body.
+function getBrand(product) {
+  if (product === 'profile_stats') {
+    return {
+      name: 'Profile Stats',
+      color: '#8b5cf6',
+      from: process.env.SMTP_FROM_PS || 'Profile Stats <support@ofstats.pro>',
+    };
+  }
+  return {
+    name: 'Stats Editor Pro',
+    color: '#00d4ff',
+    from: process.env.SMTP_FROM || 'Stats Editor Pro <support@ofstats.pro>',
+  };
+}
+
 // Helper to send email via Resend HTTP API (bypasses SMTP port blocks)
-async function sendEmail(to, subject, html) {
+async function sendEmail(to, subject, html, fromOverride) {
   const apiKey = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
-  const from = process.env.SMTP_FROM || 'Stats Editor Pro <support@ofstats.pro>';
+  const from = fromOverride || process.env.SMTP_FROM || 'Stats Editor Pro <support@ofstats.pro>';
 
   if (!apiKey) {
     console.log('Resend API key not configured, skipping email to:', to);
@@ -43,7 +60,8 @@ async function sendEmail(to, subject, html) {
 // Register new user
 router.post('/register', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, product } = req.body;
+    const brand = getBrand(product);
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -92,21 +110,18 @@ router.post('/register', async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
     );
 
-    // Send welcome email (non-blocking)
-    sendEmail(user.email, 'Welcome to Stats Editor Pro!', `
+    // Send welcome email (non-blocking) — branded per product
+    sendEmail(user.email, `Welcome to ${brand.name}!`, `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
-        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
+        <h1 style="color: ${brand.color}; text-align: center;">${brand.name}</h1>
         <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: #00d4ff;">Welcome!</h2>
+          <h2 style="color: ${brand.color};">Welcome!</h2>
           <p>Your account has been created successfully.</p>
           <p><strong>Email:</strong> ${user.email}</p>
           <p><strong>Trial Period:</strong> ${trialDays} days</p>
-          <p><strong>Models Limit:</strong> 10 models</p>
-          <hr style="border: none; border-top: 1px solid #334155; margin: 20px 0;">
-          <p style="color: #94a3b8;">Upgrade to Premium for up to 50 models!</p>
         </div>
       </div>
-    `);
+    `, brand.from);
 
     res.status(201).json({
       message: 'Registration successful',
@@ -238,7 +253,8 @@ router.post('/refresh', async (req, res) => {
 // Forgot password
 router.post('/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, product } = req.body;
+    const brand = getBrand(product);
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -260,22 +276,27 @@ router.post('/forgot-password', async (req, res) => {
       [resetTokenHash, expiresAt, user.id]
     );
 
-    // Send reset email (non-blocking)
-    sendEmail(user.email, 'Password Reset - Stats Editor Pro', `
+    // Send reset email (non-blocking) — branded per product
+    sendEmail(user.email, `Password Reset - ${brand.name}`, `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
-        <h1 style="color: #00d4ff; text-align: center;">Stats Editor Pro</h1>
+        <h1 style="color: ${brand.color}; text-align: center;">${brand.name}</h1>
         <div style="background: #1e293b; padding: 30px; border-radius: 12px; color: #e2e8f0;">
-          <h2 style="color: #00d4ff;">Password Reset</h2>
+          <h2 style="color: ${brand.color};">Password Reset</h2>
           <p>You requested a password reset for your account.</p>
           <p>Your reset code:</p>
           <div style="background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <code style="color: #00d4ff; font-size: 18px; letter-spacing: 2px;">${resetToken}</code>
+            <code style="color: ${brand.color}; font-size: 18px; letter-spacing: 2px;">${resetToken}</code>
           </div>
           <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 hour.</p>
           <p style="color: #94a3b8; font-size: 14px;">If you didn't request this, please ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #334155; margin: 20px 0;">
+          <p style="color: #94a3b8; font-size: 13px;">
+            <strong style="color: #e2e8f0;">Note:</strong> Your Monly account is shared across all our products.
+            Changing your password here will update it everywhere — Stats Editor, Profile Stats and any other Monly product you use.
+          </p>
         </div>
       </div>
-    `);
+    `, brand.from);
 
     res.json({ message: 'If this email exists, a reset link has been sent' });
 
