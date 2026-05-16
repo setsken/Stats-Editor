@@ -98,10 +98,14 @@ router.post('/register', async (req, res) => {
     const user = result.rows[0];
 
     const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
+    // Trial is scoped to the product the user registered through, otherwise
+    // someone signing up via Profile Stats lands on a Stats Editor-only
+    // trial row and the PS popup correctly reports 'No plan'.
+    const trialProduct = product === 'profile_stats' ? 'profile_stats' : 'stats_editor';
     await query(
-      `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at)
-       VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days')`,
-      [user.id]
+      `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at, product)
+       VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days', $2)`,
+      [user.id, trialProduct]
     );
 
     const token = jwt.sign(
