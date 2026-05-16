@@ -21,6 +21,7 @@ function getBrand(product) {
       colorSoft: 'rgba(139, 92, 246, 0.15)',
       gradient: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
       from: process.env.SMTP_FROM_PS || 'Profile Stats <support@ofstats.pro>',
+      tip: 'Open any OnlyFans profile — the stats badge appears automatically. Click the extension icon to access the Top Models leaderboard, notes and settings.',
       features: [
         { icon: '📊', title: 'Live profile badge',     text: 'Score, fans, posts, likes and growth indicators on every OnlyFans profile.' },
         { icon: '🏆', title: 'Top Models leaderboard', text: 'Ranked feed of the models you have viewed with deep filters by audience and quality.' },
@@ -37,6 +38,7 @@ function getBrand(product) {
     colorSoft: 'rgba(0, 212, 255, 0.15)',
     gradient: 'linear-gradient(135deg, #00d4ff 0%, #0ea5e9 100%)',
     from: process.env.SMTP_FROM || 'Stats Editor Pro <support@ofstats.pro>',
+    tip: 'Open the Stats Editor panel on any model page — pro stats and tools light up automatically. Use the popup to manage your account and preferences.',
     features: [
       { icon: '📈', title: 'Advanced stats',        text: 'Detailed performance breakdowns across all the models you manage.' },
       { icon: '💬', title: 'Mass messaging tools',  text: 'Pro-tier sending flows with templates and audience segmentation.' },
@@ -100,11 +102,8 @@ function renderWelcomeHtml(brand, email, trialDays) {
 
           <hr style="border: none; border-top: 1px solid #1e293b; margin: 28px 0;">
 
-          <p style="margin: 0 0 6px; color: #cbd5e1; font-size: 13px; line-height: 1.6;">
-            <strong style="color: #ffffff;">Tip:</strong> Pin the extension to your toolbar so the badge appears on every profile you open.
-          </p>
-          <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.6;">
-            Questions or stuck somewhere? Just reply to this email — a real human reads every message.
+          <p style="margin: 0; color: #cbd5e1; font-size: 13px; line-height: 1.6;">
+            <strong style="color: #ffffff;">Tip:</strong> ${brand.tip}
           </p>
         </td>
       </tr>
