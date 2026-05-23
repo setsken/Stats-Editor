@@ -7,23 +7,15 @@ const router = express.Router();
 // Get user's models list (only active, not deleted)
 router.get('/', authenticateToken, requireSubscription, async (req, res) => {
   try {
+    // Phase 7a (2026-05-23): dropped `last_fans` subquery that read from
+    // model_fans_history — that table is owned by Profile-Stats now and
+    // the SE popup never rendered the field anyway.
     const models = await getMany(`
       SELECT
         um.id,
         um.model_username,
         um.display_name,
-        um.created_at,
-        (
-          SELECT json_build_object(
-            'fans_count', mfh.fans_count,
-            'fans_text', mfh.fans_text,
-            'recorded_at', mfh.recorded_at
-          )
-          FROM model_fans_history mfh
-          WHERE mfh.model_username = um.model_username
-          ORDER BY mfh.recorded_at DESC
-          LIMIT 1
-        ) as last_fans
+        um.created_at
       FROM user_models um
       WHERE um.user_id = $1 AND (um.is_deleted = false OR um.is_deleted IS NULL)
       ORDER BY um.created_at DESC
@@ -41,8 +33,7 @@ router.get('/', authenticateToken, requireSubscription, async (req, res) => {
         id: m.id,
         username: m.model_username,
         displayName: m.display_name,
-        createdAt: m.created_at,
-        lastFans: m.last_fans
+        createdAt: m.created_at
       })),
       count: models.length,
       uniqueThisPeriod: parseInt(uniqueCount.count),

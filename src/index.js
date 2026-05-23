@@ -6,20 +6,17 @@ const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { query } = require('./config/database');
-const { initFarmedDatabase } = require('./config/farmed-database');
 
 // Import routes
+// Phase 7a (SE/PS split, 2026-05-23): /fans, /farmed-models, /alerts, /notes,
+// /verdict moved to Profile-Stats backend. Their handlers + the shared
+// farmed-database connection have been deleted here.
 const authRoutes = require('./routes/auth');
 const subscriptionRoutes = require('./routes/subscription');
 const modelsRoutes = require('./routes/models');
-const fansRoutes = require('./routes/fans');
 const webhooksRoutes = require('./routes/webhooks');
 const promoRoutes = require('./routes/promo');
 const presetsRoutes = require('./routes/presets');
-const farmedModelsRoutes = require('./routes/farmed-models');
-const alertsRoutes = require('./routes/alerts');
-const notesRoutes = require('./routes/notes');
-const verdictRoutes = require('./routes/verdict');
 
 const app = express();
 
@@ -35,81 +32,12 @@ async function runMigrations() {
       ALTER TABLE user_models ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
     `).catch(() => {});
 
-    // Create model_fans_daily table for trend charts
-    await query(`
-      CREATE TABLE IF NOT EXISTS model_fans_daily (
-        model_username VARCHAR(255) NOT NULL,
-        day DATE NOT NULL,
-        fans_count INTEGER NOT NULL,
-        reporters INTEGER DEFAULT 1,
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        PRIMARY KEY (model_username, day)
-      )
-    `).catch(() => {});
-    await query('CREATE INDEX IF NOT EXISTS idx_model_fans_daily_username ON model_fans_daily(model_username)').catch(() => {});
-
-    // Create model_quality_snapshots for aggregated percentile ranking
-    await query(`
-      CREATE TABLE IF NOT EXISTS model_quality_snapshots (
-        model_username VARCHAR(255) PRIMARY KEY,
-        quality_score NUMERIC(6,5) NOT NULL,
-        score NUMERIC(6,2) NOT NULL,
-        organicity NUMERIC(6,2) NOT NULL,
-        engagement_rate NUMERIC(12,6) NOT NULL,
-        negative_flags INTEGER DEFAULT 0,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `).catch(() => {});
-    await query('CREATE INDEX IF NOT EXISTS idx_model_quality_snapshots_quality ON model_quality_snapshots(quality_score)').catch(() => {});
-
-    // Create model_alerts table for global alerts
-    await query(`
-      CREATE TABLE IF NOT EXISTS model_alerts (
-        id SERIAL PRIMARY KEY,
-        model_username VARCHAR(255) NOT NULL,
-        alert_type VARCHAR(50) NOT NULL,
-        icon VARCHAR(10),
-        color VARCHAR(20),
-        diff VARCHAR(50),
-        pct VARCHAR(20),
-        extra_data JSONB DEFAULT '{}',
-        alert_date DATE NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(model_username, alert_type, alert_date)
-      )
-    `).catch(() => {});
-    await query('CREATE INDEX IF NOT EXISTS idx_model_alerts_username ON model_alerts(model_username)').catch(() => {});
-    await query('CREATE INDEX IF NOT EXISTS idx_model_alerts_date ON model_alerts(alert_date)').catch(() => {});
-
-    // Create user_notes table for cloud-synced personal notes
-    await query(`
-      CREATE TABLE IF NOT EXISTS user_notes (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        model_username VARCHAR(255) NOT NULL,
-        note_text TEXT DEFAULT '',
-        tags JSONB DEFAULT '[]',
-        note_date TIMESTAMP,
-        avatar_url VARCHAR(500),
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, model_username)
-      )
-    `).catch(() => {});
-    await query('CREATE INDEX IF NOT EXISTS idx_user_notes_user_id ON user_notes(user_id)').catch(() => {});
-    await query('CREATE INDEX IF NOT EXISTS idx_user_notes_model ON user_notes(user_id, model_username)').catch(() => {});
-
-    // Create user_tags table for personal note tags
-    await query(`
-      CREATE TABLE IF NOT EXISTS user_tags (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        name VARCHAR(50) NOT NULL,
-        color_index INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `).catch(() => {});
-    await query('CREATE INDEX IF NOT EXISTS idx_user_tags_user_id ON user_tags(user_id)').catch(() => {});
+    // NOTE (Phase 7a, 2026-05-23): CREATE TABLE statements for
+    // model_fans_daily, model_quality_snapshots, model_alerts, user_notes
+    // and user_tags removed — these belong to Profile-Stats and live in
+    // its own postgres-yo-b instance. The old duplicate tables in this
+    // (SE) DB are now orphans, scheduled for DROP TABLE in a separate
+    // task after we've monitored that no writes still hit them.
 
     // Add product column to subscriptions for multi-product split (Stats Editor / Profile Stats).
     // Pre-split rows are stamped 'stats_editor' so existing /status calls behave identically.
@@ -207,30 +135,12 @@ async function runMigrations() {
       }
     }
 
-    // Backfill model_fans_daily from model_fans_history (one-time migration)
-    try {
-      const check = await query('SELECT COUNT(*) as cnt FROM model_fans_daily');
-      if (parseInt(check.rows[0].cnt) === 0) {
-        await query(`
-          INSERT INTO model_fans_daily (model_username, day, fans_count, reporters, updated_at)
-          SELECT model_username, recorded_at::date as day, fans_count, 1, recorded_at
-          FROM model_fans_history
-          WHERE fans_count IS NOT NULL
-          ON CONFLICT (model_username, day) DO NOTHING
-        `);
-        console.log('✅ Backfilled model_fans_daily from model_fans_history');
-      }
-    } catch (e) {
-      console.log('⚠️ Backfill skipped:', e.message);
-    }
-    
     console.log('✅ Migrations completed');
   } catch (error) {
     console.log('⚠️ Migration skipped or already applied');
   }
 }
 runMigrations();
-initFarmedDatabase();
 
 // Trust proxy for Railway (required for express-rate-limit)
 app.set('trust proxy', 1);
@@ -301,14 +211,9 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/models', modelsRoutes);
-app.use('/api/fans', fansRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/promo', promoRoutes);
 app.use('/api/presets', presetsRoutes);
-app.use('/api/farmed-models', farmedModelsRoutes);
-app.use('/api/alerts', alertsRoutes);
-app.use('/api/notes', notesRoutes);
-app.use('/api/verdict', verdictRoutes);
 
 // 404 handler
 app.use((req, res) => {
