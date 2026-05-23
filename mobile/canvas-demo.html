@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Canvas Demo — All time chart</title>
+<style>
+  body {
+    margin: 0;
+    padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f8fa;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 16px; margin: 0 0 12px; color: #333; }
+  .card {
+    background: #fff;
+    border: 1px solid #e0e4e8;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .title { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+  .amount { font-size: 16px; font-weight: 600; color: #8a96a3; }
+  .chart-wrapper { position: relative; width: 100%; height: 200px; }
+  canvas { display: block; box-sizing: border-box; }
+  .controls {
+    background: #fff;
+    border: 1px solid #e0e4e8;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .controls label { display: block; margin: 4px 0; }
+  .controls input[type=range] { width: 100%; }
+  .controls .val { font-family: monospace; color: #555; }
+  button {
+    width: 100%;
+    padding: 12px;
+    background: #00aff0;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .info {
+    font-size: 11px;
+    color: #666;
+    padding: 8px 12px;
+    background: #eef2f7;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h1>OF Stats — Canvas Demo (All time chart)</h1>
+
+<div class="info" id="info">DPR: ?, viewport: ?</div>
+
+<div class="controls">
+  <button id="redrawBtn">↻ Redraw chart</button>
+  <button id="newDataBtn">🎲 New random data</button>
+  <label>Months of data: <span class="val" id="monthsVal">52</span>
+    <input type="range" id="monthsInput" min="6" max="120" value="52">
+  </label>
+  <label>Steepness end: <span class="val" id="steepVal">0.7</span>
+    <input type="range" id="steepInput" min="0" max="100" value="70">
+  </label>
+  <label>First label offset (px): <span class="val" id="offsetVal">10</span>
+    <input type="range" id="offsetInput" min="0" max="80" value="10">
+  </label>
+  <label>Last pair gap (3↔4, px): <span class="val" id="gapVal">0</span>
+    <input type="range" id="gapInput" min="0" max="40" value="0">
+  </label>
+  <label>Cluster compactness (0-100%): <span class="val" id="compactVal">0</span>
+    <input type="range" id="compactInput" min="0" max="100" value="0">
+  </label>
+  <label>Chart→date vertical gap (px): <span class="val" id="vgapVal">18</span>
+    <input type="range" id="vgapInput" min="0" max="40" value="18">
+  </label>
+  <label>Font weight: <span class="val" id="weightVal">400</span>
+    <input type="range" id="weightInput" min="100" max="700" step="100" value="400">
+  </label>
+</div>
+
+<div class="card">
+  <div class="header-row">
+    <div class="title">All time</div>
+    <div class="amount" id="totalAmount">$10,650.67</div>
+  </div>
+  <div class="chart-wrapper" id="wrapper">
+    <canvas id="chartCanvas"></canvas>
+  </div>
+</div>
+
+<div class="info">
+  Edit drawing logic in this file's &lt;script&gt; block.<br>
+  Save → refresh Orion. No extension reload needed.
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+//  CONFIG — edit these to match the production code, then test
+// ============================================================
+
+function isDarkMode() { return false; }
+
+function getChartLabelColor() {
+  return isDarkMode() ? '#e8e8e8' : '#000000';
+}
+
+var demoFontWeight = 400;
+function getChartDateFont() {
+  // Explicit weight — without it the canvas API on iOS WebKit picks up the
+  // system font's default weight (~500), which looks bolder than OF's text.
+  return isDarkMode()
+    ? demoFontWeight + ' 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    : demoFontWeight + ' 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+}
+
+function getChartGridColor() {
+  return isDarkMode() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+}
+
+// ============================================================
+//  DATA GENERATOR — mimics All time chart data
+// ============================================================
+
+function generateSampleData(numMonths, steepness) {
+  var labels = [];
+  var datasets = {
+    subscriptions: [],
+    messages: [],
+    tips: [],
+    posts: [],
+    streams: [],
+    referrals: []
+  };
+  var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var now = new Date();
+  for (var i = numMonths - 1; i >= 0; i--) {
+    var d = new Date(now);
+    d.setMonth(d.getMonth() - i);
+    var day = 1 + Math.floor(Math.random() * 28);
+    labels.push(day + ' ' + monthNames[d.getMonth()] + ' ' + (d.getFullYear() % 100));
+  }
+  // Sigmoid-shaped growth curves with end-steepness
+  function curve(maxValue, lateGrowthFactor) {
+    var vals = [];
+    var cumulative = 0;
+    for (var i = 0; i < numMonths; i++) {
+      var t = i / (numMonths - 1); // 0..1
+      // Sigmoid-ish — slow start, growth near end
+      var growth = Math.pow(t, 1 + steepness * 3) * (1 - lateGrowthFactor) + lateGrowthFactor * t;
+      cumulative = maxValue * growth;
+      vals.push(cumulative);
+    }
+    return vals;
+  }
+  datasets.messages       = curve(7200, 0.1);
+  datasets.tips           = curve(3200, 0.15);
+  datasets.posts          = curve(120, 0.05);
+  datasets.subscriptions  = curve(130, 0.05);
+  datasets.streams        = curve(0, 0);
+  datasets.referrals      = curve(0, 0);
+  return { labels: labels, datasets: datasets };
+}
+
+// ============================================================
+//  DRAWING — copy of drawAllTimeChartCanvas from inject-early.js
+// ============================================================
+
+function drawAllTimeChartCanvas(canvas, chartData) {
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // High-DPI scaling
+  var dpr = window.devicePixelRatio || 1;
+  var width = canvas.clientWidth || Math.round(canvas.width / dpr);
+  var height = canvas.clientHeight || Math.round(canvas.height / dpr);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+
+  var colors = {
+    subscriptions: '#2196f3',
+    messages:      '#ff7043',
+    tips:          '#00bcd4',
+    posts:         '#ec407a',
+    streams:       '#ffa000',
+    referrals:     '#9575cd'
+  };
+
+  var padding = { top: 20, right: 10, bottom: 28, left: 10 };
+  var chartWidth = width - padding.left - padding.right;
+  var chartHeight = height - padding.top - padding.bottom;
+
+  // Find max value
+  var maxValue = 0;
+  var categories = ['subscriptions', 'messages', 'tips', 'posts', 'streams', 'referrals'];
+  categories.forEach(function (cat) {
+    var data = chartData.datasets[cat];
+    if (data && data.length > 0) {
+      var catMax = Math.max.apply(null, data);
+      if (catMax > maxValue) maxValue = catMax;
+    }
+  });
+  if (maxValue === 0) maxValue = 100;
+  maxValue *= 1.15;
+
+  var numPoints = chartData.labels.length;
+  var xStep = chartWidth / (numPoints - 1);
+
+  // Lines
+  var drawOrder = ['tips', 'messages', 'posts', 'streams', 'referrals', 'subscriptions'];
+  var activeCategory = 'subscriptions';
+  drawOrder = drawOrder.filter(function (c) { return c !== activeCategory; });
+  drawOrder.push(activeCategory);
+
+  var linesToDraw = [];
+  drawOrder.forEach(function (cat) {
+    var data = chartData.datasets[cat];
+    if (!data || data.length === 0) return;
+    var points = [];
+    for (var i = 0; i < data.length; i++) {
+      var x = padding.left + i * xStep;
+      var y = padding.top + chartHeight * (1 - data[i] / maxValue);
+      points.push({ x: x, y: y });
+    }
+    var isMain = cat === activeCategory;
+    linesToDraw.push({
+      points: points,
+      color: colors[cat],
+      lineWidth: isMain ? 1.8 : 2.5,
+      alpha: isMain ? 1 : 0.25
+    });
+  });
+
+  // Clear
+  ctx.clearRect(0, 0, width, height);
+
+  // Grid
+  ctx.strokeStyle = getChartGridColor();
+  ctx.lineWidth = 1;
+  for (var i = 0; i < 4; i++) {
+    var gridY = padding.top + (chartHeight * i / 3);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, gridY);
+    ctx.lineTo(width - padding.right, gridY);
+    ctx.stroke();
+  }
+
+  // Lines
+  linesToDraw.forEach(function (line) {
+    ctx.beginPath();
+    ctx.strokeStyle = line.color;
+    ctx.lineWidth = line.lineWidth;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = line.alpha;
+    ctx.moveTo(line.points[0].x, line.points[0].y);
+    for (var j = 0; j < line.points.length - 1; j++) {
+      var p0 = line.points[j === 0 ? j : j - 1];
+      var p1 = line.points[j];
+      var p2 = line.points[j + 1];
+      var p3 = line.points[j + 2 < line.points.length ? j + 2 : j + 1];
+      var tension = 0.35;
+      var cp1x = p1.x + (p2.x - p0.x) * tension;
+      var cp1y = p1.y + (p2.y - p0.y) * tension;
+      var cp2x = p2.x - (p3.x - p1.x) * tension;
+      var cp2y = p2.y - (p3.y - p1.y) * tension;
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+
+  // Date labels
+  ctx.fillStyle = getChartLabelColor();
+  ctx.font = getChartDateFont();
+  ctx.textBaseline = 'top';
+  var labelVerticalGap = (typeof window.demoLabelVerticalGap === 'number') ? window.demoLabelVerticalGap : 18;
+  var labelY = chartHeight + padding.top + labelVerticalGap;
+
+  var labelIndices = [
+    0,
+    Math.floor(numPoints * 0.25),
+    Math.floor(numPoints * 0.5),
+    Math.floor(numPoints * 0.75),
+    numPoints - 1
+  ];
+
+  var labelData = labelIndices.map(function (idx) {
+    var label = chartData.labels[idx] || '';
+    var dataPointX = padding.left + idx * xStep;
+    var labelWidth = ctx.measureText(label).width;
+    return { label: label, dataPointX: dataPointX, width: labelWidth };
+  });
+
+  // CLUSTER layout:
+  //  pos[4]  right-aligned at chart right edge
+  //  pos[3]  glued to pos[4] with `lastPairGap`
+  //  pos[0]  base position = padding.left + firstLabelOffset, then shifted
+  //          RIGHT by `compactness` toward pos[3]. At 100% all four dates
+  //          are chained end-to-end (zero gaps) packed against pos[3].
+  //  pos[1], pos[2]  uniformly distributed between pos[0] (shifted) and pos[3]
+  var firstLabelOffset = (typeof window.demoFirstLabelOffset === 'number') ? window.demoFirstLabelOffset : 10;
+  var lastPairGap = (typeof window.demoMinGap === 'number') ? window.demoMinGap : 0;
+  var compactness = (typeof window.demoCompactness === 'number') ? window.demoCompactness : 0;
+  var positions = new Array(5);
+  positions[4] = width - padding.right;
+  var label4LeftEdge = positions[4] - labelData[4].width;
+  positions[3] = label4LeftEdge - lastPairGap - labelData[3].width;
+
+  // pos[0] base — leftmost possible, fully spread
+  var pos0Base = padding.left + firstLabelOffset;
+  // pos[0] max compaction — all 4 dates chained end-to-end packed against pos[3]
+  var pos0MaxCompact = positions[3] - labelData[2].width - labelData[1].width - labelData[0].width;
+  // Interpolate between fully-spread and fully-compact based on compactness slider
+  var compactRatio = compactness / 100;
+  positions[0] = pos0Base + (pos0MaxCompact - pos0Base) * compactRatio;
+  if (positions[0] < pos0Base) positions[0] = pos0Base; // safety floor
+
+  // Uniform distribute pos[1] and pos[2] between pos[0] and pos[3]
+  var sumOfWidths = labelData[0].width + labelData[1].width + labelData[2].width + labelData[3].width;
+  var spanToLabel3RightEdge = (positions[3] + labelData[3].width) - positions[0];
+  var uniformGap = (spanToLabel3RightEdge - sumOfWidths) / 3;
+  if (uniformGap < 0) uniformGap = 0;
+  positions[1] = positions[0] + labelData[0].width + uniformGap;
+  positions[2] = positions[1] + labelData[1].width + uniformGap;
+
+  // Round X to integer pixels — sub-pixel positioning (e.g. x=16.67) makes
+  // canvas text rendering blur the glyphs. Rounding snaps text to pixel grid.
+  labelData.forEach(function (ld, i) {
+    var x = Math.round(positions[i]);
+    ctx.textAlign = (i === labelData.length - 1) ? 'right' : 'left';
+    ctx.fillText(ld.label, x, Math.round(labelY));
+  });
+}
+
+// ============================================================
+//  WIRE UP
+// ============================================================
+
+function setupCanvas() {
+  var wrapper = document.getElementById('wrapper');
+  var canvas = document.getElementById('chartCanvas');
+  var w = Math.round(wrapper.getBoundingClientRect().width);
+  var h = 200;
+  var dpr = window.devicePixelRatio || 1;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  document.getElementById('info').textContent =
+    'DPR: ' + dpr + ', viewport: ' + window.innerWidth + 'x' + window.innerHeight + ', canvas CSS: ' + w + 'x' + h + 'px, backing: ' + canvas.width + 'x' + canvas.height;
+}
+
+var currentData = null;
+function applyControlsAndDraw() {
+  var months = parseInt(document.getElementById('monthsInput').value, 10);
+  var steep = parseInt(document.getElementById('steepInput').value, 10) / 100;
+  var offset = parseInt(document.getElementById('offsetInput').value, 10);
+  var gap = parseInt(document.getElementById('gapInput').value, 10);
+  var compact = parseInt(document.getElementById('compactInput').value, 10);
+  var vgap = parseInt(document.getElementById('vgapInput').value, 10);
+  var weight = parseInt(document.getElementById('weightInput').value, 10);
+  document.getElementById('monthsVal').textContent = months;
+  document.getElementById('steepVal').textContent = steep.toFixed(2);
+  document.getElementById('offsetVal').textContent = offset;
+  document.getElementById('gapVal').textContent = gap;
+  document.getElementById('compactVal').textContent = compact;
+  document.getElementById('vgapVal').textContent = vgap;
+  document.getElementById('weightVal').textContent = weight;
+  window.demoFirstLabelOffset = offset;
+  window.demoMinGap = gap;
+  window.demoCompactness = compact;
+  window.demoLabelVerticalGap = vgap;
+  demoFontWeight = weight;
+  currentData = generateSampleData(months, steep);
+  setupCanvas();
+  drawAllTimeChartCanvas(document.getElementById('chartCanvas'), currentData);
+}
+
+document.getElementById('redrawBtn').addEventListener('click', applyControlsAndDraw);
+document.getElementById('newDataBtn').addEventListener('click', applyControlsAndDraw);
+document.getElementById('monthsInput').addEventListener('input', applyControlsAndDraw);
+document.getElementById('steepInput').addEventListener('input', applyControlsAndDraw);
+document.getElementById('offsetInput').addEventListener('input', applyControlsAndDraw);
+document.getElementById('gapInput').addEventListener('input', applyControlsAndDraw);
+document.getElementById('compactInput').addEventListener('input', applyControlsAndDraw);
+document.getElementById('vgapInput').addEventListener('input', applyControlsAndDraw);
+document.getElementById('weightInput').addEventListener('input', applyControlsAndDraw);
+window.addEventListener('resize', applyControlsAndDraw);
+
+applyControlsAndDraw();
+</script>
+
+</body>
+</html>

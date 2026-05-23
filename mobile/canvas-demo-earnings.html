@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Earnings chart — mobile copy</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #fff; color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .container { padding: 16px; }
+  .summary { font-size: 22px; font-weight: 600; margin-bottom: 12px; line-height: 1.4; }
+  .summary .gross { color: #8a96a3; font-weight: 400; margin-left: 4px; }
+  .summary .pct-chip {
+    display: inline-block;
+    background: #d8f5e4;
+    color: #1aa15a;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 14px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .chart-block { position: relative; width: 100%; }
+  canvas { display: block; box-sizing: border-box; }
+  .info {
+    padding: 10px 12px;
+    background: #f0f3f8;
+    border-radius: 8px;
+    font-size: 11px;
+    color: #555;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="summary">
+    $6.00<span class="gross">($7.50 Gross)</span>
+    <span class="pct-chip">↗ 100%</span>
+  </div>
+
+  <div class="chart-block">
+    <canvas id="mainCanvas"></canvas>
+    <canvas id="asideCanvas" style="margin-top: 6px;"></canvas>
+  </div>
+
+  <div class="info" id="info">…</div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+//  EXACT-COPY of mobile original — no sliders, hardcoded numbers
+// ============================================================
+
+// Sample data — mostly flat near $5 with one spike to ~$8 on May 16
+function generateSampleData() {
+  var earnings = new Array(30).fill(0);
+  var counts = new Array(30).fill(1);
+  for (var i = 0; i < 30; i++) {
+    earnings[i] = 4 + Math.random() * 0.6;
+    counts[i] = 1 + Math.round(Math.random() * 2);
+  }
+  // spike at day ~22 (index 21 — May 16)
+  earnings[21] = 8.2;
+  counts[21] = 5;
+  return { earnings: earnings, counts: counts };
+}
+
+// 5 date labels, daily mode (indices 0,7,14,21,29 → Apr25, May2, May9, May16, May23)
+function getDateLabels() {
+  var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Hardcode end date = May 23, 2026 to match screenshot
+  var endDate = new Date(2026, 4, 23);
+  var indices = [0, 7, 14, 21, 29];
+  var labels = [];
+  for (var i = 0; i < indices.length; i++) {
+    var d = new Date(endDate);
+    d.setDate(d.getDate() - (29 - indices[i]));
+    labels.push({
+      day: monthNames[d.getMonth()] + ' ' + String(d.getDate()).padStart(2, '0') + ',',
+      year: String(d.getFullYear())
+    });
+  }
+  return labels;
+}
+
+// ============================================================
+//  CANVAS SETUP
+// ============================================================
+function setupCanvas(canvas, cssHeight) {
+  var dpr = window.devicePixelRatio || 1;
+  var wrapper = canvas.parentElement;
+  var w = Math.round(wrapper.getBoundingClientRect().width);
+  canvas.style.width = w + 'px';
+  canvas.style.height = cssHeight + 'px';
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+  var ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  return { ctx: ctx, w: w, h: cssHeight, dpr: dpr };
+}
+
+// ============================================================
+//  MAIN CHART
+// ============================================================
+function drawMain(ctx, w, h, data) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Layout — `gridLeftOffset` shifts first vertical grid line inward from
+  // canvas edge so it doesn't sit on the very 0px border.
+  var pad = { top: 8, right: 50, bottom: 0, left: 0 };
+  var gridLeftOffset = 28;
+  var chartW = w - pad.left - pad.right;
+  var chartH = h - pad.top - pad.bottom;
+
+  // Y scale — fixed at $5, $10, $15 (max=15)
+  var yMax = 15;
+  var yStep = 5;
+
+  // Vertical grid line X positions: 5 lines, first at `gridLeftOffset`, last
+  // at the chart right edge (where Y-axis labels start).
+  var gridLeft = gridLeftOffset;
+  var gridRight = w - pad.right;
+  var gridXs = [];
+  for (var g = 0; g < 5; g++) {
+    gridXs.push(gridLeft + (gridRight - gridLeft) * (g / 4));
+  }
+
+  // Horizontal grid lines — top + 3 inside + bottom (4 bands)
+  var hLineYs = [];
+  for (var i = 0; i < 4; i++) {
+    hLineYs.push(pad.top + (chartH * i / 3));
+  }
+
+  // Draw horizontal grid lines (light)
+  ctx.strokeStyle = '#e6eaef';
+  ctx.lineWidth = 1;
+  for (var hl = 0; hl < hLineYs.length; hl++) {
+    var y = Math.round(hLineYs[hl]) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  // Draw vertical grid lines (light) — stop at chart bottom border
+  for (var v = 0; v < gridXs.length; v++) {
+    var vx = Math.round(gridXs[v]) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(vx, pad.top);
+    ctx.lineTo(vx, pad.top + chartH);
+    ctx.stroke();
+  }
+
+  // Earnings area fill
+  var xStep = chartW / (data.earnings.length - 1);
+  var pts = data.earnings.map(function (val, idx) {
+    return {
+      x: pad.left + idx * xStep,
+      y: pad.top + chartH * (1 - val / yMax)
+    };
+  });
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pad.top + chartH);
+  pts.forEach(function (p) { ctx.lineTo(p.x, p.y); });
+  ctx.lineTo(pts[pts.length - 1].x, pad.top + chartH);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(41, 182, 246, 0.12)';
+  ctx.fill();
+
+  // Earnings line
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (var p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x, pts[p].y);
+  ctx.strokeStyle = '#00aff0';
+  ctx.lineWidth = 2.2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Y axis labels on right ($5, $10, $15) — positioned BETWEEN horizontal grid lines
+  // $15 between hLine[0] (top) and hLine[1] — middle of band 0
+  // $10 between hLine[1] and hLine[2] — middle of band 1
+  // $5  between hLine[2] and hLine[3] — middle of band 2
+  ctx.fillStyle = '#000000';
+  ctx.font = '400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (var L = 0; L < 3; L++) {
+    var labelVal = yStep * (3 - L); // 15, 10, 5
+    var labelY = Math.round((hLineYs[L] + hLineYs[L + 1]) / 2);
+    ctx.fillText('$' + labelVal, w - 6, labelY);
+  }
+
+  return { gridXs: gridXs, chartBottomY: pad.top + chartH };
+}
+
+// ============================================================
+//  ASIDE CHART
+// ============================================================
+function drawAside(ctx, w, h, data, gridXs) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Layout
+  var pad = { top: 4, right: 50, bottom: 38, left: 0 };
+  var chartW = w - pad.left - pad.right;
+  var chartH = h - pad.top - pad.bottom;
+
+  // Y scale — fixed 5, 10 (max=15 to match main? or 10? screenshot shows max ~12)
+  // Looking at screenshot — aside Y labels are 10 and 5, so max = ~15 with labels at 5 and 10
+  var yMax = 15;
+  var yStep = 5;
+
+  // Horizontal grid lines: top + middle + bottom (2 bands)
+  var topY = Math.round(pad.top) + 0.5;
+  var midY = Math.round(pad.top + chartH / 2) + 0.5;
+  var bottomY = Math.round(pad.top + chartH) + 0.5;
+
+  ctx.strokeStyle = '#e6eaef';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, topY); ctx.lineTo(w, topY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(w, midY); ctx.stroke();
+
+  // Bottom — solid darker border
+  ctx.strokeStyle = '#cdd3d9';
+  ctx.beginPath(); ctx.moveTo(0, bottomY); ctx.lineTo(w, bottomY); ctx.stroke();
+
+  // Vertical grid lines — span from aside chart top all the way DOWN through
+  // the date labels (canvas full height). This makes the lines visually
+  // connect the chart area with the date row, framing each date.
+  ctx.strokeStyle = '#e6eaef';
+  for (var v = 0; v < gridXs.length; v++) {
+    var vx = Math.round(gridXs[v]) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(vx, pad.top);
+    ctx.lineTo(vx, h); // h = canvas bottom (below dates)
+    ctx.stroke();
+  }
+
+  // Counts area + line
+  var xStep = chartW / (data.counts.length - 1);
+  var pts = data.counts.map(function (val, idx) {
+    return {
+      x: pad.left + idx * xStep,
+      y: pad.top + chartH * (1 - val / yMax)
+    };
+  });
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pad.top + chartH);
+  pts.forEach(function (p) { ctx.lineTo(p.x, p.y); });
+  ctx.lineTo(pts[pts.length - 1].x, pad.top + chartH);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(144, 164, 174, 0.15)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (var p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x, pts[p].y);
+  ctx.strokeStyle = '#8a96a3';
+  ctx.lineWidth = 1.7;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Y axis labels — 10 (between top and middle), 5 (between middle and bottom)
+  ctx.fillStyle = '#000000';
+  ctx.font = '400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('10', w - 6, Math.round((topY + midY) / 2));
+  ctx.fillText('5', w - 6, Math.round((midY + bottomY) / 2));
+
+  // Date labels — 5 dates, each LEFT-aligned to its vertical grid line
+  // Last date right-aligned to chart right edge
+  ctx.fillStyle = '#000000';
+  ctx.font = '400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textBaseline = 'top';
+  var labels = getDateLabels();
+  var dateY1 = bottomY + 8;   // first line of date
+  var dateY2 = bottomY + 22;  // year line
+  for (var i = 0; i < labels.length; i++) {
+    var x = Math.round(gridXs[i]);
+    if (i === labels.length - 1) {
+      // Last: right-align to chart right edge (w)
+      ctx.textAlign = 'right';
+      x = Math.round(w);
+    } else {
+      // Others: left-align starting just right of grid line
+      ctx.textAlign = 'left';
+      x = Math.round(gridXs[i] + 4);
+    }
+    ctx.fillText(labels[i].day, x, dateY1);
+    ctx.fillText(labels[i].year, x, dateY2);
+  }
+}
+
+// ============================================================
+//  RUN
+// ============================================================
+var data = generateSampleData();
+function render() {
+  var main = document.getElementById('mainCanvas');
+  var aside = document.getElementById('asideCanvas');
+  var mainInfo = setupCanvas(main, 200);
+  var asideInfo = setupCanvas(aside, 100);
+  document.getElementById('info').textContent =
+    'DPR: ' + mainInfo.dpr +
+    ', viewport: ' + window.innerWidth + 'x' + window.innerHeight +
+    ', main: ' + mainInfo.w + 'x' + mainInfo.h +
+    ', aside: ' + asideInfo.w + 'x' + asideInfo.h;
+  var res = drawMain(mainInfo.ctx, mainInfo.w, mainInfo.h, data);
+  drawAside(asideInfo.ctx, asideInfo.w, asideInfo.h, data, res.gridXs);
+}
+window.addEventListener('resize', render);
+render();
+</script>
+</body>
+</html>
