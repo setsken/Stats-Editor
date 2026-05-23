@@ -119,28 +119,18 @@ const initDatabase = async () => {
       }
     }
 
-    // Create model_fans_history table (global - shared between all users)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS model_fans_history (
-        id SERIAL PRIMARY KEY,
-        model_username VARCHAR(255) NOT NULL,
-        fans_count INTEGER,
-        fans_text VARCHAR(50),
-        recorded_at TIMESTAMP DEFAULT NOW(),
-        recorded_by INTEGER REFERENCES users(id) ON DELETE SET NULL
-      );
-    `);
-    console.log('✅ Table "model_fans_history" ready');
+    // NOTE (Phase 7b-fix, 2026-05-23): model_fans_history removed — it's
+    // a Profile-Stats table that lives in postgres-yo-b now. Was being
+    // re-created here on every Railway deploy (startCommand runs
+    // `npm run init-db`), which silently undid the Phase 7b DROP.
 
-    // Create indexes
+    // Create indexes (model_fans_history-related indexes also removed)
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
       CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
       CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
       CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
       CREATE INDEX IF NOT EXISTS idx_user_models_user_id ON user_models(user_id);
-      CREATE INDEX IF NOT EXISTS idx_model_fans_username ON model_fans_history(model_username);
-      CREATE INDEX IF NOT EXISTS idx_model_fans_latest ON model_fans_history(model_username, recorded_at DESC);
     `);
     console.log('✅ Indexes created');
 
@@ -173,33 +163,6 @@ const initDatabase = async () => {
       );
     `);
     console.log('✅ Table "promo_code_uses" ready');
-
-    // Migration: Clean up model_fans_history duplicates and add unique constraint
-    console.log('🔄 Cleaning up model_fans_history duplicates...');
-    
-    // Delete all duplicates, keeping only the latest record for each model
-    await pool.query(`
-      DELETE FROM model_fans_history a
-      USING model_fans_history b
-      WHERE a.id < b.id 
-        AND a.model_username = b.model_username
-    `);
-    console.log('✅ Duplicates removed from model_fans_history');
-    
-    // Add unique constraint on model_username if not exists
-    try {
-      await pool.query(`
-        ALTER TABLE model_fans_history 
-        ADD CONSTRAINT model_fans_history_username_unique UNIQUE (model_username)
-      `);
-      console.log('✅ Added unique constraint on model_username');
-    } catch (err) {
-      if (err.code === '42710') {
-        console.log('ℹ️ Unique constraint already exists');
-      } else {
-        console.log('ℹ️ Constraint note:', err.message);
-      }
-    }
 
     console.log('🎉 Database initialization complete!');
     
