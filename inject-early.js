@@ -17,53 +17,13 @@
     return;
   }
 
-  // ==================== Badge data-collection neutralization (Phase 1) ====================
-  // Profile Stats owns these features now (badge, fan trend, notes, alerts, AI verdict,
-  // farmed models, percentile). SE keeps the badge rendering code as dead weight but its
-  // sendMessage calls to the backend are stubbed here so nothing reaches the DB.
-  // To re-enable (rollback): delete this IIFE.
-  (function neutralizeBadgeWrites() {
-    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) return;
-    const BADGE_ACTIONS = new Set([
-      'reportFans', 'getFans', 'getFansTrend',
-      'checkFarmedModel',
-      'saveNote', 'deleteNote', 'getNotes', 'syncNotes', 'syncNoteTags', 'getNoteTags',
-      'reportAlerts', 'getAlerts',
-      'getAIVerdict',
-      'getEngagementPercentile'
-    ]);
-    const STUB = {
-      reportFans:              { recorded: false },
-      getFans:                 { found: false, lastFans: null },
-      getFansTrend:            { points: [] },
-      checkFarmedModel:        { found: false, status: null },
-      saveNote:                { ok: true },
-      deleteNote:              { ok: true },
-      getNotes:                { notes: [] },
-      syncNotes:               { ok: true },
-      syncNoteTags:            { ok: true },
-      getNoteTags:             { tags: [] },
-      reportAlerts:            { ok: true },
-      getAlerts:               { alerts: [] },
-      getAIVerdict:            { verdict: null },
-      getEngagementPercentile: { percentile: null }
-    };
-    const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
-    chrome.runtime.sendMessage = function(message) {
-      if (message && typeof message === 'object' && BADGE_ACTIONS.has(message.action)) {
-        const lastArg = arguments[arguments.length - 1];
-        const stub = STUB[message.action] || null;
-        if (typeof lastArg === 'function') {
-          setTimeout(function() { try { lastArg(stub); } catch (e) {} }, 0);
-          return undefined;
-        }
-        return Promise.resolve(stub);
-      }
-      return orig.apply(null, arguments);
-    };
-  })();
+  // Note (Phase 7c, 2026-05-23): the `neutralizeBadgeWrites` IIFE that
+  // used to live here is no longer needed. Profile Stats owns the badge
+  // surface entirely; SE background.js no longer has the corresponding
+  // api* functions or case handlers, and the backend routes were removed
+  // in Phase 7a. Any leftover sendMessage with a badge action would
+  // simply hit the message router's default branch (no-op).
 
-  
   // Check subscription status from localStorage
   // This is set by popup.js when subscription is checked
   let subscriptionActive = true;
