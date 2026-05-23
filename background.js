@@ -13,9 +13,39 @@ let authToken = null;
 let isRefreshing = false;
 let refreshPromise = null;
 
+// Lazy hydration of authToken from chrome.storage.local.
+//
+// CRITICAL: MV3 service workers shut down when idle and re-run module-level
+// code on wake. The async `chrome.storage.local.get(['authToken'], ...)` call
+// at startup may not finish before the FIRST incoming message — so the very
+// first API request sees `authToken === null`, returns "Not authenticated",
+// and the popup logs the user out. This caused the recurring forced-logouts
+// users were reporting. By awaiting hydration at the start of every API
+// action that needs the token, we close that race window for good.
+let tokenHydratedOnce = false;
+let tokenHydratePromise = null;
+async function ensureAuthTokenHydrated() {
+  if (authToken) return;          // already in memory
+  if (tokenHydratedOnce) return;  // we tried — storage didn't have one
+  if (tokenHydratePromise) {
+    try { await tokenHydratePromise; } catch (e) {}
+    return;
+  }
+  tokenHydratePromise = (async () => {
+    try {
+      const result = await chrome.storage.local.get(['authToken']);
+      if (result && result.authToken) authToken = result.authToken;
+    } catch (e) {}
+    tokenHydratedOnce = true;
+    tokenHydratePromise = null;
+  })();
+  await tokenHydratePromise;
+}
+
 // ==================== TOKEN REFRESH ====================
 // Try to refresh the token before logging out on 401
 async function tryRefreshToken() {
+  await ensureAuthTokenHydrated();
   if (!authToken) return false;
   
   // Prevent multiple simultaneous refresh attempts
@@ -84,6 +114,7 @@ setInterval(async () => {
 
 // Auth-aware fetch: adds Authorization header, retries once on 401 after token refresh
 async function authFetch(url, options = {}) {
+  await ensureAuthTokenHydrated();
   const doFetch = () => {
     const headers = { ...options.headers, 'Authorization': `Bearer ${authToken}` };
     return fetch(url, { ...options, headers });
@@ -243,6 +274,9 @@ async function handleSSODecision(request) {
 }
 
 async function handleMessage(request, sender) {
+  // Hydrate token from storage before any action — closes the wake-up race
+  // (see ensureAuthTokenHydrated comment above for why this matters).
+  try { await ensureAuthTokenHydrated(); } catch (e) {}
   try {
     switch (request.action) {
       // Auth actions

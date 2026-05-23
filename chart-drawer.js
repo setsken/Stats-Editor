@@ -256,19 +256,44 @@
     
     // Function to actually draw the charts
     function drawStatisticsCharts() {
-      var mainCanvas = document.getElementById('of-stats-earnings-chart-main');
-      var asideCanvas = document.getElementById('of-stats-earnings-chart-aside');
-      var tooltipEl = document.getElementById('of-stats-chart-tooltip');
-      
+      // Canvas IDs can be overridden by the dispatching code (e.g. subs page passes
+      // `of-stats-subs-chart-*` so it doesn't collide with earnings canvas IDs when
+      // both DOMs co-exist under Vue keep-alive).
+      var mainId = (data && data.mainCanvasId) || 'of-stats-earnings-chart-main';
+      var asideId = (data && data.asideCanvasId) || 'of-stats-earnings-chart-aside';
+      var tooltipIdResolved = (data && data.tooltipId) || 'of-stats-chart-tooltip';
+
+      var mainCanvas = document.getElementById(mainId);
+      var asideCanvas = document.getElementById(asideId);
+      var tooltipEl = document.getElementById(tooltipIdResolved);
+
       if (!mainCanvas || !asideCanvas) {
         log('OF Stats: Statistics canvases not found, will retry...');
         return false;
       }
-      
+
       if (typeof Chart === 'undefined') {
         log('OF Stats: Chart.js not available for statistics');
         return false;
       }
+
+      // Reset canvas state ONLY if a stale Chart.js instance exists.
+      // First-ever draw on a fresh canvas needs no cleanup — and cloning every
+      // time adds visible stutter to the navigation animation.
+      function resetCanvasIfStale(canvas) {
+        if (!canvas) return;
+        var existing;
+        try { existing = Chart.getChart(canvas); } catch (e) {}
+        if (!existing) return; // fresh canvas, no stale state
+        existing.destroy();
+        // Clear any leftover pixels so Chart.js initial frame starts from blank
+        try {
+          var ctx2d = canvas.getContext('2d');
+          if (ctx2d) ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+        } catch (e) {}
+      }
+      resetCanvasIfStale(mainCanvas);
+      resetCanvasIfStale(asideCanvas);
     
     var labels = data.labels;
     var earningsData = data.earnings;
@@ -387,10 +412,32 @@
       tooltipEl.style.top = top + 'px';
     }
     
+    // Bottom-up animation: data points start at y=0 (chart baseline) and rise to value.
+    // X stays in place (no left-to-right sweep).
+    var bottomUpAnimation = {
+      duration: 700,
+      easing: 'easeOutQuart',
+      animations: {
+        x: { duration: 0 },
+        y: {
+          type: 'number',
+          duration: 700,
+          easing: 'easeOutQuart',
+          from: function(ctx) {
+            if (ctx.type === 'data' && ctx.mode === 'default') {
+              var yScale = ctx.chart.scales.y;
+              if (yScale) return yScale.getPixelForValue(0);
+            }
+          }
+        }
+      }
+    };
+
     // Shared chart options
     var commonOptions = {
       responsive: true,
       maintainAspectRatio: false,
+      animation: bottomUpAnimation,
       layout: {
         padding: {
           left: 0,
@@ -434,8 +481,8 @@
         if (hoverLineX < 0) return;
         var ctx = chart.ctx;
         var chartArea = chart.chartArea;
-        var isAsideChart = chart.canvas.id === 'of-stats-earnings-chart-aside';
-        
+        var isAsideChart = chart.canvas.id === asideId;
+
         ctx.save();
         var xSnapped = Math.round(hoverLineX) + 0.5;
         ctx.beginPath();
@@ -492,8 +539,8 @@
         var rightEdge = chart.width;
         
         // Determine chart type by canvas id
-        var isMainChart = chart.canvas.id === 'of-stats-earnings-chart-main';
-        var isAsideChart = chart.canvas.id === 'of-stats-earnings-chart-aside';
+        var isMainChart = chart.canvas.id === mainId;
+        var isAsideChart = chart.canvas.id === asideId;
         
         // Grid colors - light for inside chart, solid for horizontal separators
         var gridColorLight = getChartGridColorLight();
@@ -531,16 +578,10 @@
         // Get grid line positions from X scale
         var gridLines = xScale._gridLineItems;
         
-        // For main chart: draw separator line below with vertical grid marks
+        // For main chart: draw vertical grid marks (the horizontal separator
+        // line at chartArea.bottom + 8 was removed — it doubled visually with
+        // the aside chart's top border, looking like two parallel lines).
         if (isMainChart && gridLines && gridLines.length > 0) {
-          // Draw horizontal separator line below chart (solid, more visible, thin)
-          ctx.beginPath();
-          ctx.moveTo(chartArea.left, chartArea.bottom + 8);
-          ctx.lineTo(rightEdge, chartArea.bottom + 8);
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = gridColorHorizontal;
-          ctx.stroke();
-          
           // Draw vertical lines at grid positions with offset -90
           gridLines.forEach(function(line) {
             var lineX = line.x1 - 90;
@@ -746,6 +787,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: commonOptions.animation,
         layout: {
           padding: {
             left: 0,
@@ -820,6 +862,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: commonOptions.animation,
         layout: {
           padding: {
             left: 0,
