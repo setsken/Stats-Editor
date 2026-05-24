@@ -255,6 +255,18 @@ async function handleMessage(request, sender) {
       case 'logout':
         clearCache(); // Clear all cache on logout
         return await logout();
+
+      // Set token + email from a cross-extension SSO response.
+      case 'setTokenFromSSO': {
+        if (!request.token) return { success: false, error: 'Missing token' };
+        authToken = request.token;
+        await chrome.storage.local.set({
+          authToken: request.token,
+          userEmail: request.email || null
+        });
+        clearCache();
+        return { success: true };
+      }
       
       case 'verifyAuth': {
         const cached = getCached('verifyAuth');

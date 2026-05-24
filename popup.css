@@ -1244,6 +1244,40 @@ body {
   color: var(--border-color);
 }
 
+/* SSO (Sign in with Profile Stats) — mirror of PS popup's sso pattern */
+.sso-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 14px 0 12px;
+  color: var(--text-muted);
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.sso-divider::before,
+.sso-divider::after {
+  content: ''; flex: 1; height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.sso-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 11px 14px; margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(0, 180, 255, 0.20);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+.sso-btn:hover {
+  border-color: var(--accent-primary, #00b4ff);
+  background: rgba(0, 180, 255, 0.06);
+  transform: translateY(-1px);
+}
+.sso-btn:disabled {
+  opacity: 0.55; cursor: not-allowed; transform: none;
+}
+.sso-btn svg { flex-shrink: 0; color: var(--accent-primary, #00b4ff); }
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }

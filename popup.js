@@ -5,6 +5,15 @@ const DEBUG = false;
 function log(...args) { if (DEBUG) log(...args); }
 function logError(...args) { if (DEBUG) logError(...args); }
 
+// PS extension ID — the Chrome Web Store-assigned ID for Profile Stats.
+// Used for "Sign in with Profile Stats" SSO. Unlike SE, PS was submitted
+// without a `key` field, so the unpacked dev install has a different ID
+// (`ameodildcepananbbacdiiindpbgmjpj`). We list both so dev installs work too.
+const PROFILE_STATS_EXTENSION_IDS = [
+  'pnopdekngfklhadhjgkimghfiahiekph', // Chrome Web Store publication
+  'ameodildcepananbbacdiiindpbgmjpj'  // legacy unpacked dev id
+];
+
 // Auth State
 let currentUser = null;
 let currentSubscription = null;
@@ -157,6 +166,9 @@ const i18n = {
     signInLink: 'Войти',
     noAccount: 'Нет аккаунта?',
     createOne: 'Создать',
+    dividerOr: 'ИЛИ',
+    ssoButton: 'Войти через Profile Stats',
+    ssoTitle: 'Использовать аккаунт Profile Stats',
     // Reset password
     resetPassword: 'Сброс пароля',
     resetSubtitle: 'Введите email для получения кода',
@@ -328,6 +340,9 @@ const i18n = {
     authPassword: 'Password',
     forgotPassword: 'Forgot password?',
     signIn: 'Sign In',
+    dividerOr: 'OR',
+    ssoButton: 'Sign in with Profile Stats',
+    ssoTitle: 'Use your Profile Stats account',
     signInLink: 'Sign in',
     noAccount: "Don't have an account?",
     createOne: 'Create one',
@@ -1594,6 +1609,16 @@ function setupAuthListeners() {
       await handleLogin();
     });
   }
+
+  // "Sign in with Profile Stats" — cross-extension SSO mirror of PS's
+  // own "Sign in with Stats Editor" button. Asks PS for a Monly token,
+  // then stores it locally as our auth token.
+  const ssoBtn = document.getElementById('ssoBtn');
+  if (ssoBtn) {
+    ssoBtn.addEventListener('click', async () => {
+      await handleSSOFromProfileStats();
+    });
+  }
   
   // Register form submit
   if (registerForm) {
@@ -2555,6 +2580,90 @@ async function handleLogin() {
     if (btn) btn.disabled = false;
     if (btnText) btnText.style.display = 'inline';
     if (loader) loader.style.display = 'none';
+  }
+}
+
+// "Sign in with Profile Stats" — cross-extension SSO. Asks the PS
+// extension for the Monly auth token via chrome.runtime.sendMessage,
+// then stores it in our background as if we'd just logged in via
+// email+password. Same Monly account = same backend session.
+async function handleSSOFromProfileStats() {
+  const btn = document.getElementById('ssoBtn');
+  showLoginError('');
+  if (btn) btn.disabled = true;
+  try {
+    // Try each known PS extension ID (CWS first, unpacked fallback).
+    let ssoResp = null;
+    let lastErr = '';
+    for (const psId of PROFILE_STATS_EXTENSION_IDS) {
+      ssoResp = await new Promise((resolve) => {
+        try {
+          chrome.runtime.sendMessage(psId, { action: 'getProfileStatsToken' }, (r) => {
+            if (chrome.runtime.lastError) resolve({ success: false, error: chrome.runtime.lastError.message });
+            else resolve(r || { success: false, error: 'Empty response' });
+          });
+        } catch (e) { resolve({ success: false, error: e.message }); }
+      });
+      if (ssoResp && ssoResp.success) break;
+      // If PS is installed but user is signed out / denied — keep that error
+      if (ssoResp && (ssoResp.code === 'NOT_AUTHENTICATED' || ssoResp.code === 'USER_DENIED' || ssoResp.code === 'TIMEOUT')) {
+        break;
+      }
+      lastErr = ssoResp?.error || lastErr;
+    }
+
+    if (!ssoResp || !ssoResp.success) {
+      let msg;
+      if (ssoResp?.code === 'NOT_AUTHENTICATED') msg = 'Sign in to Profile Stats first, then try again.';
+      else if (ssoResp?.code === 'USER_DENIED')  msg = 'Authorization denied.';
+      else if (ssoResp?.code === 'TIMEOUT')      msg = 'Authorization timed out.';
+      else if ((ssoResp?.error || lastErr || '').includes('Could not establish connection')) {
+        msg = 'Profile Stats extension is not installed or disabled.';
+      } else {
+        msg = ssoResp?.error || lastErr || 'SSO failed.';
+      }
+      showLoginError(msg);
+      return;
+    }
+
+    // Persist the token into our background + storage so the rest of
+    // the popup behaves exactly like a fresh email+password login.
+    const stored = await chrome.runtime.sendMessage({
+      action: 'setTokenFromSSO',
+      token: ssoResp.token,
+      email: ssoResp.email
+    });
+    if (!stored || !stored.success) {
+      showLoginError(stored?.error || 'Could not store SSO token.');
+      return;
+    }
+
+    // Verify the token against our backend + populate currentUser / subscription
+    const verify = await chrome.runtime.sendMessage({ action: 'verifyAuth' });
+    if (!verify || !verify.success) {
+      showLoginError(verify?.error || 'SSO token rejected by backend.');
+      return;
+    }
+    currentUser = verify.user;
+    currentSubscription = verify.subscription;
+    await chrome.storage.local.remove(['popupScreen', 'popupPendingEmail']);
+
+    if (!hasActiveSubscription()) {
+      await loadPlans();
+      showScreen('subscriptionScreen');
+      const userEmailEl = document.getElementById('currentUserEmail');
+      if (userEmailEl) userEmailEl.textContent = currentUser.email;
+    } else {
+      await loadUserModels();
+      updateUserUI();
+      showScreen('mainApp');
+      initMainApp();
+    }
+  } catch (e) {
+    logError('SSO from PS error:', e);
+    showLoginError('SSO failed.');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
