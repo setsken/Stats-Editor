@@ -2708,7 +2708,7 @@ async function handleSSOFromProfileStats() {
   if (btn) btn.disabled = true;
   try {
     let ssoResp = null;
-    let lastErr = '';
+    const attempts = [];
     for (const psId of PROFILE_STATS_EXTENSION_IDS) {
       ssoResp = await new Promise((resolve) => {
         try {
@@ -2718,11 +2718,11 @@ async function handleSSOFromProfileStats() {
           });
         } catch (e) { resolve({ success: false, error: e.message }); }
       });
+      attempts.push({ id: psId, ok: !!ssoResp?.success, code: ssoResp?.code, err: ssoResp?.error });
       if (ssoResp && ssoResp.success) break;
-      if (ssoResp && (ssoResp.code === 'NOT_AUTHENTICATED' || ssoResp.code === 'USER_DENIED' || ssoResp.code === 'TIMEOUT')) {
-        break;
-      }
-      lastErr = ssoResp?.error || lastErr;
+      const isUnreachable = (ssoResp?.error || '').includes('Could not establish connection')
+                         || (ssoResp?.error || '').includes('Receiving end does not exist');
+      if (!isUnreachable) break;
     }
 
     if (!ssoResp || !ssoResp.success) {
@@ -2730,10 +2730,14 @@ async function handleSSOFromProfileStats() {
       if (ssoResp?.code === 'NOT_AUTHENTICATED') msg = 'Sign in to Profile Stats first, then try again.';
       else if (ssoResp?.code === 'USER_DENIED')  msg = 'Authorization denied.';
       else if (ssoResp?.code === 'TIMEOUT')      msg = 'Authorization timed out.';
-      else if ((ssoResp?.error || lastErr || '').includes('Could not establish connection')) {
-        msg = 'Profile Stats extension is not installed or disabled.';
-      } else {
-        msg = ssoResp?.error || lastErr || 'SSO failed.';
+      else {
+        const allUnreachable = attempts.every(a => !a.ok && (
+          (a.err || '').includes('Could not establish connection') ||
+          (a.err || '').includes('Receiving end does not exist')
+        ));
+        msg = allUnreachable
+          ? 'Profile Stats extension is not installed, disabled, or out of date. Reload it from chrome://extensions/'
+          : (ssoResp?.error || 'SSO failed.');
       }
       showLoginError(msg);
       return;
