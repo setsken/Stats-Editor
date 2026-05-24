@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Of Stats Editor (Mobile)",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "description": "Professional statistics editor for OnlyFans creators. Mobile build for Orion browser (iOS/iPadOS).",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnizZMw3WyqvKjLzhMDZMdyIQTNPb7omVNIgEBqv1VCG89z5aPR6ZFO1npsa6NNJ7F29mJSUHUZnhG7N5GX559BuQ3aloik/AmJ5h9HV5j/r04EF+45KgZPygbpny+R7dGfBO0mHiFU/8jp16IXlNx6VBdjidyMS+IoKsmMvAebIuQ/HrrwV8pT2igCW9+PVhwZNG7X9XRS7YLZGeNB4mb0YB+lk6jOUPoplyZJPiXvUAso/FGG/odpxvjXqnfaqo9w/U+JyT2bpaEVWoFBZvR7ZzBOHmd2IcBeW4GMfb09rXdpd+yyuFzeW8nbOTY478mBAcODzKFcbjb8p9CkC4CwIDAQAB",
   "externally_connectable": {

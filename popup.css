@@ -1405,11 +1405,13 @@ body {
 .auth-screen {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* Content sits at the top so the footer can hug the bottom via
+     margin-top: auto, instead of the whole screen stretching to fit
+     a min-height: 600px container that left huge gaps. */
+  justify-content: flex-start;
   align-items: center;
-  min-height: 600px;
   background: var(--bg-primary);
-  padding: 24px;
+  padding: 28px 26px 18px;
   position: relative;
 }
 
@@ -1422,6 +1424,7 @@ body {
 .auth-container {
   width: 100%;
   max-width: 300px;
+  flex: 1;                 /* stretch so footer can margin-top: auto */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1497,20 +1500,21 @@ body {
 
 .auth-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .auth-logo {
   color: var(--accent-primary);
-  margin-bottom: 16px;
+  margin-bottom: 6px;
   filter: drop-shadow(0 0 20px rgba(0, 180, 255, 0.4));
 }
 
 .auth-title {
   color: var(--text-primary);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.01em;
 }
 
 .auth-subtitle {
@@ -1522,7 +1526,7 @@ body {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .auth-input-group {
@@ -1540,12 +1544,14 @@ body {
 }
 
 .auth-input {
-  padding: 12px 16px;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   transition: var(--transition);
 }
 
@@ -1655,11 +1661,14 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 20px;
+  width: 100%;
+  height: 42px;
+  padding: 0 18px;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition: var(--transition);
 }
@@ -1707,16 +1716,20 @@ body {
 
 .auth-footer {
   text-align: center;
-  margin-top: 24px;
+  /* margin-top: auto pins the footer to the bottom of the .auth-container
+     flex column, so vertical "stretch" is absorbed here instead of as
+     dead space between the inputs and the OR divider. */
+  margin-top: auto;
+  padding-top: 16px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .auth-link {
   color: var(--accent-primary);
   text-decoration: none;
-  font-weight: 500;
-  margin-left: 4px;
+  font-weight: 600;
+  margin-left: 6px;
 }
 
 .auth-link:hover {
@@ -1724,13 +1737,18 @@ body {
 }
 
 .auth-forgot-link {
-  display: block;
-  text-align: right;
+  /* inline-block + align-self: flex-end → only the text itself is
+     clickable, but it sits to the right edge of the auth-form flex
+     column. Previously this was display: block + text-align: right,
+     which made the whole 300px-wide row a click target. */
+  display: inline-block;
+  align-self: flex-end;
   color: var(--text-muted);
   font-size: 12px;
+  font-weight: 500;
   text-decoration: none;
-  margin-top: -8px;
-  margin-bottom: 12px;
+  margin-top: -4px;
+  margin-bottom: 0;
   transition: color 0.2s ease;
 }
 
