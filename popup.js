@@ -5,14 +5,10 @@ const DEBUG = false;
 function log(...args) { if (DEBUG) log(...args); }
 function logError(...args) { if (DEBUG) logError(...args); }
 
-// PS extension ID — the Chrome Web Store-assigned ID for Profile Stats.
-// Used for "Sign in with Profile Stats" SSO. Unlike SE, PS was submitted
-// without a `key` field, so the unpacked dev install has a different ID
-// (`ameodildcepananbbacdiiindpbgmjpj`). We list both so dev installs work too.
-const PROFILE_STATS_EXTENSION_IDS = [
-  'pnopdekngfklhadhjgkimghfiahiekph', // Chrome Web Store publication
-  'ameodildcepananbbacdiiindpbgmjpj'  // legacy unpacked dev id
-];
+// PS extension id — same for both CWS publication AND local unpacked
+// dev install (PS's manifest.json now embeds the CWS-assigned public
+// key in its `key` field, extracted from the published .crx).
+const PROFILE_STATS_EXTENSION_ID = 'pnopdekngfklhadhjgkimghfiahiekph';
 
 // Auth State
 let currentUser = null;
@@ -2592,44 +2588,25 @@ async function handleSSOFromProfileStats() {
   showLoginError('');
   if (btn) btn.disabled = true;
   try {
-    // Try each known PS extension ID (CWS first, unpacked fallback).
-    // Track per-id outcomes so we can give a useful error if all fail.
-    let ssoResp = null;
-    const attempts = [];
-    for (const psId of PROFILE_STATS_EXTENSION_IDS) {
-      ssoResp = await new Promise((resolve) => {
-        try {
-          chrome.runtime.sendMessage(psId, { action: 'getProfileStatsToken' }, (r) => {
-            if (chrome.runtime.lastError) resolve({ success: false, error: chrome.runtime.lastError.message });
-            else resolve(r || { success: false, error: 'Empty response' });
-          });
-        } catch (e) { resolve({ success: false, error: e.message }); }
-      });
-      attempts.push({ id: psId, ok: !!ssoResp?.success, code: ssoResp?.code, err: ssoResp?.error });
-      if (ssoResp && ssoResp.success) break;
-      // Only the "Could not establish connection" case means "wrong id /
-      // not installed" — keep trying other ids. Anything else (auth-related,
-      // denied, timeout) is a real user-visible state from a reachable PS.
-      const isUnreachable = (ssoResp?.error || '').includes('Could not establish connection')
-                         || (ssoResp?.error || '').includes('Receiving end does not exist');
-      if (!isUnreachable) break;
-    }
+    const ssoResp = await new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(PROFILE_STATS_EXTENSION_ID, { action: 'getProfileStatsToken' }, (r) => {
+          if (chrome.runtime.lastError) resolve({ success: false, error: chrome.runtime.lastError.message });
+          else resolve(r || { success: false, error: 'Empty response' });
+        });
+      } catch (e) { resolve({ success: false, error: e.message }); }
+    });
 
     if (!ssoResp || !ssoResp.success) {
       let msg;
       if (ssoResp?.code === 'NOT_AUTHENTICATED') msg = 'Sign in to Profile Stats first, then try again.';
       else if (ssoResp?.code === 'USER_DENIED')  msg = 'Authorization denied.';
       else if (ssoResp?.code === 'TIMEOUT')      msg = 'Authorization timed out.';
-      else {
-        // Every attempt got "could not connect" → PS isn't installed at any of
-        // our known ids. Surface ids tried so support tickets carry the info.
-        const allUnreachable = attempts.every(a => !a.ok && (
-          (a.err || '').includes('Could not establish connection') ||
-          (a.err || '').includes('Receiving end does not exist')
-        ));
-        msg = allUnreachable
-          ? 'Profile Stats extension is not installed, disabled, or out of date. Reload it from chrome://extensions/'
-          : (ssoResp?.error || 'SSO failed.');
+      else if ((ssoResp?.error || '').includes('Could not establish connection') ||
+               (ssoResp?.error || '').includes('Receiving end does not exist')) {
+        msg = 'Profile Stats extension is not installed, disabled, or out of date. Reload it from chrome://extensions/';
+      } else {
+        msg = ssoResp?.error || 'SSO failed.';
       }
       showLoginError(msg);
       return;
