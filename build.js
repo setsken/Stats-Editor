@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const JavaScriptObfuscator = require('javascript-obfuscator');
+// const JavaScriptObfuscator = require('javascript-obfuscator');  // CWS bans obfuscation — kept disabled
 
 const ROOT = __dirname;
 const DIST = path.join(ROOT, 'dist');
