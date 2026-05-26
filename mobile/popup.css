@@ -1247,7 +1247,7 @@ body {
 /* SSO (Sign in with Profile Stats) — mirror of PS popup's sso pattern */
 .sso-divider {
   display: flex; align-items: center; gap: 10px;
-  margin: 14px 0 12px;
+  margin: 14px 0 4px;
   color: var(--text-muted);
   font-size: 10.5px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.08em;
@@ -1259,7 +1259,7 @@ body {
 }
 .sso-btn {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; padding: 11px 14px; margin-bottom: 12px;
+  width: 100%; padding: 9px 14px; margin-bottom: 0;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(0, 180, 255, 0.20);
   border-radius: 10px;
@@ -1407,10 +1407,30 @@ body {
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  background: var(--bg-primary);
-  padding: 28px 26px 18px;
+  /* Fill the popup height so the gradient covers the full viewport;
+     otherwise the body's solid bg-primary peeks out below. */
+  min-height: 100vh;
+  /* Same gradient + radial cyan glow as the main app .container, so
+     auth / settings / Upgrade screens share the visual identity. */
+  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  padding: 52px 26px 18px;
   position: relative;
+  overflow: hidden;
 }
+
+.auth-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: radial-gradient(ellipse at top, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-screen > * { position: relative; z-index: 1; }
 
 /* Subscription screen needs more top padding */
 #subscriptionScreen {
@@ -1497,7 +1517,7 @@ body {
 
 .auth-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 48px;
 }
 
 .auth-logo {
@@ -1653,6 +1673,12 @@ body {
   text-align: center;
 }
 
+/* Collapse the empty error row so "Forgot password?" sits right
+   under the password field. */
+.auth-error:empty {
+  display: none;
+}
+
 .auth-btn {
   display: flex;
   align-items: center;
@@ -1714,7 +1740,7 @@ body {
 .auth-footer {
   text-align: center;
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 12px;
   color: var(--text-secondary);
   font-size: 12px;
 }
@@ -1738,7 +1764,9 @@ body {
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
-  margin-top: -4px;
+  /* Pull the link tight against the password field, overriding the
+     auth-form's 12px row gap. */
+  margin-top: -8px;
   margin-bottom: 0;
   transition: color 0.2s ease;
 }
