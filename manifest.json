@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Of Stats Editor",
-  "version": "1.3.8",
+  "version": "1.3.9",
   "description": "Professional statistics editor for OnlyFans creators. Edit earnings, subscriptions, fans count and charts in real-time.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxDSOIriXXy7kQ9wlWOGdN9EJsjzHpimC7cQfJRhd8ONuM/mPOZpqTwxoUUe0xbuMW8bRLK1QVHBkPtOHnv8eXe5zwAQNvlX7WI/o8TrX5nEnZ/33W6JTUz3iIriGAxbSKRPY0ZiCQK7Q5Un615S0YAPI1N4po9gx836oVdVjN72S3vKXq7r844yUwMnsK3wdjASZKoZdMoyG/wVjTN1UKOjRewKgmihQtGUZou+ETjQRbjtet2uYX5nhwiasLvvXAgUCvxfKHvWyC8mmmTxTWCcHid7DyKaNeNeSFkbwMwB+L/3T76TGOl+YC0O+FsdzfWSW3q0PBHFZuGWhAXV3yQIDAQAB",
   "externally_connectable": {

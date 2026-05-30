@@ -18,6 +18,11 @@ const JS_FILES = [
     'inject-early.js',
     'page-interceptor.js',
     'chart-drawer.js',
+    'auth-confirm.js',  // SSO consent dialog handler (opened by background.js
+                        // via chrome.runtime.getURL when sibling extension
+                        // requests SSO sign-in — without this file shipped,
+                        // chrome:extension://SE_ID/auth-confirm.html returns
+                        // ERR_FILE_NOT_FOUND for incoming SSO from PS)
 ];
 
 // Files to copy as-is (no obfuscation needed)
@@ -26,7 +31,8 @@ const COPY_FILES = [
     'popup.html',
     'popup.css',
     'content.css',
-    'chart.min.js', // already minified library — don't touch
+    'chart.min.js',     // already minified library — don't touch
+    'auth-confirm.html', // SSO consent dialog page (see JS_FILES note above)
 ];
 
 // Folders to copy
