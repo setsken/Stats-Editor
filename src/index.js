@@ -148,9 +148,25 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // Auto-detect APP_URL on Railway
-const APP_URL = process.env.APP_URL || 
+const APP_URL = process.env.APP_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : `http://localhost:${PORT}`);
 process.env.APP_URL = APP_URL; // Make it available to other modules
+
+// Two base URLs, deliberately kept apart — they have different failure modes.
+//
+// PUBLIC_URL — links a *user's browser* opens (the payment result pages).
+// Should point at the Cloudflare-proxied domain: some ISPs block Railway's IP
+// range outright (confirmed with a UA user in Aug 2026), and those users would
+// otherwise land on a dead page immediately after paying.
+//
+// ORIGIN_URL — server-to-server callbacks (the NOWPayments IPN). Stays on the
+// Railway origin on purpose: this is the request that activates a paid
+// subscription, so it must not depend on a proxy in front of us being up.
+// NOWPayments' servers are not affected by any end-user ISP blocking.
+const PUBLIC_URL = process.env.PUBLIC_URL || APP_URL;
+const ORIGIN_URL = process.env.ORIGIN_URL || APP_URL;
+process.env.PUBLIC_URL = PUBLIC_URL;
+process.env.ORIGIN_URL = ORIGIN_URL;
 
 // Security middleware
 app.use(helmet());
@@ -205,6 +221,18 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
+});
+
+// Payment result pages — NOWPayments sends the buyer's browser here after
+// checkout. Before this existed both URLs fell through to the JSON 404 handler,
+// so everyone who paid landed on {"error":"Endpoint not found"} — which reads
+// like a failed payment and invites a second one.
+app.get('/payment/success', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'payment-success.html'));
+});
+
+app.get('/payment/cancel', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'payment-cancel.html'));
 });
 
 // API Routes

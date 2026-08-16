@@ -373,10 +373,17 @@ router.post('/create-payment', authenticateToken, async (req, res) => {
     const paymentDbId = paymentRecord.rows[0].id;
 
     // Build callback URLs
-    const baseUrl = process.env.APP_URL || 'http://localhost:3000';
-    const ipnCallbackUrl = `${baseUrl}/api/webhooks/nowpayments`;
-    const successUrl = `${baseUrl}/payment/success?payment_id=${paymentDbId}`;
-    const cancelUrl = `${baseUrl}/payment/cancel?payment_id=${paymentDbId}`;
+    // IPN goes straight to the origin — it activates the subscription and must
+    // not depend on the proxy. The result pages open in the user's browser, so
+    // they use the publicly reachable domain instead. See index.js for why.
+    const originUrl = process.env.ORIGIN_URL || process.env.APP_URL || 'http://localhost:3000';
+    const publicUrl = process.env.PUBLIC_URL || process.env.APP_URL || 'http://localhost:3000';
+    const ipnCallbackUrl = `${originUrl}/api/webhooks/nowpayments`;
+    // No payment_id in the URL: the pages are static and read nothing from it,
+    // and an unauthenticated, sequentially-numbered id is not worth exposing.
+    // The extension polls /api/subscription/payment-status for the real state.
+    const successUrl = `${publicUrl}/payment/success`;
+    const cancelUrl = `${publicUrl}/payment/cancel`;
 
     let paymentResponse;
 
@@ -598,10 +605,17 @@ router.post('/create-upgrade-payment', authenticateToken, async (req, res) => {
 
     const paymentDbId = paymentRecord.rows[0].id;
 
-    const baseUrl = process.env.APP_URL || 'http://localhost:3000';
-    const ipnCallbackUrl = `${baseUrl}/api/webhooks/nowpayments`;
-    const successUrl = `${baseUrl}/payment/success?payment_id=${paymentDbId}`;
-    const cancelUrl = `${baseUrl}/payment/cancel?payment_id=${paymentDbId}`;
+    // IPN goes straight to the origin — it activates the subscription and must
+    // not depend on the proxy. The result pages open in the user's browser, so
+    // they use the publicly reachable domain instead. See index.js for why.
+    const originUrl = process.env.ORIGIN_URL || process.env.APP_URL || 'http://localhost:3000';
+    const publicUrl = process.env.PUBLIC_URL || process.env.APP_URL || 'http://localhost:3000';
+    const ipnCallbackUrl = `${originUrl}/api/webhooks/nowpayments`;
+    // No payment_id in the URL: the pages are static and read nothing from it,
+    // and an unauthenticated, sequentially-numbered id is not worth exposing.
+    // The extension polls /api/subscription/payment-status for the real state.
+    const successUrl = `${publicUrl}/payment/success`;
+    const cancelUrl = `${publicUrl}/payment/cancel`;
 
     let paymentResponse;
 
