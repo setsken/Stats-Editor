@@ -3321,6 +3321,12 @@ const defaultSettings = {
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
+  // Version in the footer comes from the manifest — the single source of truth.
+  // It used to be hardcoded in popup.html and silently drifted: the footer read
+  // v1.3.7 while 1.3.8 and 1.3.9 were already published.
+  const versionEl = document.getElementById('appVersion');
+  if (versionEl) versionEl.textContent = 'v' + chrome.runtime.getManifest().version;
+
   // Load saved language immediately so subscription/promo screens use the correct locale
   loadSettingsUI();
 

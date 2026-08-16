@@ -807,7 +807,10 @@
 
     <!-- Footer -->
     <div class="footer">
-      <span class="version">v1.3.7</span>
+      <!-- Filled from the manifest at runtime (see popup.js). Was hardcoded and
+           had been stale since 1.3.7, so 1.3.8 and 1.3.9 both shipped showing
+           the wrong version. -->
+      <span class="version" id="appVersion"></span>
       <span class="divider">•</span>
       <span class="copyright">Stats Editor Pro</span>
     </div>
