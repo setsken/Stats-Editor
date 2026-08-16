@@ -6,7 +6,159 @@ const DEBUG = false;
 function log(...args) { if (DEBUG) console.log(...args); }
 function logError(...args) { if (DEBUG) console.error(...args); }
 
-const API_URL = 'https://stats-editor-production.up.railway.app/api';
+// ==================== API ENDPOINT FAILOVER ====================
+//
+// Some ISPs block Railway's edge IP range outright (confirmed with a UA user
+// on 1.3.9: TCP to 69.46.46.22:443 just times out, ERR_CONNECTION_TIMED_OUT,
+// while the same domain opens fine from her phone over mobile data). Every
+// fetch() then rejects and the whole extension shows "Network error" even
+// though the backend is perfectly healthy. Reinstalling cannot fix it — it is
+// a network-level block, not a client-side bug.
+//
+// Fix: ship several INDEPENDENT entry points to the same backend and fail over
+// between them. The host that answers is remembered in chrome.storage.local,
+// so an affected user pays the discovery cost once, not on every request.
+//
+// Order matters:
+//   1. Cloudflare-proxied custom domain — anycast IPs, reachable almost
+//      everywhere. Tried first because it is the most universally routable.
+//   2. Cloudflare Worker — separate domain, independent of our DNS setup.
+//   3. Railway origin — fastest when reachable, but it is exactly the address
+//      that gets blocked, so it must never be first.
+const API_HOSTS = [
+  'https://api.ofstats.pro',
+  'https://ofstats-api.WORKERS-SUBDOMAIN.workers.dev',
+  'https://stats-editor-production.up.railway.app'
+].filter(host => !host.includes('WORKERS-SUBDOMAIN')); // placeholder dropped until the Worker is deployed
+
+const API_BASE_STORAGE_KEY = 'apiBaseHost';
+const API_TIMEOUT_MS = 12000;
+
+let apiBase = API_HOSTS[0];
+// Kept as a mutable global so the ~25 existing `${API_URL}/...` call sites
+// keep working unchanged. apiFetch() re-bases the URL it is given anyway, so
+// a stale value here can never send a request to a dead host.
+let API_URL = `${apiBase}/api`;
+
+function setApiBaseLocal(host) {
+  apiBase = host;
+  API_URL = `${host}/api`;
+}
+
+async function rememberApiBase(host) {
+  setApiBaseLocal(host);
+  try { await chrome.storage.local.set({ [API_BASE_STORAGE_KEY]: host }); } catch (e) {}
+}
+
+// Same lazy-hydration pattern as ensureAuthTokenHydrated() above: MV3 service
+// workers re-run module code on every wake, and the first message can arrive
+// before an async storage read finishes.
+let apiBaseHydratedOnce = false;
+let apiBaseHydratePromise = null;
+async function ensureApiBaseHydrated() {
+  if (apiBaseHydratedOnce) return;
+  if (apiBaseHydratePromise) {
+    try { await apiBaseHydratePromise; } catch (e) {}
+    return;
+  }
+  apiBaseHydratePromise = (async () => {
+    try {
+      const stored = await chrome.storage.local.get([API_BASE_STORAGE_KEY]);
+      const host = stored && stored[API_BASE_STORAGE_KEY];
+      // Ignore a remembered host that is no longer in the shipped list —
+      // otherwise a retired endpoint would keep being tried after an update.
+      if (host && API_HOSTS.includes(host)) setApiBaseLocal(host);
+    } catch (e) {}
+    apiBaseHydratedOnce = true;
+    apiBaseHydratePromise = null;
+  })();
+  await apiBaseHydratePromise;
+}
+
+// Rebuilds a `${API_URL}/...` URL against a different host, preserving path
+// and query string.
+function withApiBase(url, host) {
+  try {
+    const parsed = new URL(url);
+    return host + parsed.pathname + parsed.search;
+  } catch (e) {
+    return url;
+  }
+}
+
+function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+// Thrown when every configured host failed at the connection level.
+class ApiUnreachableError extends Error {
+  constructor(cause) {
+    super('Cannot reach API on any configured host');
+    this.name = 'ApiUnreachable';
+    this.cause = cause;
+  }
+}
+
+// Drop-in replacement for fetch() on API URLs, with per-host failover.
+//
+// NOTE on retrying non-GET requests: a host that is blocked never completes a
+// TCP handshake, so nothing reached the server and re-sending is safe. A host
+// that is merely slow could in theory receive the request and still hit our
+// timeout, which would re-send it. That is why API_TIMEOUT_MS is generous
+// (12s) rather than aggressive — genuine slowness should not trigger failover.
+async function apiFetch(url, options = {}) {
+  await ensureApiBaseHydrated();
+
+  const order = [apiBase, ...API_HOSTS.filter(host => host !== apiBase)];
+  let lastError = null;
+
+  for (const host of order) {
+    try {
+      const response = await fetchWithTimeout(withApiBase(url, host), options, API_TIMEOUT_MS);
+      if (host !== apiBase) {
+        log('OF Stats: switched API host to', host);
+        await rememberApiBase(host);
+      }
+      return response;
+    } catch (error) {
+      // Connection-level failure (blocked, DNS, timeout) — try the next host.
+      // An HTTP error status is NOT an exception, so 4xx/5xx never lands here.
+      lastError = error;
+      logError('OF Stats: API host unreachable:', host, error && error.name);
+    }
+  }
+
+  throw new ApiUnreachableError(lastError);
+}
+
+// Turns a thrown fetch/JSON error into a user-facing result.
+//
+// The old code returned a flat "Network error. Please try again." from all 24
+// catch blocks, which made an ISP-level block indistinguishable from a backend
+// hiccup: support could not tell them apart, and the user had no hint that a
+// VPN would fix it in seconds.
+function networkErrorResult(error) {
+  if (error && error.name === 'ApiUnreachable') {
+    return {
+      success: false,
+      code: 'UNREACHABLE',
+      error: 'Cannot reach the server. Your provider, firewall or antivirus may be blocking it — try a VPN or another network.'
+    };
+  }
+  if (error && error.name === 'SyntaxError') {
+    // response.json() failed — we got HTML instead of JSON, typically an ISP
+    // block page or a captive/corporate proxy interception.
+    return {
+      success: false,
+      code: 'BAD_RESPONSE',
+      error: 'Server returned an unexpected response. Your network may be intercepting the connection.'
+    };
+  }
+  return { success: false, code: 'NETWORK', error: 'Network error. Please try again.' };
+}
 
 // Token management
 let authToken = null;
@@ -56,7 +208,7 @@ async function tryRefreshToken() {
   isRefreshing = true;
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
+      const response = await apiFetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -117,7 +269,7 @@ async function authFetch(url, options = {}) {
   await ensureAuthTokenHydrated();
   const doFetch = () => {
     const headers = { ...options.headers, 'Authorization': `Bearer ${authToken}` };
-    return fetch(url, { ...options, headers });
+    return apiFetch(url, { ...options, headers });
   };
   
   let response = await doFetch();
@@ -473,7 +625,7 @@ async function broadcastAuthStatus(isAuthenticated) {
 
 async function apiRegister(email, password) {
   try {
-    const response = await fetch(`${API_URL}/auth/register`, {
+    const response = await apiFetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -499,13 +651,13 @@ async function apiRegister(email, password) {
     return { success: false, error: data.error || 'Registration failed' };
   } catch (error) {
     logError('OF Stats: Register error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiLogin(email, password) {
   try {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await apiFetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -523,7 +675,7 @@ async function apiLogin(email, password) {
     }
   } catch (error) {
     logError('OF Stats: Login error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
@@ -557,7 +709,7 @@ async function apiVerifyAuth() {
     }
   } catch (error) {
     logError('OF Stats: Verify auth error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -585,7 +737,7 @@ async function getAuthStatus() {
 
 async function apiForgotPassword(email) {
   try {
-    const response = await fetch(`${API_URL}/auth/forgot-password`, {
+    const response = await apiFetch(`${API_URL}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -595,13 +747,13 @@ async function apiForgotPassword(email) {
     return { success: true, message: data.message };
   } catch (error) {
     logError('OF Stats: Forgot password error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiResetPassword(email, token, newPassword) {
   try {
-    const response = await fetch(`${API_URL}/auth/reset-password`, {
+    const response = await apiFetch(`${API_URL}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, token, newPassword })
@@ -616,13 +768,13 @@ async function apiResetPassword(email, token, newPassword) {
     }
   } catch (error) {
     logError('OF Stats: Reset password error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiVerifyEmail(email, code) {
   try {
-    const response = await fetch(`${API_URL}/auth/verify-email`, {
+    const response = await apiFetch(`${API_URL}/auth/verify-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, code })
@@ -640,13 +792,13 @@ async function apiVerifyEmail(email, code) {
     }
   } catch (error) {
     logError('OF Stats: Verify email error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiResendVerification(email) {
   try {
-    const response = await fetch(`${API_URL}/auth/resend-verification`, {
+    const response = await apiFetch(`${API_URL}/auth/resend-verification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -656,7 +808,7 @@ async function apiResendVerification(email) {
     return { success: response.ok, message: data.message };
   } catch (error) {
     logError('OF Stats: Resend verification error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
@@ -687,7 +839,7 @@ async function apiApplyPromoCode(code) {
     return { success: true, ...data };
   } catch (error) {
     logError('OF Stats: Apply promo code error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
@@ -713,7 +865,7 @@ async function apiGetSubscriptionStatus() {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get subscription error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -722,12 +874,12 @@ async function apiGetPlans() {
     // Scope to Stats Editor plans only — backend now serves Profile Stats
     // ($15/mo) from the same endpoint, but that plan belongs in the
     // Profile Stats extension, not the Stats Editor upgrade screen.
-    const response = await fetch(`${API_URL}/subscription/plans?product=stats_editor`);
+    const response = await apiFetch(`${API_URL}/subscription/plans?product=stats_editor`);
     const data = await response.json();
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get plans error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -763,7 +915,7 @@ async function apiCreatePayment(plan, currency = null) {
     return { success: false, error: data.error || 'Failed to create payment' };
   } catch (error) {
     logError('OF Stats: Create payment error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -780,7 +932,7 @@ async function apiGetUpgradeInfo() {
     return { success: false, error: data.error || 'Failed to get upgrade info', code: data.code };
   } catch (error) {
     logError('OF Stats: Get upgrade info error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -813,7 +965,7 @@ async function apiCreateUpgradePayment(currency = null) {
     return { success: false, error: data.error || 'Failed to create upgrade payment', code: data.code };
   } catch (error) {
     logError('OF Stats: Create upgrade payment error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -829,7 +981,7 @@ async function apiCheckPaymentStatus(paymentId) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Check payment error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -856,7 +1008,7 @@ async function apiGetModels() {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get models error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -876,7 +1028,7 @@ async function apiAddModel(username, displayName = null, avatarUrl = null) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Add model error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -894,7 +1046,7 @@ async function apiRemoveModel(username) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Remove model error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -910,7 +1062,7 @@ async function apiCheckModel(username) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Check model error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -932,7 +1084,7 @@ async function apiGetPresets() {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get presets error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -956,7 +1108,7 @@ async function apiSyncPresets(presets, activePreset) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Sync presets error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -976,7 +1128,7 @@ async function apiSavePreset(name, presetData, active = false) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Save preset error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -994,7 +1146,7 @@ async function apiDeletePreset(name) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Delete preset error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1012,7 +1164,7 @@ async function apiSetActivePreset(name) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Set active preset error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1029,7 +1181,7 @@ async function apiSendSupportEmail(subject, message) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Send support email error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 

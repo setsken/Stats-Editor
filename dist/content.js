@@ -1059,73 +1059,17 @@
     }
   }
   
-  // Create Top Creators block for /my/statistics/statements/earnings page (b-top-rated style)
+  // Top Creators banner on /my/statistics/statements/earnings is owned by
+  // inject-early.js (full white-styled version, with theme support). content.js
+  // used to create its own blue-tinted block here AND inject a style with the
+  // same ID `of-stats-top-creators-rated-style` — winning the race with
+  // inject-early on first apply and leaving the user with the wrong styling
+  // until a manual page refresh. Made this a no-op so inject-early always
+  // owns the banner. On first plugin enable, the stub in inject-early.js
+  // reloads the page; on reload, inject-early runs at document_start and
+  // installs the white styling cleanly.
   function createTopCreatorsBlockStatistics(formattedPercentage) {
-    // Check if existing block
-    if (document.getElementById('of-stats-top-creators-rated')) return;
-    const localizedText = getTopCreatorsText(formattedPercentage);
-    if (document.querySelector('.b-top-rated')) {
-      // Update existing block
-      const textEl = document.querySelector('.b-top-rated .b-top-rated__text');
-      if (textEl) {
-        textEl.textContent = ' ' + localizedText + ' ';
-      }
-      return;
-    }
-    
-    const block = document.createElement('div');
-    block.id = 'of-stats-top-creators-rated';
-    block.className = 'b-top-rated m-bordered';
-    block.innerHTML = `
-      <svg class="b-top-rated__icon g-icon" aria-hidden="true">
-        <use href="#icon-star-on" xlink:href="#icon-star-on"></use>
-      </svg>
-      <span class="b-top-rated__text"> ${localizedText} </span>
-    `;
-    
-    // Add styles
-    if (!document.getElementById('of-stats-top-creators-rated-style')) {
-      const style = document.createElement('style');
-      style.id = 'of-stats-top-creators-rated-style';
-      style.textContent = `
-        #of-stats-top-creators-rated.b-top-rated {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: rgba(0, 175, 240, .12);
-          border: 1px solid rgba(138, 150, 163, .25);
-          border-radius: 6px;
-          padding: 10px 16px;
-          margin-bottom: 12px;
-          font-size: 13px;
-          font-weight: 500;
-          text-transform: uppercase;
-        }
-        #of-stats-top-creators-rated .b-top-rated__icon {
-          width: 24px;
-          height: 24px;
-          flex-shrink: 0;
-          fill: #fa0;
-        }
-        #of-stats-top-creators-rated .b-top-rated__text {
-          line-height: 1.2;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    // Try multiple insertion points
-    const balancesSection = document.querySelector('.b-statements-balances');
-    if (balancesSection && balancesSection.parentNode) {
-      balancesSection.parentNode.insertBefore(block, balancesSection);
-      log('OF Stats Editor: Created b-top-rated block before balances');
-    } else {
-      const mainContent = document.querySelector('.g-main-content');
-      if (mainContent && mainContent.firstElementChild) {
-        mainContent.insertBefore(block, mainContent.firstElementChild);
-        log('OF Stats Editor: Created b-top-rated block in main content');
-      }
-    }
+    return;
   }
   
   // Remove Top Creators block

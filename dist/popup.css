@@ -1244,6 +1244,40 @@ body {
   color: var(--border-color);
 }
 
+/* SSO (Sign in with Profile Stats) — mirror of PS popup's sso pattern */
+.sso-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 14px 0 4px;
+  color: var(--text-muted);
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.sso-divider::before,
+.sso-divider::after {
+  content: ''; flex: 1; height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.sso-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 9px 14px; margin-bottom: 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(0, 180, 255, 0.20);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+.sso-btn:hover {
+  border-color: var(--accent-primary, #00b4ff);
+  background: rgba(0, 180, 255, 0.06);
+  transform: translateY(-1px);
+}
+.sso-btn:disabled {
+  opacity: 0.55; cursor: not-allowed; transform: none;
+}
+.sso-btn svg { flex-shrink: 0; color: var(--accent-primary, #00b4ff); }
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -1371,13 +1405,36 @@ body {
 .auth-screen {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* Content sits at the top so the footer can hug the bottom via
+     margin-top: auto, instead of the whole screen stretching to fit
+     a min-height: 600px container that left huge gaps. */
+  justify-content: flex-start;
   align-items: center;
-  min-height: 600px;
-  background: var(--bg-primary);
-  padding: 24px;
+  /* Fill the popup height so the gradient covers the full viewport;
+     otherwise the body's solid bg-primary peeks out below. */
+  min-height: 100vh;
+  /* Same gradient + radial cyan glow as the main app .container, so
+     auth / settings / Upgrade screens share the visual identity. */
+  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  padding: 52px 26px 18px;
   position: relative;
+  overflow: hidden;
 }
+
+.auth-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: radial-gradient(ellipse at top, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Keep auth content above the ::before radial glow. */
+.auth-screen > * { position: relative; z-index: 1; }
 
 /* Subscription screen needs more top padding */
 #subscriptionScreen {
@@ -1388,6 +1445,7 @@ body {
 .auth-container {
   width: 100%;
   max-width: 300px;
+  flex: 1;                 /* stretch so footer can margin-top: auto */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1463,20 +1521,21 @@ body {
 
 .auth-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 48px;
 }
 
 .auth-logo {
   color: var(--accent-primary);
-  margin-bottom: 16px;
+  margin-bottom: 6px;
   filter: drop-shadow(0 0 20px rgba(0, 180, 255, 0.4));
 }
 
 .auth-title {
   color: var(--text-primary);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.01em;
 }
 
 .auth-subtitle {
@@ -1488,7 +1547,7 @@ body {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .auth-input-group {
@@ -1506,12 +1565,14 @@ body {
 }
 
 .auth-input {
-  padding: 12px 16px;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   transition: var(--transition);
 }
 
@@ -1616,16 +1677,26 @@ body {
   text-align: center;
 }
 
+/* When there's no error text, collapse the row entirely so the
+   "Forgot password?" link sits right under the password field instead
+   of being pushed down by an empty 18px slot + two form gaps. */
+.auth-error:empty {
+  display: none;
+}
+
 .auth-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 20px;
+  width: 100%;
+  height: 42px;
+  padding: 0 18px;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition: var(--transition);
 }
@@ -1673,16 +1744,20 @@ body {
 
 .auth-footer {
   text-align: center;
-  margin-top: 24px;
+  /* margin-top: auto pins the footer to the bottom of the .auth-container
+     flex column, so vertical "stretch" is absorbed here instead of as
+     dead space between the inputs and the OR divider. */
+  margin-top: auto;
+  padding-top: 12px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .auth-link {
   color: var(--accent-primary);
   text-decoration: none;
-  font-weight: 500;
-  margin-left: 4px;
+  font-weight: 600;
+  margin-left: 6px;
 }
 
 .auth-link:hover {
@@ -1690,13 +1765,20 @@ body {
 }
 
 .auth-forgot-link {
-  display: block;
-  text-align: right;
+  /* inline-block + align-self: flex-end → only the text itself is
+     clickable, but it sits to the right edge of the auth-form flex
+     column. Previously this was display: block + text-align: right,
+     which made the whole 300px-wide row a click target. */
+  display: inline-block;
+  align-self: flex-end;
   color: var(--text-muted);
   font-size: 12px;
+  font-weight: 500;
   text-decoration: none;
+  /* Pull the link tight against the password field, overriding the
+     auth-form's 12px row gap. */
   margin-top: -8px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   transition: color 0.2s ease;
 }
 
@@ -1733,14 +1815,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 
 .plan-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  padding: 12px 14px;
   cursor: pointer;
   transition: var(--transition);
   position: relative;
@@ -1785,7 +1867,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .plan-name {
@@ -1813,8 +1895,8 @@ body {
 .plan-features {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
+  gap: 3px;
+  margin-bottom: 8px;
 }
 
 .plan-feature-item {
@@ -1843,6 +1925,45 @@ body {
 
 .feature-check {
   flex-shrink: 0;
+}
+
+/* Bundle note on Pro card: "Includes Profile Stats Premium" */
+.plan-bundle-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  margin: 8px 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.10), rgba(109,40,217,0.05));
+  border: 1px solid rgba(139,92,246,0.30);
+  position: relative;
+  overflow: hidden;
+}
+.plan-bundle-note::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 0% 0%, rgba(139,92,246,0.15), transparent 70%);
+  pointer-events: none;
+}
+.plan-bundle-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(139,92,246,0.35);
+  position: relative; z-index: 1;
+}
+.plan-bundle-icon svg { width: 18px; height: 18px; }
+.plan-bundle-text { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.plan-bundle-title {
+  font-size: 11px; font-weight: 700; color: #c4b5fd;
+  line-height: 1.2; margin-bottom: 1px;
+}
+.plan-bundle-sub {
+  font-size: 10px; color: var(--text-muted);
+  line-height: 1.3;
 }
 
 .plan-select-btn {
@@ -1973,9 +2094,14 @@ body {
 
 /* Promo Code Section */
 .promo-code-section {
-  margin-top: 6px;
-  padding-top: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--border-color);
+}
+/* Subscription screen: empty error placeholder takes less vertical room */
+#subscriptionScreen #paymentError:empty {
+  min-height: 0;
+  margin: 0;
 }
 
 .promo-code-input-group {

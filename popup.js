@@ -569,34 +569,46 @@ async function initAuth() {
     
     log('OF Stats: Verify result:', verifyResult);
     
+    // Classify by code, not by error text. This used to compare against the
+    // literal string 'Network error', which silently stopped matching the
+    // moment the backend's wording changed — and a missed match here logs the
+    // user out over a temporary connection problem.
+    const isNetworkFailure = !!(verifyResult && (
+      verifyResult.networkError ||
+      ['UNREACHABLE', 'BAD_RESPONSE', 'NETWORK'].includes(verifyResult.code)
+    ));
+
     // Only logout if explicitly told token is invalid (not for network errors)
-    if (!verifyResult || (!verifyResult.success && !verifyResult.networkError)) {
-      // Check if it's a real auth error (not network)
+    if (!verifyResult || (!verifyResult.success && !isNetworkFailure)) {
+      // Token actually expired on server - logout
       if (verifyResult && verifyResult.code === 'TOKEN_EXPIRED') {
-        // Token actually expired on server - logout
         await chrome.storage.local.remove(['authToken', 'userEmail']);
         showScreen('loginScreen');
         return;
       }
-      // For network errors, try to continue with cached data
-      if (verifyResult && verifyResult.error === 'Network error') {
-        log('OF Stats: Network error during verify, continuing with cached auth');
-        // Try to get cached subscription data
-        const cachedSub = await chrome.storage.local.get(['ofStatsSubscription']);
-        if (cachedSub.ofStatsSubscription) {
-          currentSubscription = cachedSub.ofStatsSubscription;
-          currentUser = { email: storageData.userEmail };
-        }
-      } else {
-        // Unknown error - show login
-        await chrome.storage.local.remove(['authToken', 'userEmail']);
-        showScreen('loginScreen');
-        return;
-      }
+      // Unknown error - show login
+      await chrome.storage.local.remove(['authToken', 'userEmail']);
+      showScreen('loginScreen');
+      return;
     }
-    
-    currentUser = verifyResult.user;
-    currentSubscription = verifyResult.subscription;
+
+    if (isNetworkFailure) {
+      // Can't reach the backend (blocked host, timeout, offline). Keep the
+      // session alive on the last known subscription instead of dropping a
+      // paying user on the login or paywall screen.
+      //
+      // The previous version did load these cached values, but the two
+      // unconditional assignments that followed overwrote them with the
+      // failed response's undefined fields — so the fallback never actually
+      // took effect and every network hiccup showed the paywall.
+      log('OF Stats: Network issue during verify, continuing with cached auth');
+      const cachedSub = await chrome.storage.local.get(['ofStatsSubscription']);
+      currentUser = verifyResult.user || { email: storageData.userEmail };
+      currentSubscription = verifyResult.subscription || cachedSub.ofStatsSubscription || null;
+    } else {
+      currentUser = verifyResult.user;
+      currentSubscription = verifyResult.subscription;
+    }
     
     // Save subscription status to storage for content.js to check
     await chrome.storage.local.set({ 

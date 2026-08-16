@@ -5,6 +5,11 @@ const DEBUG = false;
 function log(...args) { if (DEBUG) log(...args); }
 function logError(...args) { if (DEBUG) logError(...args); }
 
+// PS extension id — same for both CWS publication AND local unpacked
+// dev install (PS's manifest.json now embeds the CWS-assigned public
+// key in its `key` field, extracted from the published .crx).
+const PROFILE_STATS_EXTENSION_ID = 'pnopdekngfklhadhjgkimghfiahiekph';
+
 // Auth State
 let currentUser = null;
 let currentSubscription = null;
@@ -80,11 +85,6 @@ const i18n = {
     menuLogout: 'Выйти',
     // Settings screen
     settingsTitle: 'Настройки',
-    settingsBadge: 'Настройки бейджа',
-    settingsBadgeToggle: 'Бейдж профиля',
-    settingsBadgeInfo: 'Показать или скрыть бейдж анализа профиля на страницах моделей',
-    settingsVerdictToggle: 'Verdict AI',
-    settingsVerdictInfo: 'Показать или скрыть секцию AI-вердикта в бейдже',
     settingsLanguage: 'Язык',
     // Main app
     currentModel: 'Текущая модель',
@@ -95,6 +95,7 @@ const i18n = {
     earnings: 'Типсы (Ожидается | Завершен)',
     fansSettings: 'Настройки фанов',
     fansCount: 'Количество фанов',
+    subscribersCount: 'Подписчики (30 дней)',
     followingCount: 'Количество подписок',
     applyChanges: 'Применить',
     // Notifications
@@ -161,6 +162,9 @@ const i18n = {
     signInLink: 'Войти',
     noAccount: 'Нет аккаунта?',
     createOne: 'Создать',
+    dividerOr: 'ИЛИ',
+    ssoButton: 'Войти через Profile Stats',
+    ssoTitle: 'Использовать аккаунт Profile Stats',
     // Reset password
     resetPassword: 'Сброс пароля',
     resetSubtitle: 'Введите email для получения кода',
@@ -205,6 +209,8 @@ const i18n = {
     perMo: 'мес',
     getPlus: 'Выбрать Plus',
     getPro: 'Выбрать Pro',
+    proIncludesPs: 'Включает Profile Stats Premium',
+    proIncludesPsSub: 'Аналитика, AI-вердикт и лидерборд OnlyFans-профилей',
     upgradeToPro: 'Перейти на Pro',
     currentPlanBadge: 'Ваш план',
     discountDays: 'Скидка за оставшиеся дни',
@@ -238,6 +244,7 @@ const i18n = {
     promoActivatedTitle: 'Промокод активирован!',
     promoCodeDaysAdded: 'Код "{code}" активирован. {days} дн. плана {plan} добавлено к вашему аккаунту.',
     promoAlreadyUsed: 'Этот код уже был использован',
+    promoWrongProduct: 'Этот код для Profile Stats. Активируйте его в расширении Profile Stats.',
     promoAlreadyUsedTitle: 'Промокод уже использован',
     promoAlreadyUsedBody: 'Код "{code}" уже был активирован на вашем аккаунте.',
     promoInvalid: 'Неверный промокод',
@@ -256,11 +263,6 @@ const i18n = {
     menuSupport: 'Support',
     menuLogout: 'Logout',
     settingsTitle: 'Settings',
-    settingsBadge: 'Badge Settings',
-    settingsBadgeToggle: 'Profile Badge',
-    settingsBadgeInfo: 'Show or hide the profile analysis badge on model pages',
-    settingsVerdictToggle: 'Verdict AI',
-    settingsVerdictInfo: 'Show or hide the AI verdict analysis section in the badge',
     settingsLanguage: 'Language',
     currentModel: 'Current Model',
     balanceSettings: 'Balance Settings',
@@ -270,6 +272,7 @@ const i18n = {
     earnings: 'Earnings (Pending | Complete)',
     fansSettings: 'Fans Settings',
     fansCount: 'Fans Count',
+    subscribersCount: 'Subscribers (30 days)',
     followingCount: 'Following Count',
     applyChanges: 'Apply Changes',
     // Notifications
@@ -333,6 +336,9 @@ const i18n = {
     authPassword: 'Password',
     forgotPassword: 'Forgot password?',
     signIn: 'Sign In',
+    dividerOr: 'OR',
+    ssoButton: 'Sign in with Profile Stats',
+    ssoTitle: 'Use your Profile Stats account',
     signInLink: 'Sign in',
     noAccount: "Don't have an account?",
     createOne: 'Create one',
@@ -380,6 +386,8 @@ const i18n = {
     perMo: 'mo',
     getPlus: 'Get Plus',
     getPro: 'Get Pro',
+    proIncludesPs: 'Includes Profile Stats Premium',
+    proIncludesPsSub: 'Analytics, AI verdict & leaderboard for OnlyFans profiles',
     upgradeToPro: 'Upgrade to Pro',
     currentPlanBadge: 'Current plan',
     discountDays: 'Discount for remaining days',
@@ -413,6 +421,7 @@ const i18n = {
     promoActivatedTitle: 'Promo Code Activated!',
     promoCodeDaysAdded: 'Code "{code}" activated. {days} days of {plan} added to your account.',
     promoAlreadyUsed: 'This code has already been used',
+    promoWrongProduct: 'This code is for Profile Stats. Apply it inside the Profile Stats extension.',
     promoAlreadyUsedTitle: 'Promo Code Already Used',
     promoAlreadyUsedBody: 'The code "{code}" has already been activated on your account.',
     promoInvalid: 'Invalid promo code',
@@ -449,11 +458,7 @@ function applyTranslations(lang) {
 }
 
 function loadSettingsUI() {
-  chrome.storage.local.get(['ofStatsBadgeEnabled', 'ofStatsVerdictEnabled', 'ofStatsLang'], (data) => {
-    const badgeEl = document.getElementById('settingBadgeEnabled');
-    const verdictEl = document.getElementById('settingVerdictEnabled');
-    if (badgeEl) badgeEl.checked = data.ofStatsBadgeEnabled !== false;
-    if (verdictEl) verdictEl.checked = data.ofStatsVerdictEnabled !== false;
+  chrome.storage.local.get(['ofStatsLang'], (data) => {
     const lang = data.ofStatsLang || 'en';
     currentLang = lang;
     document.querySelectorAll('.settings-lang-btn').forEach(b => {
@@ -564,34 +569,46 @@ async function initAuth() {
     
     log('OF Stats: Verify result:', verifyResult);
     
+    // Classify by code, not by error text. This used to compare against the
+    // literal string 'Network error', which silently stopped matching the
+    // moment the backend's wording changed — and a missed match here logs the
+    // user out over a temporary connection problem.
+    const isNetworkFailure = !!(verifyResult && (
+      verifyResult.networkError ||
+      ['UNREACHABLE', 'BAD_RESPONSE', 'NETWORK'].includes(verifyResult.code)
+    ));
+
     // Only logout if explicitly told token is invalid (not for network errors)
-    if (!verifyResult || (!verifyResult.success && !verifyResult.networkError)) {
-      // Check if it's a real auth error (not network)
+    if (!verifyResult || (!verifyResult.success && !isNetworkFailure)) {
+      // Token actually expired on server - logout
       if (verifyResult && verifyResult.code === 'TOKEN_EXPIRED') {
-        // Token actually expired on server - logout
         await chrome.storage.local.remove(['authToken', 'userEmail']);
         showScreen('loginScreen');
         return;
       }
-      // For network errors, try to continue with cached data
-      if (verifyResult && verifyResult.error === 'Network error') {
-        log('OF Stats: Network error during verify, continuing with cached auth');
-        // Try to get cached subscription data
-        const cachedSub = await chrome.storage.local.get(['ofStatsSubscription']);
-        if (cachedSub.ofStatsSubscription) {
-          currentSubscription = cachedSub.ofStatsSubscription;
-          currentUser = { email: storageData.userEmail };
-        }
-      } else {
-        // Unknown error - show login
-        await chrome.storage.local.remove(['authToken', 'userEmail']);
-        showScreen('loginScreen');
-        return;
-      }
+      // Unknown error - show login
+      await chrome.storage.local.remove(['authToken', 'userEmail']);
+      showScreen('loginScreen');
+      return;
     }
-    
-    currentUser = verifyResult.user;
-    currentSubscription = verifyResult.subscription;
+
+    if (isNetworkFailure) {
+      // Can't reach the backend (blocked host, timeout, offline). Keep the
+      // session alive on the last known subscription instead of dropping a
+      // paying user on the login or paywall screen.
+      //
+      // The previous version did load these cached values, but the two
+      // unconditional assignments that followed overwrote them with the
+      // failed response's undefined fields — so the fallback never actually
+      // took effect and every network hiccup showed the paywall.
+      log('OF Stats: Network issue during verify, continuing with cached auth');
+      const cachedSub = await chrome.storage.local.get(['ofStatsSubscription']);
+      currentUser = verifyResult.user || { email: storageData.userEmail };
+      currentSubscription = verifyResult.subscription || cachedSub.ofStatsSubscription || null;
+    } else {
+      currentUser = verifyResult.user;
+      currentSubscription = verifyResult.subscription;
+    }
     
     // Save subscription status to storage for content.js to check
     await chrome.storage.local.set({ 
@@ -1024,7 +1041,7 @@ function renderPlans(plans) {
         ${features.map(f => `
           <div class="plan-feature-item ${f.included ? 'included' : 'not-included'}">
             <svg class="feature-check" viewBox="0 0 24 24" width="14" height="14">
-              ${f.included 
+              ${f.included
                 ? '<path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
                 : '<path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
               }
@@ -1033,6 +1050,22 @@ function renderPlans(plans) {
           </div>
         `).join('')}
       </div>
+      ${isPopular ? `
+      <div class="plan-bundle-note">
+        <div class="plan-bundle-icon">
+          <svg viewBox="0 0 512 512" fill="white">
+            <rect x="120" y="248" width="64" height="148" rx="10"/>
+            <rect x="224" y="120" width="64" height="276" rx="10"/>
+            <rect x="328" y="184" width="64" height="212" rx="10"/>
+            <rect x="84" y="408" width="344" height="14" rx="7" opacity=".75"/>
+          </svg>
+        </div>
+        <div class="plan-bundle-text">
+          <div class="plan-bundle-title">${dict.proIncludesPs || 'Includes Profile Stats Premium'}</div>
+          <div class="plan-bundle-sub">${dict.proIncludesPsSub || 'Analytics, AI verdict & leaderboard for OnlyFans profiles'}</div>
+        </div>
+      </div>
+      ` : ''}
       <button class="plan-select-btn" ${isCurrentPlan ? 'disabled' : ''}>${btnText}</button>
     </div>
   `;
@@ -1584,6 +1617,16 @@ function setupAuthListeners() {
       await handleLogin();
     });
   }
+
+  // "Sign in with Profile Stats" — cross-extension SSO mirror of PS's
+  // own "Sign in with Stats Editor" button. Asks PS for a Monly token,
+  // then stores it locally as our auth token.
+  const ssoBtn = document.getElementById('ssoBtn');
+  if (ssoBtn) {
+    ssoBtn.addEventListener('click', async () => {
+      await handleSSOFromProfileStats();
+    });
+  }
   
   // Register form submit
   if (registerForm) {
@@ -1862,22 +1905,6 @@ function setupAuthListeners() {
   if (settingsBackBtn) {
     settingsBackBtn.addEventListener('click', () => {
       showScreen('mainApp');
-    });
-  }
-
-  // Settings: Badge toggle
-  const settingBadgeEnabled = document.getElementById('settingBadgeEnabled');
-  if (settingBadgeEnabled) {
-    settingBadgeEnabled.addEventListener('change', () => {
-      chrome.storage.local.set({ ofStatsBadgeEnabled: settingBadgeEnabled.checked });
-    });
-  }
-
-  // Settings: Verdict AI toggle
-  const settingVerdictEnabled = document.getElementById('settingVerdictEnabled');
-  if (settingVerdictEnabled) {
-    settingVerdictEnabled.addEventListener('change', () => {
-      chrome.storage.local.set({ ofStatsVerdictEnabled: settingVerdictEnabled.checked });
     });
   }
 
@@ -2564,6 +2591,80 @@ async function handleLogin() {
   }
 }
 
+// "Sign in with Profile Stats" — cross-extension SSO. Asks the PS
+// extension for the Monly auth token via chrome.runtime.sendMessage,
+// then stores it in our background as if we'd just logged in via
+// email+password. Same Monly account = same backend session.
+async function handleSSOFromProfileStats() {
+  const btn = document.getElementById('ssoBtn');
+  showLoginError('');
+  if (btn) btn.disabled = true;
+  try {
+    const ssoResp = await new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(PROFILE_STATS_EXTENSION_ID, { action: 'getProfileStatsToken' }, (r) => {
+          if (chrome.runtime.lastError) resolve({ success: false, error: chrome.runtime.lastError.message });
+          else resolve(r || { success: false, error: 'Empty response' });
+        });
+      } catch (e) { resolve({ success: false, error: e.message }); }
+    });
+
+    if (!ssoResp || !ssoResp.success) {
+      let msg;
+      if (ssoResp?.code === 'NOT_AUTHENTICATED') msg = 'Sign in to Profile Stats first, then try again.';
+      else if (ssoResp?.code === 'USER_DENIED')  msg = 'Authorization denied.';
+      else if (ssoResp?.code === 'TIMEOUT')      msg = 'Authorization timed out.';
+      else if ((ssoResp?.error || '').includes('Could not establish connection') ||
+               (ssoResp?.error || '').includes('Receiving end does not exist')) {
+        msg = 'Profile Stats extension is not installed, disabled, or out of date. Reload it from chrome://extensions/';
+      } else {
+        msg = ssoResp?.error || 'SSO failed.';
+      }
+      showLoginError(msg);
+      return;
+    }
+
+    // Persist the token into our background + storage so the rest of
+    // the popup behaves exactly like a fresh email+password login.
+    const stored = await chrome.runtime.sendMessage({
+      action: 'setTokenFromSSO',
+      token: ssoResp.token,
+      email: ssoResp.email
+    });
+    if (!stored || !stored.success) {
+      showLoginError(stored?.error || 'Could not store SSO token.');
+      return;
+    }
+
+    // Verify the token against our backend + populate currentUser / subscription
+    const verify = await chrome.runtime.sendMessage({ action: 'verifyAuth' });
+    if (!verify || !verify.success) {
+      showLoginError(verify?.error || 'SSO token rejected by backend.');
+      return;
+    }
+    currentUser = verify.user;
+    currentSubscription = verify.subscription;
+    await chrome.storage.local.remove(['popupScreen', 'popupPendingEmail']);
+
+    if (!hasActiveSubscription()) {
+      await loadPlans();
+      showScreen('subscriptionScreen');
+      const userEmailEl = document.getElementById('currentUserEmail');
+      if (userEmailEl) userEmailEl.textContent = currentUser.email;
+    } else {
+      await loadUserModels();
+      updateUserUI();
+      showScreen('mainApp');
+      initMainApp();
+    }
+  } catch (e) {
+    logError('SSO from PS error:', e);
+    showLoginError('SSO failed.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // Handle forgot password
 async function handleForgotPassword() {
   const btn = document.getElementById('forgotBtn');
@@ -2924,6 +3025,12 @@ async function handleApplyPromoCode() {
       } else if (errorCode === 'LIMIT_REACHED' || errorMessageLower.includes('limit')) {
         message.textContent = dict.promoLimitReached || 'This promo code usage limit reached';
         message.className = 'promo-code-message error';
+      } else if (errorCode === 'WRONG_PRODUCT' || errorMessageLower.includes('profile stats')) {
+        // Code belongs to Profile Stats — surface the upstream message, with
+        // an i18n fallback so RU users see Russian.
+        message.textContent = dict.promoWrongProduct || result?.error
+          || 'This code is for Profile Stats. Apply it inside the Profile Stats extension.';
+        message.className = 'promo-code-message error';
       } else {
         message.textContent = dict.promoApplyFailed || 'Failed to apply promo code';
         message.className = 'promo-code-message error';
@@ -3162,6 +3269,7 @@ const earningsCountInput = document.getElementById('earningsCount');
 const earningsCompleteCountInput = document.getElementById('earningsCompleteCount');
 const fansCountInput = document.getElementById('fansCount');
 const fansTooltipInput = document.getElementById('fansTooltip');
+const subscribersCountInput = document.getElementById('subscribersCount');
 const followingCountInput = document.getElementById('followingCount');
 const followingTooltipInput = document.getElementById('followingTooltip');
 const applyBtn = document.getElementById('applyBtn');
@@ -3204,6 +3312,7 @@ const defaultSettings = {
   earningsCompleteCount: '',
   fansCount: '',
   fansTooltip: '',
+  subscribersCount: '',
   followingCount: '',
   followingTooltip: '',
   modelName: '@not_detected',
@@ -3297,6 +3406,7 @@ async function loadSettings() {
     earningsCompleteCountInput.value = settings.earningsCompleteCount || '';
     fansCountInput.value = settings.fansCount || '';
     fansTooltipInput.value = settings.fansTooltip || '';
+    subscribersCountInput.value = settings.subscribersCount || '';
     followingCountInput.value = settings.followingCount || '';
     followingTooltipInput.value = settings.followingTooltip || '';
     
@@ -3322,6 +3432,7 @@ function saveCurrentFormState() {
     earningsCompleteCount: earningsCompleteCountInput.value,
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
+    subscribersCount: subscribersCountInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value
   };
@@ -3337,10 +3448,11 @@ function checkForChanges() {
     earningsCompleteCount: earningsCompleteCountInput.value,
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
+    subscribersCount: subscribersCountInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value
   };
-  
+
   hasUnsavedChanges = Object.keys(current).some(key => current[key] !== savedFormState[key]);
   return hasUnsavedChanges;
 }
@@ -3384,6 +3496,7 @@ async function saveSettings(preserveEarningStats = false) {
     earningsCompleteCount: earningsCompleteCountInput.value,
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
+    subscribersCount: subscribersCountInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value,
     myModelUsername: myModelUsername // Preserve model username
@@ -3587,6 +3700,16 @@ function updateIconFills() {
     followingIcon.classList.add('filled');
   } else {
     followingIcon.classList.remove('filled');
+  }
+
+  // Subscribers icon
+  const subscribersIcon = document.getElementById('subscribersIcon');
+  if (subscribersIcon) {
+    if (subscribersCountInput.value.trim()) {
+      subscribersIcon.classList.add('filled');
+    } else {
+      subscribersIcon.classList.remove('filled');
+    }
   }
   
   // Top Creators icon
@@ -4055,10 +4178,11 @@ async function applyChanges() {
       earningsCompleteCount: earningsCompleteCountInput.value,
       fansCount: fansCountInput.value,
       fansTooltip: fansTooltipInput.value,
+      subscribersCount: subscribersCountInput.value,
       followingCount: followingCountInput.value,
       followingTooltip: followingTooltipInput.value
     };
-    
+
     try {
       // Start loading animation in popup
       applyBtn.disabled = true;
@@ -4212,6 +4336,7 @@ async function resetSettings() {
   earningsCompleteCountInput.value = '';
   fansCountInput.value = '';
   fansTooltipInput.value = '';
+  subscribersCountInput.value = '';
   followingCountInput.value = '';
   followingTooltipInput.value = '';
   
@@ -4396,13 +4521,14 @@ function setupEventListeners() {
           pendingBalance: pendingBalanceInput.value,
           fansCount: fansCountInput.value,
           fansTooltip: fansTooltipInput.value,
+          subscribersCount: subscribersCountInput.value,
           followingCount: followingCountInput.value,
           followingTooltip: followingTooltipInput.value
         };
-        
-        await chrome.tabs.sendMessage(tab.id, { 
-          action: enabled ? 'applyChanges' : 'resetChanges', 
-          settings: settings 
+
+        await chrome.tabs.sendMessage(tab.id, {
+          action: enabled ? 'applyChanges' : 'resetChanges',
+          settings: settings
         });
       }
     } catch (error) {
@@ -4549,9 +4675,20 @@ function setupEventListeners() {
   earningsCompleteCountInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/\D/g, '');
   });
-  
+
+  // Subscribers count field: digits only
+  subscribersCountInput.addEventListener('keypress', (e) => {
+    const char = e.key;
+    if (!/\d/.test(char) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+      e.preventDefault();
+    }
+  });
+  subscribersCountInput.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '');
+  });
+
   // Update UI on input change but DON'T auto-save - only Apply Changes saves
-  const inputs = [topCreatorsInput, currentBalanceInput, pendingBalanceInput, earningsCountInput, earningsCompleteCountInput, fansCountInput, fansTooltipInput, followingCountInput, followingTooltipInput];
+  const inputs = [topCreatorsInput, currentBalanceInput, pendingBalanceInput, earningsCountInput, earningsCompleteCountInput, fansCountInput, fansTooltipInput, subscribersCountInput, followingCountInput, followingTooltipInput];
   inputs.forEach(input => {
     input.addEventListener('input', () => {
       updateIconFills();
@@ -4803,6 +4940,7 @@ function getCurrentFormDataForPreset() {
     earningsCompleteCount: earningsCompleteCountInput.value,
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
+    subscribersCount: subscribersCountInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value,
     // Save timestamp for reference
@@ -4956,6 +5094,7 @@ async function loadPresetIntoForm(presetData, applyEarningStats = true) {
   earningsCompleteCountInput.value = presetData.earningsCompleteCount || '';
   fansCountInput.value = presetData.fansCount || '';
   fansTooltipInput.value = presetData.fansTooltip || '';
+  subscribersCountInput.value = presetData.subscribersCount || '';
   followingCountInput.value = presetData.followingCount || '';
   followingTooltipInput.value = presetData.followingTooltip || '';
   
@@ -4997,6 +5136,7 @@ function clearFormToDefaults() {
   earningsCompleteCountInput.value = defaultSettings.earningsCompleteCount;
   fansCountInput.value = defaultSettings.fansCount;
   fansTooltipInput.value = defaultSettings.fansTooltip;
+  subscribersCountInput.value = defaultSettings.subscribersCount;
   followingCountInput.value = defaultSettings.followingCount;
   followingTooltipInput.value = defaultSettings.followingTooltip;
   

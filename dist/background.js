@@ -6,16 +6,198 @@ const DEBUG = false;
 function log(...args) { if (DEBUG) console.log(...args); }
 function logError(...args) { if (DEBUG) console.error(...args); }
 
-const API_URL = 'https://stats-editor-production.up.railway.app/api';
+// ==================== API ENDPOINT FAILOVER ====================
+//
+// Some ISPs block Railway's edge IP range outright (confirmed with a UA user
+// on 1.3.9: TCP to 69.46.46.22:443 just times out, ERR_CONNECTION_TIMED_OUT,
+// while the same domain opens fine from her phone over mobile data). Every
+// fetch() then rejects and the whole extension shows "Network error" even
+// though the backend is perfectly healthy. Reinstalling cannot fix it — it is
+// a network-level block, not a client-side bug.
+//
+// Fix: ship several INDEPENDENT entry points to the same backend and fail over
+// between them. The host that answers is remembered in chrome.storage.local,
+// so an affected user pays the discovery cost once, not on every request.
+//
+// Order matters:
+//   1. Cloudflare-proxied custom domain — anycast IPs, reachable almost
+//      everywhere. Tried first because it is the most universally routable.
+//   2. Cloudflare Worker — separate domain, independent of our DNS setup.
+//   3. Railway origin — fastest when reachable, but it is exactly the address
+//      that gets blocked, so it must never be first.
+const API_HOSTS = [
+  'https://api.ofstats.pro',
+  'https://ofstats-api.WORKERS-SUBDOMAIN.workers.dev',
+  'https://stats-editor-production.up.railway.app'
+].filter(host => !host.includes('WORKERS-SUBDOMAIN')); // placeholder dropped until the Worker is deployed
+
+const API_BASE_STORAGE_KEY = 'apiBaseHost';
+const API_TIMEOUT_MS = 12000;
+
+let apiBase = API_HOSTS[0];
+// Kept as a mutable global so the ~25 existing `${API_URL}/...` call sites
+// keep working unchanged. apiFetch() re-bases the URL it is given anyway, so
+// a stale value here can never send a request to a dead host.
+let API_URL = `${apiBase}/api`;
+
+function setApiBaseLocal(host) {
+  apiBase = host;
+  API_URL = `${host}/api`;
+}
+
+async function rememberApiBase(host) {
+  setApiBaseLocal(host);
+  try { await chrome.storage.local.set({ [API_BASE_STORAGE_KEY]: host }); } catch (e) {}
+}
+
+// Same lazy-hydration pattern as ensureAuthTokenHydrated() above: MV3 service
+// workers re-run module code on every wake, and the first message can arrive
+// before an async storage read finishes.
+let apiBaseHydratedOnce = false;
+let apiBaseHydratePromise = null;
+async function ensureApiBaseHydrated() {
+  if (apiBaseHydratedOnce) return;
+  if (apiBaseHydratePromise) {
+    try { await apiBaseHydratePromise; } catch (e) {}
+    return;
+  }
+  apiBaseHydratePromise = (async () => {
+    try {
+      const stored = await chrome.storage.local.get([API_BASE_STORAGE_KEY]);
+      const host = stored && stored[API_BASE_STORAGE_KEY];
+      // Ignore a remembered host that is no longer in the shipped list —
+      // otherwise a retired endpoint would keep being tried after an update.
+      if (host && API_HOSTS.includes(host)) setApiBaseLocal(host);
+    } catch (e) {}
+    apiBaseHydratedOnce = true;
+    apiBaseHydratePromise = null;
+  })();
+  await apiBaseHydratePromise;
+}
+
+// Rebuilds a `${API_URL}/...` URL against a different host, preserving path
+// and query string.
+function withApiBase(url, host) {
+  try {
+    const parsed = new URL(url);
+    return host + parsed.pathname + parsed.search;
+  } catch (e) {
+    return url;
+  }
+}
+
+function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+// Thrown when every configured host failed at the connection level.
+class ApiUnreachableError extends Error {
+  constructor(cause) {
+    super('Cannot reach API on any configured host');
+    this.name = 'ApiUnreachable';
+    this.cause = cause;
+  }
+}
+
+// Drop-in replacement for fetch() on API URLs, with per-host failover.
+//
+// NOTE on retrying non-GET requests: a host that is blocked never completes a
+// TCP handshake, so nothing reached the server and re-sending is safe. A host
+// that is merely slow could in theory receive the request and still hit our
+// timeout, which would re-send it. That is why API_TIMEOUT_MS is generous
+// (12s) rather than aggressive — genuine slowness should not trigger failover.
+async function apiFetch(url, options = {}) {
+  await ensureApiBaseHydrated();
+
+  const order = [apiBase, ...API_HOSTS.filter(host => host !== apiBase)];
+  let lastError = null;
+
+  for (const host of order) {
+    try {
+      const response = await fetchWithTimeout(withApiBase(url, host), options, API_TIMEOUT_MS);
+      if (host !== apiBase) {
+        log('OF Stats: switched API host to', host);
+        await rememberApiBase(host);
+      }
+      return response;
+    } catch (error) {
+      // Connection-level failure (blocked, DNS, timeout) — try the next host.
+      // An HTTP error status is NOT an exception, so 4xx/5xx never lands here.
+      lastError = error;
+      logError('OF Stats: API host unreachable:', host, error && error.name);
+    }
+  }
+
+  throw new ApiUnreachableError(lastError);
+}
+
+// Turns a thrown fetch/JSON error into a user-facing result.
+//
+// The old code returned a flat "Network error. Please try again." from all 24
+// catch blocks, which made an ISP-level block indistinguishable from a backend
+// hiccup: support could not tell them apart, and the user had no hint that a
+// VPN would fix it in seconds.
+function networkErrorResult(error) {
+  if (error && error.name === 'ApiUnreachable') {
+    return {
+      success: false,
+      code: 'UNREACHABLE',
+      error: 'Cannot reach the server. Your provider, firewall or antivirus may be blocking it — try a VPN or another network.'
+    };
+  }
+  if (error && error.name === 'SyntaxError') {
+    // response.json() failed — we got HTML instead of JSON, typically an ISP
+    // block page or a captive/corporate proxy interception.
+    return {
+      success: false,
+      code: 'BAD_RESPONSE',
+      error: 'Server returned an unexpected response. Your network may be intercepting the connection.'
+    };
+  }
+  return { success: false, code: 'NETWORK', error: 'Network error. Please try again.' };
+}
 
 // Token management
 let authToken = null;
 let isRefreshing = false;
 let refreshPromise = null;
 
+// Lazy hydration of authToken from chrome.storage.local.
+//
+// CRITICAL: MV3 service workers shut down when idle and re-run module-level
+// code on wake. The async `chrome.storage.local.get(['authToken'], ...)` call
+// at startup may not finish before the FIRST incoming message — so the very
+// first API request sees `authToken === null`, returns "Not authenticated",
+// and the popup logs the user out. This caused the recurring forced-logouts
+// users were reporting. By awaiting hydration at the start of every API
+// action that needs the token, we close that race window for good.
+let tokenHydratedOnce = false;
+let tokenHydratePromise = null;
+async function ensureAuthTokenHydrated() {
+  if (authToken) return;          // already in memory
+  if (tokenHydratedOnce) return;  // we tried — storage didn't have one
+  if (tokenHydratePromise) {
+    try { await tokenHydratePromise; } catch (e) {}
+    return;
+  }
+  tokenHydratePromise = (async () => {
+    try {
+      const result = await chrome.storage.local.get(['authToken']);
+      if (result && result.authToken) authToken = result.authToken;
+    } catch (e) {}
+    tokenHydratedOnce = true;
+    tokenHydratePromise = null;
+  })();
+  await tokenHydratePromise;
+}
+
 // ==================== TOKEN REFRESH ====================
 // Try to refresh the token before logging out on 401
 async function tryRefreshToken() {
+  await ensureAuthTokenHydrated();
   if (!authToken) return false;
   
   // Prevent multiple simultaneous refresh attempts
@@ -26,7 +208,7 @@ async function tryRefreshToken() {
   isRefreshing = true;
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
+      const response = await apiFetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -84,9 +266,10 @@ setInterval(async () => {
 
 // Auth-aware fetch: adds Authorization header, retries once on 401 after token refresh
 async function authFetch(url, options = {}) {
+  await ensureAuthTokenHydrated();
   const doFetch = () => {
     const headers = { ...options.headers, 'Authorization': `Bearer ${authToken}` };
-    return fetch(url, { ...options, headers });
+    return apiFetch(url, { ...options, headers });
   };
   
   let response = await doFetch();
@@ -153,7 +336,99 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Keep message channel open for async response
 });
 
+// ==================== EXTERNAL MESSAGES (SSO for Profile Stats) ====================
+// Profile Stats can request the active token via cross-extension messaging.
+// Whitelisted senders are declared in manifest.json "externally_connectable.ids".
+// Every request opens a small confirmation window so the user explicitly
+// approves before the token leaves Stats Editor.
+const pendingSSOResponses = new Map(); // reqId -> { sendResponse, timeoutId, senderId }
+
+chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
+  (async () => {
+    try {
+      if (!request || request.action !== 'getStatsEditorToken') {
+        sendResponse({ success: false, error: 'Unknown action' });
+        return;
+      }
+      const stored = await chrome.storage.local.get(['authToken', 'userEmail']);
+      if (!stored.authToken) {
+        sendResponse({ success: false, error: 'Not signed in to Stats Editor', code: 'NOT_AUTHENTICATED' });
+        return;
+      }
+      authToken = stored.authToken;
+
+      // Open the confirmation window and remember the sendResponse so we can
+      // reply once the user clicks Allow / Deny (or closes the window).
+      const reqId = (self.crypto && self.crypto.randomUUID) ? self.crypto.randomUUID() : String(Date.now()) + Math.random();
+      const timeoutId = setTimeout(() => {
+        const p = pendingSSOResponses.get(reqId);
+        if (p) {
+          pendingSSOResponses.delete(reqId);
+          p.sendResponse({ success: false, error: 'Timed out waiting for confirmation', code: 'TIMEOUT' });
+        }
+      }, 120 * 1000);
+
+      pendingSSOResponses.set(reqId, { sendResponse, timeoutId, senderId: sender.id });
+
+      const email = encodeURIComponent(stored.userEmail || '');
+      const W = 420;
+      const H = 420;
+      // Center on the primary display (workArea = screen minus taskbar).
+      let left, top;
+      try {
+        const displays = await chrome.system.display.getInfo();
+        const primary = displays.find(d => d.isPrimary) || displays[0];
+        if (primary && primary.workArea) {
+          left = Math.round(primary.workArea.left + (primary.workArea.width - W) / 2);
+          top  = Math.round(primary.workArea.top  + (primary.workArea.height - H) / 2);
+        }
+      } catch (e) { /* permission missing — let Chrome pick a position */ }
+
+      chrome.windows.create({
+        url: chrome.runtime.getURL(`auth-confirm.html?id=${reqId}&email=${email}`),
+        type: 'popup',
+        width: W,
+        height: H,
+        ...(left != null && top != null ? { left, top } : {}),
+        focused: true
+      });
+    } catch (e) {
+      logError('OF Stats: SSO external message error:', e);
+      sendResponse({ success: false, error: e.message });
+    }
+  })();
+  return true; // async response
+});
+
+// Bridge from the in-extension auth-confirm.html: deliver Allow / Deny back to
+// the waiting Profile Stats request.
+async function handleSSODecision(request) {
+  const p = pendingSSOResponses.get(request.id);
+  if (!p) return { success: false, error: 'Unknown SSO request id' };
+  clearTimeout(p.timeoutId);
+  pendingSSOResponses.delete(request.id);
+  if (!request.approved) {
+    p.sendResponse({ success: false, error: 'Authorization denied by user', code: 'USER_DENIED' });
+    return { success: true, delivered: 'denied' };
+  }
+  const stored = await chrome.storage.local.get(['authToken', 'userEmail']);
+  if (!stored.authToken) {
+    p.sendResponse({ success: false, error: 'Stats Editor session expired', code: 'TOKEN_EXPIRED' });
+    return { success: true, delivered: 'no-token' };
+  }
+  p.sendResponse({
+    success: true,
+    token: stored.authToken,
+    email: stored.userEmail || null,
+    sentBy: p.senderId
+  });
+  return { success: true, delivered: 'approved' };
+}
+
 async function handleMessage(request, sender) {
+  // Hydrate token from storage before any action — closes the wake-up race
+  // (see ensureAuthTokenHydrated comment above for why this matters).
+  try { await ensureAuthTokenHydrated(); } catch (e) {}
   try {
     switch (request.action) {
       // Auth actions
@@ -166,6 +441,20 @@ async function handleMessage(request, sender) {
       case 'logout':
         clearCache(); // Clear all cache on logout
         return await logout();
+
+      // Set token + email from a cross-extension SSO response.
+      // Used by "Sign in with Profile Stats" — popup.js sends the
+      // token it just got from PS via chrome.runtime.sendMessage(PS_ID, ...).
+      case 'setTokenFromSSO': {
+        if (!request.token) return { success: false, error: 'Missing token' };
+        authToken = request.token;
+        await chrome.storage.local.set({
+          authToken: request.token,
+          userEmail: request.email || null
+        });
+        clearCache();
+        return { success: true };
+      }
       
       case 'verifyAuth': {
         const cached = getCached('verifyAuth');
@@ -241,41 +530,11 @@ async function handleMessage(request, sender) {
       
       case 'checkModel':
         return await apiCheckModel(request.username);
-      
-      // Farmed models — comment status
-      case 'checkFarmedModel':
-        return await apiCheckFarmedModel(request.username);
-      
-      // AI Verdict for model score
-      case 'getAIVerdict': {
-        // Server-side subscription check before AI call
-        const subStatus = await apiGetSubscriptionStatus();
-        if (!subStatus.success || !subStatus.subscription || subStatus.subscription.status !== 'active') {
-          return { success: false, error: 'Subscription not active' };
-        }
-        return await apiGetAIVerdict(request.scoreData);
-      }
 
       case 'openSubscriptionTab':
         chrome.tabs.create({ url: chrome.runtime.getURL('popup.html') });
         return { success: true };
 
-      // Fans actions
-      case 'reportFans':
-        return await apiReportFans(request.username, request.fansCount, request.fansText, request.reportDay);
-      
-      case 'getFans':
-        return await apiGetFans(request.username);
-      
-      case 'batchGetFans':
-        return await apiBatchGetFans(request.usernames);
-      
-      case 'getFansTrend':
-        return await apiGetFansTrend(request.username, request.days);
-
-      case 'getEngagementPercentile':
-        return await apiGetEngagementPercentile(request.username, request.metrics);
-      
       // Presets actions (cloud sync)
       case 'getPresets': {
         const cached = getCached('getPresets');
@@ -302,51 +561,7 @@ async function handleMessage(request, sender) {
       
       case 'setActivePreset':
         return await apiSetActivePreset(request.name);
-      
-      // Alerts actions (global per model)
-      case 'reportAlerts':
-        return await apiReportAlerts(request.username, request.alerts);
-      
-      case 'getAlerts':
-        return await apiGetAlerts(request.username);
-      
-      // Notes actions (per user, cloud sync)
-      case 'getNotes': {
-        const cached = getCached('getNotes');
-        if (cached) return cached;
-        const result = await apiGetNotes();
-        if (result.success) setCache('getNotes', result);
-        return result;
-      }
-      
-      case 'syncNotes': {
-        clearCache('getNotes');
-        return await apiSyncNotes(request.notes, request.avatars);
-      }
-      
-      case 'saveNote': {
-        clearCache('getNotes');
-        return await apiSaveNote(request.username, request.text, request.tags, request.date, request.avatarUrl);
-      }
-      
-      case 'deleteNote': {
-        clearCache('getNotes');
-        return await apiDeleteNote(request.username);
-      }
-      
-      case 'getNoteTags': {
-        const cached = getCached('getNoteTags');
-        if (cached) return cached;
-        const result = await apiGetNoteTags();
-        if (result.success) setCache('getNoteTags', result);
-        return result;
-      }
-      
-      case 'syncNoteTags': {
-        clearCache('getNoteTags');
-        return await apiSyncNoteTags(request.tags);
-      }
-      
+
       // Side panel actions
       case 'openSidePanel':
         try {
@@ -366,6 +581,10 @@ async function handleMessage(request, sender) {
       case 'clearCache':
         clearCache();
         return { success: true };
+
+      // From auth-confirm.html — user clicked Allow / Deny on the SSO popup.
+      case 'sso-decision':
+        return await handleSSODecision(request);
       
       case 'sendSupportEmail':
         return await apiSendSupportEmail(request.subject, request.message);
@@ -406,7 +625,7 @@ async function broadcastAuthStatus(isAuthenticated) {
 
 async function apiRegister(email, password) {
   try {
-    const response = await fetch(`${API_URL}/auth/register`, {
+    const response = await apiFetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -432,13 +651,13 @@ async function apiRegister(email, password) {
     return { success: false, error: data.error || 'Registration failed' };
   } catch (error) {
     logError('OF Stats: Register error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiLogin(email, password) {
   try {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await apiFetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -456,7 +675,7 @@ async function apiLogin(email, password) {
     }
   } catch (error) {
     logError('OF Stats: Login error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
@@ -490,7 +709,7 @@ async function apiVerifyAuth() {
     }
   } catch (error) {
     logError('OF Stats: Verify auth error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -518,7 +737,7 @@ async function getAuthStatus() {
 
 async function apiForgotPassword(email) {
   try {
-    const response = await fetch(`${API_URL}/auth/forgot-password`, {
+    const response = await apiFetch(`${API_URL}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -528,13 +747,13 @@ async function apiForgotPassword(email) {
     return { success: true, message: data.message };
   } catch (error) {
     logError('OF Stats: Forgot password error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiResetPassword(email, token, newPassword) {
   try {
-    const response = await fetch(`${API_URL}/auth/reset-password`, {
+    const response = await apiFetch(`${API_URL}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, token, newPassword })
@@ -549,13 +768,13 @@ async function apiResetPassword(email, token, newPassword) {
     }
   } catch (error) {
     logError('OF Stats: Reset password error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiVerifyEmail(email, code) {
   try {
-    const response = await fetch(`${API_URL}/auth/verify-email`, {
+    const response = await apiFetch(`${API_URL}/auth/verify-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, code })
@@ -573,13 +792,13 @@ async function apiVerifyEmail(email, code) {
     }
   } catch (error) {
     logError('OF Stats: Verify email error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiResendVerification(email) {
   try {
-    const response = await fetch(`${API_URL}/auth/resend-verification`, {
+    const response = await apiFetch(`${API_URL}/auth/resend-verification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -589,7 +808,7 @@ async function apiResendVerification(email) {
     return { success: response.ok, message: data.message };
   } catch (error) {
     logError('OF Stats: Resend verification error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
@@ -601,10 +820,13 @@ async function apiApplyPromoCode(code) {
   
   try {
     log('OF Stats: Applying promo code:', code);
+    // Tell the backend this code is being applied from the Stats Editor
+    // extension, so a Profile Stats promo entered here gets rejected with
+    // WRONG_PRODUCT instead of silently extending the user's PS sub.
     const response = await authFetch(`${API_URL}/promo/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code, product: 'stats_editor' })
     });
     
     const data = await response.json();
@@ -617,7 +839,7 @@ async function apiApplyPromoCode(code) {
     return { success: true, ...data };
   } catch (error) {
     logError('OF Stats: Apply promo code error:', error);
-    return { success: false, error: 'Network error. Please try again.' };
+    return networkErrorResult(error);
   }
 }
 
@@ -629,7 +851,11 @@ async function apiGetSubscriptionStatus() {
   }
   
   try {
-    const response = await authFetch(`${API_URL}/subscription/status`);
+    // Scope to Stats Editor — without ?product the backend returns the user's
+    // latest subscription across ALL products. After they buy Profile Stats
+    // it'd return that row and the popup would render its "PROFILE_STATS"
+    // plan as FREE (Stats Editor has no such plan key in its UI map).
+    const response = await authFetch(`${API_URL}/subscription/status?product=stats_editor`);
     
     if (response.status === 401) {
       return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
@@ -639,18 +865,21 @@ async function apiGetSubscriptionStatus() {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get subscription error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
 async function apiGetPlans() {
   try {
-    const response = await fetch(`${API_URL}/subscription/plans`);
+    // Scope to Stats Editor plans only — backend now serves Profile Stats
+    // ($15/mo) from the same endpoint, but that plan belongs in the
+    // Profile Stats extension, not the Stats Editor upgrade screen.
+    const response = await apiFetch(`${API_URL}/subscription/plans?product=stats_editor`);
     const data = await response.json();
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get plans error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -686,7 +915,7 @@ async function apiCreatePayment(plan, currency = null) {
     return { success: false, error: data.error || 'Failed to create payment' };
   } catch (error) {
     logError('OF Stats: Create payment error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -703,7 +932,7 @@ async function apiGetUpgradeInfo() {
     return { success: false, error: data.error || 'Failed to get upgrade info', code: data.code };
   } catch (error) {
     logError('OF Stats: Get upgrade info error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -736,7 +965,7 @@ async function apiCreateUpgradePayment(currency = null) {
     return { success: false, error: data.error || 'Failed to create upgrade payment', code: data.code };
   } catch (error) {
     logError('OF Stats: Create upgrade payment error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -752,7 +981,7 @@ async function apiCheckPaymentStatus(paymentId) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Check payment error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -779,7 +1008,7 @@ async function apiGetModels() {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get models error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -799,7 +1028,7 @@ async function apiAddModel(username, displayName = null, avatarUrl = null) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Add model error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -817,7 +1046,7 @@ async function apiRemoveModel(username) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Remove model error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -833,171 +1062,7 @@ async function apiCheckModel(username) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Check model error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-// ==================== FARMED MODELS API ====================
-
-async function apiCheckFarmedModel(username) {
-  try {
-    const response = await fetch(`${API_URL}/farmed-models/${encodeURIComponent(username)}`);
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Check farmed model error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-// ==================== AI VERDICT (xAI Grok) ====================
-
-async function apiGetAIVerdict(scoreData) {
-  try {
-    const lang = scoreData.lang || 'ru';
-    const isRu = lang === 'ru';
-
-    // Build clear fans description
-    let fansDesc;
-    if (scoreData.fansVisible && scoreData.fans > 0) {
-      fansDesc = scoreData.fans + (isRu ? ' (ОТКРЫТЫ, видны всем)' : ' (PUBLIC, visible to all)');
-    } else if (!scoreData.fansVisible && scoreData.lastKnownFans) {
-      fansDesc = (isRu ? 'СКРЫТЫ модельёю. Последние известные: ' : 'HIDDEN by model. Last known: ') + scoreData.lastKnownFans;
-    } else if (!scoreData.fansVisible) {
-      fansDesc = isRu ? 'СКРЫТЫ модельёю, данных нет' : 'HIDDEN by model, no data';
-    } else {
-      fansDesc = '0';
-    }
-
-    const prompt = isRu
-      ? `Профиль @${scoreData.username}:
-Score: ${scoreData.score}/100 (${scoreData.grade})
-Компоненты: MAT ${scoreData.components.maturity}/25, POP ${scoreData.components.popularity}/25, ORG ${scoreData.components.organicity}/25, ACT ${scoreData.components.activity}/15, TRS ${scoreData.components.transparency}/10
-Фаны: ${fansDesc}
-Лайки: ${scoreData.likes}, Посты: ${scoreData.posts}, Видео: ${scoreData.videos}, Стримы: ${scoreData.streams}
-Возраст: ${scoreData.accountMonths} мес.${scoreData.price > 0 ? ' Подписка: ПЛАТНАЯ $' + scoreData.price + '/мес' + (scoreData.fansVisible && scoreData.fans > 0 ? ' (доход ~$' + Math.round(scoreData.price * scoreData.fans) + '/мес)' : '') : ' Подписка: FREE (бесплатная, дохода от подписки НЕТ)'}
-Комментарии: ${scoreData.commentsOpen ? 'ОТКРЫТЫ' : scoreData.commentsClosed ? 'ЗАКРЫТЫ' : 'неизвестно'}
-Флаги: ${scoreData.flags.join(', ') || 'нет'}`
-      : `Profile @${scoreData.username}:
-Score: ${scoreData.score}/100 (${scoreData.grade})
-Components: MAT ${scoreData.components.maturity}/25, POP ${scoreData.components.popularity}/25, ORG ${scoreData.components.organicity}/25, ACT ${scoreData.components.activity}/15, TRS ${scoreData.components.transparency}/10
-Fans: ${fansDesc}
-Likes: ${scoreData.likes}, Posts: ${scoreData.posts}, Videos: ${scoreData.videos}, Streams: ${scoreData.streams}
-Account age: ${scoreData.accountMonths} months${scoreData.price > 0 ? ' Subscription: PAID $' + scoreData.price + '/mo' + (scoreData.fansVisible && scoreData.fans > 0 ? ' (revenue ~$' + Math.round(scoreData.price * scoreData.fans) + '/mo)' : '') : ' Subscription: FREE (no subscription revenue)'}
-Comments: ${scoreData.commentsOpen ? 'OPEN' : scoreData.commentsClosed ? 'CLOSED' : 'unknown'}
-Flags: ${scoreData.flags.join(', ') || 'none'}`;
-
-    const response = await authFetch(`${API_URL}/verdict`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, lang: isRu ? 'ru' : 'en' })
-    });
-
-    if (!response.ok) {
-      logError('OF Stats: Verdict API error:', response.status);
-      return { verdict: null };
-    }
-
-    const data = await response.json();
-    return { verdict: data.verdict || null };
-  } catch (error) {
-    logError('OF Stats: AI verdict error:', error);
-    return { verdict: null };
-  }
-}
-
-// ==================== FANS API ====================
-
-async function apiReportFans(username, fansCount, fansText, reportDay) {
-  if (!authToken) {
-    return { success: false, error: 'Not authenticated' };
-  }
-  
-  try {
-    const response = await authFetch(`${API_URL}/fans/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, fansCount, fansText, reportDay })
-    });
-    
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Report fans error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiGetFans(username) {
-  try {
-    const headers = {};
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    
-    const response = await fetch(`${API_URL}/fans/${encodeURIComponent(username)}`, { headers });
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Get fans error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiBatchGetFans(usernames) {
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    
-    const response = await fetch(`${API_URL}/fans/batch`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ usernames })
-    });
-    
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Batch get fans error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiGetFansTrend(username, days) {
-  try {
-    const headers = {};
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    
-    const response = await fetch(`${API_URL}/fans/trend/${encodeURIComponent(username)}?days=${days || 90}`, { headers });
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Get fans trend error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiGetEngagementPercentile(username, metrics) {
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(`${API_URL}/fans/percentile/${encodeURIComponent(username)}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(metrics || {})
-    });
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Get engagement percentile error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1019,7 +1084,7 @@ async function apiGetPresets() {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Get presets error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1043,7 +1108,7 @@ async function apiSyncPresets(presets, activePreset) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Sync presets error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1063,7 +1128,7 @@ async function apiSavePreset(name, presetData, active = false) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Save preset error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1081,7 +1146,7 @@ async function apiDeletePreset(name) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Delete preset error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1099,177 +1164,7 @@ async function apiSetActivePreset(name) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Set active preset error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-// ==================== ALERTS API (Global per model) ====================
-
-async function apiReportAlerts(username, alerts) {
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(`${API_URL}/alerts/report`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ username, alerts })
-    });
-
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Report alerts error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiGetAlerts(username) {
-  try {
-    const response = await fetch(`${API_URL}/alerts/${encodeURIComponent(username)}`);
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Get alerts error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-// ==================== NOTES API (Per user, cloud sync) ====================
-
-async function apiGetNotes() {
-  if (!authToken) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  try {
-    const response = await authFetch(`${API_URL}/notes`);
-
-    if (response.status === 401) {
-      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
-    }
-
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Get notes error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiSyncNotes(notes, avatars) {
-  if (!authToken) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  try {
-    const response = await authFetch(`${API_URL}/notes/sync`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes, avatars })
-    });
-
-    if (response.status === 401) {
-      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
-    }
-
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Sync notes error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiSaveNote(username, text, tags, date, avatarUrl) {
-  if (!authToken) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  try {
-    const response = await authFetch(`${API_URL}/notes/${encodeURIComponent(username)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, tags, date, avatarUrl })
-    });
-
-    if (response.status === 401) {
-      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
-    }
-
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Save note error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiDeleteNote(username) {
-  if (!authToken) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  try {
-    const response = await authFetch(`${API_URL}/notes/${encodeURIComponent(username)}`, {
-      method: 'DELETE'
-    });
-
-    if (response.status === 401) {
-      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
-    }
-
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Delete note error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiGetNoteTags() {
-  if (!authToken) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  try {
-    const response = await authFetch(`${API_URL}/notes/tags`);
-
-    if (response.status === 401) {
-      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
-    }
-
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Get note tags error:', error);
-    return { success: false, error: 'Network error' };
-  }
-}
-
-async function apiSyncNoteTags(tags) {
-  if (!authToken) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  try {
-    const response = await authFetch(`${API_URL}/notes/tags`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tags })
-    });
-
-    if (response.status === 401) {
-      return { success: false, error: 'Session expired', code: 'TOKEN_EXPIRED' };
-    }
-
-    const data = await response.json();
-    return { success: response.ok, ...data };
-  } catch (error) {
-    logError('OF Stats: Sync note tags error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 
@@ -1286,7 +1181,7 @@ async function apiSendSupportEmail(subject, message) {
     return { success: response.ok, ...data };
   } catch (error) {
     logError('OF Stats: Send support email error:', error);
-    return { success: false, error: 'Network error' };
+    return networkErrorResult(error);
   }
 }
 

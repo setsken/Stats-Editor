@@ -118,10 +118,17 @@ const FILE_OPTIONS = {
 // ——— Helpers ———
 
 function cleanDir(dir) {
-    if (fs.existsSync(dir)) {
-        fs.rmSync(dir, { recursive: true, force: true });
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        return;
     }
-    fs.mkdirSync(dir, { recursive: true });
+    // Empty the folder instead of deleting it. On Windows the dist/ directory
+    // handle is usually held by Chrome (extension loaded as unpacked) or by an
+    // open Explorer window, and removing the root then fails with EPERM —
+    // which used to abort the whole build. Its contents delete fine either way.
+    for (const entry of fs.readdirSync(dir)) {
+        fs.rmSync(path.join(dir, entry), { recursive: true, force: true });
+    }
 }
 
 function copyFileSync(src, dest) {
