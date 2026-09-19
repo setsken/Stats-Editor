@@ -39,6 +39,34 @@
     return 'en';
   }
   
+  function getSpreadGridLines(chart) {
+    var xScale = chart.scales && chart.scales.x;
+    var raw = (xScale && xScale._gridLineItems) || [];
+    var pointCount = (chart.data && chart.data.labels) ? chart.data.labels.length : 0;
+    // Five already means the scale agreed with us — keep its exact pixels.
+    if (raw.length === 5 || pointCount < 2 || !xScale) return raw;
+
+    var out = [];
+    for (var i = 0; i < 5; i++) {
+      var idx = Math.min(pointCount - 1, Math.round(i * (pointCount - 2) / 4));
+      out.push({ x1: Math.round(xScale.getPixelForValue(idx)) });
+    }
+    return out;
+  }
+
+  function getChartMonthNamesShort() {
+    var lang = getPageLanguage();
+    if (lang === 'ru') return ['янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'];
+    if (lang === 'es') return ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.'];
+    if (lang === 'de') return ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+    return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  }
+
+  // "Aug 21," / "сент. 04," — the shape OnlyFans draws under its own chart.
+  function formatChartDayLabel(date) {
+    return getChartMonthNamesShort()[date.getMonth()] + ' ' + String(date.getDate()).padStart(2, '0') + ',';
+  }
+
   function getChartTextColor() {
     return isDarkMode() ? '#e8e8e8' : '#000';
   }
@@ -262,6 +290,11 @@
       var mainId = (data && data.mainCanvasId) || 'of-stats-earnings-chart-main';
       var asideId = (data && data.asideCanvasId) || 'of-stats-earnings-chart-aside';
       var tooltipIdResolved = (data && data.tooltipId) || 'of-stats-chart-tooltip';
+      // Labels-only mode: the lower canvas still has to exist (this drawer refuses
+      // to draw anything when it is missing) and it owns the date labels, which are
+      // rendered into its bottom padding. On pages that show a single chart we keep
+      // that canvas as a bare label strip: no line, no axis, no plot area.
+      var asideLabelsOnly = !!(data && data.asideLabelsOnly);
 
       var mainCanvas = document.getElementById(mainId);
       var asideCanvas = document.getElementById(asideId);
@@ -301,7 +334,7 @@
     var startDate = data.startDate ? new Date(data.startDate) : new Date();
     var monthlyMode = data.monthlyMode || false;
     var monthDates = data.monthDates || [];
-    var monthlyStep = monthlyMode ? Math.max(1, Math.ceil(labels.length / 5)) : 7;
+    var monthlyStep = monthlyMode ? Math.max(1, Math.round((labels.length - 1) / 4)) : 7;
     
     // Destroy existing charts
     var existingMain = Chart.getChart(mainCanvas);
@@ -316,7 +349,16 @@
     // Round up to nice step values for main chart (need 4 lines: 0, step, step*2, step*3)
     // So max = step * 3, and we show 3 numbers (step, step*2, step*3)
     var earningsStep, earningsMax;
-    if (maxEarnings <= 150) {
+    if (maxEarnings <= 15) {
+      earningsStep = 5;
+      earningsMax = 15;
+    } else if (maxEarnings <= 30) {
+      earningsStep = 10;
+      earningsMax = 30;
+    } else if (maxEarnings <= 60) {
+      earningsStep = 20;
+      earningsMax = 60;
+    } else if (maxEarnings <= 150) {
       earningsStep = 50;
       earningsMax = 150;
     } else if (maxEarnings <= 300) {
@@ -333,9 +375,26 @@
       earningsMax = earningsStep * 3;
     }
     
-    // Aside chart: 3 lines (0, 10, 20), 2 numbers (10, 20)
-    var countStep = 10;
-    var countMax = Math.max(20, Math.ceil(maxCount / 10) * 10);
+    // Aside chart: three grid lines (0, half, max) and two labels, the lower one
+    // exactly half of the upper — 10/20, 15/30, 250/500 and so on.
+    //
+    // The step used to be pinned at 10, which only held while the values stayed
+    // under 20. The subscriber series runs into the hundreds, and a step of 10
+    // against a max of 270 left the axis with a single number on it.
+    function niceAxisMax(value) {
+      var v = Math.max(20, value || 0);
+      var power = Math.pow(10, Math.floor(Math.log10(v)));
+      // Halves of these stay round: 5, 10, 15, 20, 25, 30, 40, 50.
+      var ladder = [1, 2, 3, 4, 5, 6, 8, 10];
+      for (var i = 0; i < ladder.length; i++) {
+        var candidate = ladder[i] * power;
+        if (candidate >= v) return candidate;
+      }
+      return 10 * power;
+    }
+
+    var countMax = niceAxisMax(maxCount);
+    var countStep = countMax / 2;
     
     // Tooltip handler (defined before commonOptions since it's referenced there)
     var lastTooltipIndex = -1;
@@ -501,7 +560,7 @@
     // Snap hover line to grid if data point is very close to a grid line
     function snapToGridIfClose(chart, pointX) {
       var xScale = chart.scales.x;
-      var gridLines = xScale._gridLineItems;
+      var gridLines = getSpreadGridLines(chart);
       if (!gridLines || gridLines.length === 0) return pointX;
       
       var snapThreshold = 8; // px - only snap if within this distance
@@ -550,15 +609,19 @@
         ctx.save();
         
         // Draw vertical separator line at right edge of chart area
-        ctx.beginPath();
-        ctx.moveTo(chartArea.right, chartArea.top);
-        ctx.lineTo(chartArea.right, chartArea.bottom);
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = gridColorLight;
-        ctx.stroke();
+        if (!(asideLabelsOnly && isAsideChart)) {
+          ctx.beginPath();
+          ctx.moveTo(chartArea.right, chartArea.top);
+          ctx.lineTo(chartArea.right, chartArea.bottom);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = gridColorLight;
+          ctx.stroke();
+        }
         
         // Draw horizontal line at bottom of chart area
-        if (isAsideChart) {
+        if (isAsideChart && asideLabelsOnly) {
+          // no rule: the main chart above already drew one a few pixels higher
+        } else if (isAsideChart) {
           var bottomY = Math.round(chartArea.bottom) + 0.5;
           ctx.beginPath();
           ctx.moveTo(chartArea.left, bottomY);
@@ -576,7 +639,7 @@
         }
         
         // Get grid line positions from X scale
-        var gridLines = xScale._gridLineItems;
+        var gridLines = getSpreadGridLines(chart);
         
         // For main chart: draw vertical grid marks (the horizontal separator
         // line at chartArea.bottom + 8 was removed — it doubled visually with
@@ -595,12 +658,14 @@
             ctx.stroke();
             
             // Short line below chart (solid)
-            ctx.beginPath();
-            ctx.moveTo(lineX, chartArea.bottom + 2);
-            ctx.lineTo(lineX, chartArea.bottom + 33);
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = gridColorSolid;
-            ctx.stroke();
+            if (!(asideLabelsOnly && isAsideChart)) {
+              ctx.beginPath();
+              ctx.moveTo(lineX, chartArea.bottom + 2);
+              ctx.lineTo(lineX, chartArea.bottom + 33);
+              ctx.lineWidth = 1;
+              ctx.strokeStyle = gridColorSolid;
+              ctx.stroke();
+            }
           });
           
           // Draw 5th line at chartArea.right (light for chart, solid below)
@@ -611,12 +676,14 @@
           ctx.strokeStyle = gridColorLight;
           ctx.stroke();
           
-          ctx.beginPath();
-          ctx.moveTo(chartArea.right, chartArea.bottom + 2);
-          ctx.lineTo(chartArea.right, chartArea.bottom + 30);
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = gridColorSolid;
-          ctx.stroke();
+          if (!(asideLabelsOnly && isAsideChart)) {
+            ctx.beginPath();
+            ctx.moveTo(chartArea.right, chartArea.bottom + 2);
+            ctx.lineTo(chartArea.right, chartArea.bottom + 30);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = gridColorSolid;
+            ctx.stroke();
+          }
         }
         
         // For aside chart: draw vertical lines and date labels
@@ -634,12 +701,14 @@
             ctx.stroke();
             
             // Short line below chart (solid)
-            ctx.beginPath();
-            ctx.moveTo(lineX, chartArea.bottom + 2);
-            ctx.lineTo(lineX, chartArea.bottom + 33);
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = gridColorSolid;
-            ctx.stroke();
+            if (!(asideLabelsOnly && isAsideChart)) {
+              ctx.beginPath();
+              ctx.moveTo(lineX, chartArea.bottom + 2);
+              ctx.lineTo(lineX, chartArea.bottom + 33);
+              ctx.lineWidth = 1;
+              ctx.strokeStyle = gridColorSolid;
+              ctx.stroke();
+            }
           });
           
           // 5th line at chartArea.right
@@ -650,12 +719,14 @@
           ctx.strokeStyle = gridColorLight;
           ctx.stroke();
           
-          ctx.beginPath();
-          ctx.moveTo(chartArea.right, chartArea.bottom + 2);
-          ctx.lineTo(chartArea.right, chartArea.bottom + 30);
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = gridColorSolid;
-          ctx.stroke();
+          if (!(asideLabelsOnly && isAsideChart)) {
+            ctx.beginPath();
+            ctx.moveTo(chartArea.right, chartArea.bottom + 2);
+            ctx.lineTo(chartArea.right, chartArea.bottom + 30);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = gridColorSolid;
+            ctx.stroke();
+          }
           
           // Draw date labels
           ctx.font = getChartDateFontLarge();
@@ -672,8 +743,9 @@
               var x = verticalLineX + 5;
               if (x < chartArea.left) x = chartArea.left + 5;
               
-              // Map grid line index to label index
-              var labelIdx = (gi + 1) * monthlyStep;
+              // Grid line gi sits on data index gi * step — label it with that
+              // same point, otherwise every label is shifted one step right.
+              var labelIdx = gi * monthlyStep;
               if (labelIdx >= labels.length) labelIdx = labels.length - 1;
               
               var parts = labels[labelIdx].split(', ');
@@ -689,7 +761,11 @@
             ctx.fillText(lastParts[1] || '', x5m, chartArea.bottom + 18);
           } else {
             // Daily mode: original logic
-            var dateIndices = [1, 8, 15, 22, 29];
+            var pointCount = (labels && labels.length) ? labels.length : 30;
+            var idxStep = (pointCount - 2) / 4;
+            var dateIndices = [0, 1, 2, 3, 4].map(function(i) {
+              return Math.max(0, Math.round(1 + i * idxStep));
+            });
           
             dateIndices.forEach(function(dateIndex, gridIndex) {
               if (gridIndex >= 4) return;
@@ -708,7 +784,7 @@
               
                 var d = new Date(startDate);
                 d.setDate(startDate.getDate() + dateIndex);
-                var line1 = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ',';
+                var line1 = formatChartDayLabel(d);
                 var line2 = d.getFullYear().toString();
               
                 ctx.fillText(line1, x, chartArea.bottom + 6);
@@ -718,8 +794,8 @@
           
             // Draw 5th date at the end (right after chartArea.right vertical line)
             var d5 = new Date(startDate);
-            d5.setDate(startDate.getDate() + 29);
-            var line1_5th = d5.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ',';
+            d5.setDate(startDate.getDate() + dateIndices[4]);
+            var line1_5th = formatChartDayLabel(d5);
             var line2_5th = d5.getFullYear().toString();
             var x5 = chartArea.right + 5;
           
@@ -729,7 +805,7 @@
         }
         
         // Draw horizontal grid lines and Y-axis labels
-        if (yScale && yScale.ticks) {
+        if (yScale && yScale.ticks && !(asideLabelsOnly && isAsideChart)) {
           ctx.font = getChartYAxisFont();
           ctx.fillStyle = getChartTextColor();
           ctx.textAlign = 'right';
@@ -793,7 +869,7 @@
             left: 0,
             right: 60,
             top: 0,
-            bottom: 8
+            bottom: asideLabelsOnly ? 0 : 8
           }
         },
         interaction: commonOptions.interaction,
@@ -851,10 +927,10 @@
         datasets: [{
           label: 'Transactions',
           data: countData,
-          borderColor: '#8a96a3',
-          backgroundColor: 'rgba(144, 164, 174, 0.15)',
-          fill: true,
-          pointHoverBackgroundColor: '#8a96a3',
+          borderColor: asideLabelsOnly ? 'transparent' : '#8a96a3',
+          backgroundColor: asideLabelsOnly ? 'transparent' : 'rgba(144, 164, 174, 0.15)',
+          fill: !asideLabelsOnly,
+          pointHoverBackgroundColor: asideLabelsOnly ? 'transparent' : '#8a96a3',
           pointHoverBorderColor: '#fff',
           clip: false
         }]
@@ -867,8 +943,8 @@
           padding: {
             left: 0,
             right: 60,
-            top: 8,
-            bottom: 45
+            top: asideLabelsOnly ? 0 : 8,
+            bottom: asideLabelsOnly ? 40 : 45
           }
         },
         interaction: commonOptions.interaction,
@@ -878,6 +954,7 @@
           x: {
             display: true,
             offset: false,
+            border: { display: !asideLabelsOnly },
             grid: {
               display: false,
               drawBorder: false,
@@ -892,6 +969,7 @@
             }
           },
           y: {
+            display: !asideLabelsOnly,
             position: 'right',
             min: 0,
             max: countMax,
@@ -1190,7 +1268,7 @@
       });
       
       // Draw X-axis labels
-      var monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      var monthNamesShort = getChartMonthNamesShort();
       var labels = [];
       for (var d = 1; d <= daysInMonth; d++) {
         labels.push(d.toString().padStart(2, '0') + ' ' + monthNamesShort[month] + ' ' + (year % 100).toString().padStart(2, '0'));

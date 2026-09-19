@@ -560,6 +560,7 @@ async function handleMessage(request, sender) {
       }
       
       case 'setActivePreset':
+        clearCache('getPresets');
         return await apiSetActivePreset(request.name);
 
       // Side panel actions

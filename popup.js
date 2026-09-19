@@ -95,7 +95,8 @@ const i18n = {
     earnings: 'Типсы (Ожидается | Завершен)',
     fansSettings: 'Настройки фанов',
     fansCount: 'Количество фанов',
-    subscribersCount: 'Подписчики (30 дней)',
+    subscribersCount: 'Подписчики (30 дней | За всё время)',
+    subsBelowFans: 'Подписчики за всё время не могут быть меньше, чем Fans Count',
     followingCount: 'Количество подписок',
     applyChanges: 'Применить',
     // Notifications
@@ -272,7 +273,8 @@ const i18n = {
     earnings: 'Earnings (Pending | Complete)',
     fansSettings: 'Fans Settings',
     fansCount: 'Fans Count',
-    subscribersCount: 'Subscribers (30 days)',
+    subscribersCount: 'Subscribers (30 days | All time)',
+    subsBelowFans: 'Subscribers (All time) cannot be lower than Fans Count',
     followingCount: 'Following Count',
     applyChanges: 'Apply Changes',
     // Notifications
@@ -441,7 +443,11 @@ function applyTranslations(lang) {
   // Update all data-i18n elements
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
-    if (dict[key]) el.textContent = dict[key];
+    if (!dict[key]) return;
+    // Holds the selected preset's name rather than a fixed label; translate it
+    // only while nothing is selected.
+    if (el.dataset.ofDynamic === 'true') return;
+    el.textContent = dict[key];
   });
   // Update tooltip title attributes
   document.querySelectorAll('[data-tooltip-i18n]').forEach(el => {
@@ -3270,6 +3276,7 @@ const earningsCompleteCountInput = document.getElementById('earningsCompleteCoun
 const fansCountInput = document.getElementById('fansCount');
 const fansTooltipInput = document.getElementById('fansTooltip');
 const subscribersCountInput = document.getElementById('subscribersCount');
+const subscribersAllTimeInput = document.getElementById('subscribersAllTime');
 const followingCountInput = document.getElementById('followingCount');
 const followingTooltipInput = document.getElementById('followingTooltip');
 const applyBtn = document.getElementById('applyBtn');
@@ -3313,6 +3320,7 @@ const defaultSettings = {
   fansCount: '',
   fansTooltip: '',
   subscribersCount: '',
+  subscribersAllTime: '',
   followingCount: '',
   followingTooltip: '',
   modelName: '@not_detected',
@@ -3413,6 +3421,7 @@ async function loadSettings() {
     fansCountInput.value = settings.fansCount || '';
     fansTooltipInput.value = settings.fansTooltip || '';
     subscribersCountInput.value = settings.subscribersCount || '';
+    subscribersAllTimeInput.value = settings.subscribersAllTime || '';
     followingCountInput.value = settings.followingCount || '';
     followingTooltipInput.value = settings.followingTooltip || '';
     
@@ -3439,6 +3448,7 @@ function saveCurrentFormState() {
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
     subscribersCount: subscribersCountInput.value,
+    subscribersAllTime: subscribersAllTimeInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value
   };
@@ -3455,6 +3465,7 @@ function checkForChanges() {
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
     subscribersCount: subscribersCountInput.value,
+    subscribersAllTime: subscribersAllTimeInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value
   };
@@ -3503,6 +3514,7 @@ async function saveSettings(preserveEarningStats = false) {
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
     subscribersCount: subscribersCountInput.value,
+    subscribersAllTime: subscribersAllTimeInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value,
     myModelUsername: myModelUsername // Preserve model username
@@ -3711,7 +3723,7 @@ function updateIconFills() {
   // Subscribers icon
   const subscribersIcon = document.getElementById('subscribersIcon');
   if (subscribersIcon) {
-    if (subscribersCountInput.value.trim()) {
+    if (subscribersCountInput.value.trim() || subscribersAllTimeInput.value.trim()) {
       subscribersIcon.classList.add('filled');
     } else {
       subscribersIcon.classList.remove('filled');
@@ -3926,7 +3938,7 @@ function autoGenerateTooltip(countInput) {
     
     // Clear any error state
     const wrapper = tooltipInput.closest('.input-wrapper-combined');
-    if (wrapper) wrapper.classList.remove('error');
+    clearRowError(wrapper, tooltipInput === fansTooltipInput ? fansCountInput : null);
     hideTooltipHint(tooltipInput);
   }
 }
@@ -3992,13 +4004,60 @@ function hideTooltipHint(tooltipInput) {
 }
 
 // Update Apply button state
+// Fans Count is written the way OnlyFans shows it — "32.6K", "1.2M" — while the
+// subscriber fields are plain digits. Bring both to a number before comparing.
+function parseCountValue(raw) {
+  const value = String(raw || '').trim().replace(/\s|,/g, '');
+  if (!value) return null;
+  const match = value.match(/^([\d.]+)([kKmM]?)$/);
+  if (!match) return null;
+  const num = parseFloat(match[1]);
+  if (!isFinite(num)) return null;
+  const suffix = match[2].toLowerCase();
+  if (suffix === 'k') return Math.round(num * 1000);
+  if (suffix === 'm') return Math.round(num * 1000000);
+  return Math.round(num);
+}
+
+// All-time subscribers cannot sit below the fans count: every fan arrived through
+// a subscription, so a smaller total contradicts itself on the page.
+function subscribersBelowFans() {
+  const allTime = parseCountValue(subscribersAllTimeInput.value);
+  const fans = parseCountValue(fansCountInput.value);
+  if (allTime === null || fans === null) return false;
+  return allTime < fans;
+}
+
+// Clears the row highlight unless another check still wants it.
+function clearRowError(wrapper, countInput) {
+  if (!wrapper) return;
+  if (countInput === fansCountInput && subscribersBelowFans()) return;
+  wrapper.classList.remove('error');
+}
+
+function validateSubscribersVsFans(notify) {
+  const wrapper = fansCountInput.closest('.input-wrapper-combined');
+  const invalid = subscribersBelowFans();
+  if (wrapper) {
+    if (invalid) wrapper.classList.add('error');
+    else if (validateTooltipSilent(fansCountInput, fansTooltipInput)) wrapper.classList.remove('error');
+  }
+  if (invalid && notify) {
+    const dict = i18n[currentLang] || i18n.en;
+    showToast(dict.subsBelowFans ||
+      'Subscribers (All time) cannot be lower than Fans Count', 'error');
+  }
+  return !invalid;
+}
+
 function updateApplyButtonState() {
   const fansValid = validateTooltipSilent(fansCountInput, fansTooltipInput);
   const followingValid = validateTooltipSilent(followingCountInput, followingTooltipInput);
+  const subsValid = !subscribersBelowFans();
   const hasChanges = checkForChanges();
   
   // Button is active only if: validation passes AND there are unsaved changes
-  if (!fansValid || !followingValid || !hasChanges) {
+  if (!fansValid || !followingValid || !subsValid || !hasChanges) {
     applyBtn.disabled = true;
     applyBtn.classList.add('disabled');
   } else {
@@ -4027,7 +4086,7 @@ function validateTooltip(countInput, tooltipInput) {
   const tooltipValue = tooltipInput.value.trim();
   
   if (!countValue || !tooltipValue) {
-    wrapper.classList.remove('error');
+    clearRowError(wrapper, countInput);
     hideTooltipHint(tooltipInput);
     updateApplyButtonState();
     return true;
@@ -4043,7 +4102,7 @@ function validateTooltip(countInput, tooltipInput) {
     return false;
   }
   
-  wrapper.classList.remove('error');
+  clearRowError(wrapper, countInput);
   hideTooltipHint(tooltipInput);
   updateApplyButtonState();
   return true;
@@ -4112,6 +4171,8 @@ function quickAdd(target, amount, button) {
 
 // Apply changes to the page
 async function applyChanges() {
+  // Refuse to save a contradictory pair rather than pushing it to the page.
+  if (!validateSubscribersVsFans(true)) return;
   // Check if subscription is still active
   const isActive = await checkSubscriptionAndRedirect();
   if (!isActive) {
@@ -4185,6 +4246,7 @@ async function applyChanges() {
       fansCount: fansCountInput.value,
       fansTooltip: fansTooltipInput.value,
       subscribersCount: subscribersCountInput.value,
+      subscribersAllTime: subscribersAllTimeInput.value,
       followingCount: followingCountInput.value,
       followingTooltip: followingTooltipInput.value
     };
@@ -4528,6 +4590,7 @@ function setupEventListeners() {
           fansCount: fansCountInput.value,
           fansTooltip: fansTooltipInput.value,
           subscribersCount: subscribersCountInput.value,
+          subscribersAllTime: subscribersAllTimeInput.value,
           followingCount: followingCountInput.value,
           followingTooltip: followingTooltipInput.value
         };
@@ -4692,9 +4755,24 @@ function setupEventListeners() {
   subscribersCountInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/\D/g, '');
   });
+  subscribersAllTimeInput.addEventListener('keypress', (e) => {
+    const char = e.key;
+    if (!/\d/.test(char) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+      e.preventDefault();
+    }
+  });
+  subscribersAllTimeInput.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '');
+    // Highlight straight away, but hold the toast until the field is left — it
+    // would otherwise fire on every keystroke while a longer number is typed.
+    validateSubscribersVsFans(false);
+  });
+  subscribersAllTimeInput.addEventListener('blur', () => {
+    validateSubscribersVsFans(true);
+  });
 
   // Update UI on input change but DON'T auto-save - only Apply Changes saves
-  const inputs = [topCreatorsInput, currentBalanceInput, pendingBalanceInput, earningsCountInput, earningsCompleteCountInput, fansCountInput, fansTooltipInput, subscribersCountInput, followingCountInput, followingTooltipInput];
+  const inputs = [topCreatorsInput, currentBalanceInput, pendingBalanceInput, earningsCountInput, earningsCompleteCountInput, fansCountInput, fansTooltipInput, subscribersCountInput, subscribersAllTimeInput, followingCountInput, followingTooltipInput];
   inputs.forEach(input => {
     input.addEventListener('input', () => {
       updateIconFills();
@@ -4734,6 +4812,7 @@ function setupEventListeners() {
     if (fansTooltipInput.value.trim()) {
       validateTooltip(fansCountInput, fansTooltipInput);
     }
+    validateSubscribersVsFans(false);
   });
   
   followingCountInput.addEventListener('input', () => {
@@ -4807,9 +4886,15 @@ async function syncPresetsFromServer() {
     const serverActive = response.activePreset || '';
     const serverCount = Object.keys(serverPresets).length;
 
-    // Server is always source of truth — each account has its own presets
+    // Server is always source of truth for the list of presets…
     currentPresets = serverPresets;
-    activePresetName = serverActive;
+    // …but not for an empty selection: keep the one we already have if the
+    // account still holds that preset, and push it back so other devices agree.
+    if (!serverActive && activePresetName && currentPresets[activePresetName]) {
+      chrome.runtime.sendMessage({ action: 'setActivePreset', name: activePresetName }).catch(function () {});
+    } else {
+      activePresetName = serverActive;
+    }
     
     // Save to local storage for offline access
     await chrome.storage.local.set({
@@ -4902,6 +4987,8 @@ function updateCustomDropdown() {
 function updateCustomDropdownSelection() {
   const currentValue = presetSelect.value;
   presetSelectText.textContent = currentValue || (i18n[currentLang] || i18n.en).noPreset || 'No preset';
+  // Tells applyTranslations to leave this text alone while a preset is chosen.
+  presetSelectText.dataset.ofDynamic = currentValue ? 'true' : 'false';
   
   // Update selected class
   presetDropdown.querySelectorAll('.custom-select-option').forEach(opt => {
@@ -4947,6 +5034,7 @@ function getCurrentFormDataForPreset() {
     fansCount: fansCountInput.value,
     fansTooltip: fansTooltipInput.value,
     subscribersCount: subscribersCountInput.value,
+    subscribersAllTime: subscribersAllTimeInput.value,
     followingCount: followingCountInput.value,
     followingTooltip: followingTooltipInput.value,
     // Save timestamp for reference
