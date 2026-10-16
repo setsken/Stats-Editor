@@ -8,12 +8,12 @@
   <style>
     :root {
       --bg: #0b1020; --panel: #121a2e; --line: #23304d; --text: #e2e8f0;
-      --muted: #8a99b5; --accent: #00d4ff; --bad: #f87171; --good: #34d399; --warn: #fbbf24;
+      --muted: #8a99b5; --accent: #00d4ff; --bad: #f87171; --good: #34d399; --warn: #fbbf24; --info: #93c5fd;
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text);
       font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
-    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+    main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
     h1 { font-size: 20px; margin: 0 0 4px; }
     h2 { font-size: 16px; margin: 32px 0 12px; }
     .sub { color: var(--muted); margin: 0 0 20px; }
@@ -21,40 +21,47 @@
     form.login { max-width: 360px; display: grid; gap: 10px; }
     input[type=email], input[type=password] { width: 100%; padding: 10px 12px; border-radius: 8px;
       border: 1px solid var(--line); background: #0e1526; color: var(--text); font: inherit; }
-    button { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--line); background: #1a2540;
+    button { padding: 8px 13px; border-radius: 8px; border: 1px solid var(--line); background: #1a2540;
       color: var(--text); font: inherit; cursor: pointer; }
     button.primary { background: var(--accent); border-color: var(--accent); color: #04121a; font-weight: 600; }
     button.danger { background: var(--bad); border-color: var(--bad); color: #1a0505; font-weight: 600; }
     button:disabled { opacity: .5; cursor: default; }
     .error { color: var(--bad); min-height: 1.5em; }
-    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
     .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
     .tile .n { font-size: 22px; font-weight: 700; }
     .tile .l { color: var(--muted); font-size: 12px; }
+    .tile.bad .n { color: var(--bad); }
     .group { margin-bottom: 14px; }
     .group.suspicious { border-color: rgba(248,113,113,.55); }
     .ghead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+      margin: 1px 4px 1px 0; white-space: nowrap; }
     .badge.bad { background: rgba(248,113,113,.15); color: var(--bad); }
     .badge.good { background: rgba(52,211,153,.15); color: var(--good); }
     .badge.warn { background: rgba(251,191,36,.15); color: var(--warn); }
+    .badge.info { background: rgba(147,197,253,.12); color: var(--info); }
+    .badge.dim { background: rgba(138,153,181,.12); color: var(--muted); }
     .traces { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
     .traces b { color: var(--text); font-weight: 600; }
     .scroll { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); white-space: nowrap; }
+    th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); white-space: nowrap; vertical-align: top; }
+    td.tags { white-space: normal; min-width: 220px; }
     th { color: var(--muted); font-weight: 600; }
-    tr.banned td { opacity: .55; }
-    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    tr.banned td { opacity: .5; }
+    tr.paid td:first-child + td { box-shadow: inset 3px 0 0 var(--good); }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
     .hidden { display: none; }
-    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-    label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+    .toolbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); cursor: pointer; }
+    .legend { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.8; }
   </style>
 </head>
 <body>
 <main>
   <h1>Подозрительные аккаунты</h1>
-  <p class="sub">Аккаунты, связанные общей моделью OnlyFans или одной установкой расширения. Общий IP — только дополнительный признак.</p>
+  <p class="sub">Временная почта, двойники адресов, всплески регистраций и аккаунты, связанные общей моделью или установкой. Общий IP — только дополнительный признак.</p>
 
   <section id="loginView" class="panel">
     <form class="login" id="loginForm">
@@ -69,12 +76,39 @@
   <section id="reportView" class="hidden">
     <div class="toolbar">
       <button id="reload">Обновить</button>
-      <label class="chk"><input type="checkbox" id="onlySuspicious" checked> Только подозрительные группы</label>
       <span class="sub" id="generated" style="margin:0"></span>
     </div>
     <div class="tiles" id="tiles"></div>
 
+    <h2>Все аккаунты</h2>
+    <div class="panel">
+      <div class="toolbar">
+        <label class="chk"><input type="checkbox" id="onlyUnpaid" checked> Только неплатящие</label>
+        <label class="chk"><input type="checkbox" id="onlyTagged" checked> Только с метками</label>
+        <label class="chk"><input type="checkbox" id="hideBanned"> Скрыть заблокированных</label>
+      </div>
+      <div class="scroll"><table id="accountsTable"></table></div>
+      <div class="actions">
+        <button id="selectDisposable">Отметить временные почты</button>
+        <button id="clearSelection">Снять отметки</button>
+        <button class="danger" id="banSelected">Заблокировать отмеченных</button>
+        <button id="unbanSelected">Разблокировать отмеченных</button>
+        <span class="sub" id="accountsMsg" style="margin:0"></span>
+      </div>
+      <div class="legend">
+        <span class="badge bad">временная почта</span> адрес на одноразовом сервисе — регистрация ради триала ·
+        <span class="badge bad">тот же ящик</span> один почтовый ящик под разными написаниями ·
+        <span class="badge warn">в группе</span> общая модель, установка или ящик с другими аккаунтами ·
+        <span class="badge warn">всплеск регистраций</span> создан через несколько минут после предыдущего ·
+        <span class="badge info">общий IP</span> слабый признак, бывает у честных ·
+        <span class="badge dim">нет моделей</span> зарегистрировался и не пользовался
+      </div>
+    </div>
+
     <h2>Группы связанных аккаунтов</h2>
+    <div class="toolbar">
+      <label class="chk"><input type="checkbox" id="onlySuspicious" checked> Только подозрительные группы</label>
+    </div>
     <div id="groups"></div>
 
     <h2>IP-адреса с тремя и более аккаунтами</h2>

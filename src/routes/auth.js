@@ -146,56 +146,8 @@ function generateVerificationCode() {
   return String(crypto.randomInt(100000, 1000000));
 }
 
-// Throwaway inbox providers. Not exhaustive and never will be, but it removes
-// the easiest route: open a temp inbox, take the trial, repeat.
-const DISPOSABLE_DOMAINS = new Set([
-  'mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'guerrillamail.org',
-  'sharklasers.com', 'grr.la', 'spam4.me', '10minutemail.com', '10minutemail.net',
-  'tempmail.com', 'temp-mail.org', 'temp-mail.io', 'tempmailo.com', 'tempr.email',
-  'throwawaymail.com', 'yopmail.com', 'yopmail.fr', 'yopmail.net', 'fakeinbox.com',
-  'trashmail.com', 'trashmail.de', 'trash-mail.com', 'mytrashmail.com', 'dispostable.com',
-  'getnada.com', 'nada.email', 'maildrop.cc', 'mailnesia.com', 'mailcatch.com',
-  'tempinbox.com', 'emailondeck.com', 'moakt.com', 'mohmal.com', 'luxusmail.org',
-  'inboxkitten.com', 'mailpoof.com', 'tempmailaddress.com', 'burnermail.io',
-  'anonaddy.me', 'mail-temp.com', 'minuteinbox.com', 'mail7.io', 'tmpmail.org',
-  'tmpmail.net', 'tmails.net', 'crazymailing.com', 'emltmp.com', 'mailtemp.top',
-  'tempail.com', 'byom.de', 'spambox.us', 'spambog.com', 'spamgourmet.com',
-  'incognitomail.com', 'mailexpire.com', 'jetable.org', 'meltmail.com',
-  'nowmymail.com', 'armyspy.com', 'cuvox.de', 'dayrep.com', 'einrot.com',
-  'fleckens.hu', 'gustr.com', 'jourrapide.com', 'rhyta.com', 'superrito.com',
-  'teleworm.us', 'wegwerfmail.de', 'discard.email', 'mailde.de', 'mailbox52.ga',
-  'linshiyouxiang.net', 'tempmail.plus', 'vmani.com', 'dropmail.me', 'firemailbox.club'
-]);
-
-function emailDomain(email) {
-  return String(email || '').split('@')[1]?.toLowerCase() || '';
-}
-
-function isDisposableEmail(email) {
-  return DISPOSABLE_DOMAINS.has(emailDomain(email));
-}
-
-// Does the domain actually accept mail? Catches typos and invented domains
-// without bothering real users: anything other than "this domain has no mail
-// server" is allowed through, because a DNS hiccup must not block a signup.
-async function emailDomainAcceptsMail(email) {
-  const domain = emailDomain(email);
-  if (!domain) return false;
-  try {
-    const dns = require('dns').promises;
-    const records = await Promise.race([
-      dns.resolveMx(domain),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('DNS_TIMEOUT')), 4000))
-    ]);
-    return Array.isArray(records) && records.length > 0;
-  } catch (err) {
-    if (err && (err.code === 'ENOTFOUND' || err.code === 'ENODATA' || err.code === 'NXDOMAIN')) {
-      return false;
-    }
-    console.warn('MX lookup inconclusive for', domain, '-', err.message, '- allowing');
-    return true;
-  }
-}
+// Disposable inboxes and undeliverable domains: see services/email-risk.js.
+const { assessEmail, canonicalEmail } = require('../services/email-risk');
 
 function renderCodeHtml(brand, code) {
   return `
@@ -397,10 +349,10 @@ async function completeRegistration(res, { email, passwordHash, signupProduct, b
     user = updated.rows[0];
   } else {
     const inserted = await query(
-      `INSERT INTO users (email, password_hash, email_verified, signup_product)
-       VALUES ($1, $2, TRUE, $3)
+      `INSERT INTO users (email, password_hash, email_verified, signup_product, email_canonical)
+       VALUES ($1, $2, TRUE, $3, $4)
        RETURNING id, email`,
-      [email, passwordHash, signupProduct]
+      [email, passwordHash, signupProduct, canonicalEmail(email)]
     );
     user = inserted.rows[0];
   }
@@ -455,20 +407,15 @@ router.post('/register', async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const signupProduct = product === 'profile_stats' ? 'profile_stats' : 'stats_editor';
 
-    if (VERIFICATION_REQUIRED) {
-      if (isDisposableEmail(normalizedEmail)) {
-        return res.status(400).json({
-          error: 'Temporary email addresses are not accepted. Please use a permanent one.',
-          code: 'DISPOSABLE_EMAIL'
-        });
-      }
-      if (!(await emailDomainAcceptsMail(normalizedEmail))) {
-        return res.status(400).json({
-          error: 'That email address does not seem to exist. Please check the spelling.',
-          code: 'EMAIL_UNDELIVERABLE'
-        });
-      }
+    const risk = await assessEmail(normalizedEmail);
+    if (!risk.ok) {
+      console.log('Signup refused for', normalizedEmail, '-', risk.code, risk.reason);
+      return res.status(400).json(risk.code === 'DISPOSABLE_EMAIL'
+        ? { error: 'Temporary email addresses are not accepted. Please use a permanent one.', code: risk.code }
+        : { error: 'That email address does not seem to exist. Please check the spelling.', code: risk.code });
     }
+
+    const emailCanonical = canonicalEmail(normalizedEmail);
 
     const existingUser = await getOne(
       'SELECT id, email_verified FROM users WHERE email = $1',
@@ -479,6 +426,19 @@ router.post('/register', async (req, res) => {
     // send a fresh code, instead of locking the address behind "already
     // registered" forever.
     if (existingUser && existingUser.email_verified !== false) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    // ivan+2@gmail.com when ivan@gmail.com already has an account: one inbox,
+    // so one account. Abandoned unconfirmed signups do not count.
+    const twin = await getOne(
+      `SELECT id FROM users
+        WHERE email_canonical = $1 AND email <> $2 AND email_verified IS NOT FALSE
+        LIMIT 1`,
+      [emailCanonical, normalizedEmail]
+    );
+    if (twin) {
+      console.log('Signup refused for', normalizedEmail, '- same mailbox as account #' + twin.id);
       return res.status(409).json({ error: 'Email already registered' });
     }
 
@@ -512,10 +472,11 @@ router.post('/register', async (req, res) => {
     } else {
       const inserted = await query(
         `INSERT INTO users (email, password_hash, email_verified, email_verification_code,
-                            email_verification_expires, email_verification_sent_at, signup_product)
-         VALUES ($1, $2, FALSE, $3, NOW() + INTERVAL '${CODE_TTL_MINUTES} minutes', NOW(), $4)
+                            email_verification_expires, email_verification_sent_at, signup_product,
+                            email_canonical)
+         VALUES ($1, $2, FALSE, $3, NOW() + INTERVAL '${CODE_TTL_MINUTES} minutes', NOW(), $4, $5)
          RETURNING id, email`,
-        [normalizedEmail, passwordHash, code, signupProduct]
+        [normalizedEmail, passwordHash, code, signupProduct, emailCanonical]
       );
       user = inserted.rows[0];
     }

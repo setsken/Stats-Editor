@@ -19,6 +19,10 @@ const promoRoutes = require('./routes/promo');
 const presetsRoutes = require('./routes/presets');
 const adminRoutes = require('./routes/admin');
 
+// Keep the disposable-domain list current: refreshed from its public source a
+// little after start-up and then once a day.
+require('./services/email-risk').startAutoRefresh();
+
 const app = express();
 
 // Run migrations on startup

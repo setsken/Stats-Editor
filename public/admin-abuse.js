@@ -6,6 +6,10 @@
   var TOKEN_KEY = 'ofStatsAdminToken';
   var report = null;
 
+  var TAG_STYLE = {
+    disposable: 'bad', twin: 'bad', group: 'warn', burst: 'warn', sharedIp: 'info', noModels: 'dim'
+  };
+
   function $(id) { return document.getElementById(id); }
 
   function getToken() {
@@ -45,13 +49,11 @@
     });
     var data = {};
     try { data = await res.json(); } catch (e) {}
-    if (res.status === 401 || res.status === 403) {
-      if (path.indexOf('/admin/') === 0) {
-        setToken(null);
-        showLogin(data.error === 'Admin access required'
-          ? 'У этого аккаунта нет прав администратора (нужен email в ADMIN_EMAILS).'
-          : 'Сессия закончилась, войдите снова.');
-      }
+    if ((res.status === 401 || res.status === 403) && path.indexOf('/admin/') === 0) {
+      setToken(null);
+      showLogin(data.error === 'Admin access required'
+        ? 'У этого аккаунта нет прав администратора (нужен email в ADMIN_EMAILS).'
+        : 'Сессия закончилась, войдите снова.');
     }
     return { ok: res.ok, status: res.status, data: data };
   }
@@ -84,6 +86,7 @@
   }
 
   async function load() {
+    $('generated').textContent = 'Загрузка…';
     var r = await api('/admin/abuse-report');
     if (!r.ok) {
       if (r.status !== 401 && r.status !== 403) showLogin(r.data.error || 'Не удалось загрузить отчёт');
@@ -94,24 +97,115 @@
     render();
   }
 
+  // ---- ban / unban ---------------------------------------------------------
+  async function act(kind, ids, reason, msgEl) {
+    if (!ids.length) { msgEl.textContent = 'Никто не отмечен'; return; }
+    if (kind === 'ban' && !confirm('Заблокировать ' + ids.length + ' аккаунт(а/ов)? Их сессии перестанут работать сразу.')) return;
+    msgEl.textContent = '';
+    var r = await api('/admin/users/' + kind, { method: 'POST', body: { userIds: ids, reason: reason } });
+    if (!r.ok) {
+      var extra = r.data.protected ? ' — ' + r.data.protected.map(function (p) { return p.email; }).join(', ') : '';
+      msgEl.textContent = (r.data.error || 'Ошибка') + extra;
+      return;
+    }
+    await load();
+  }
+
+  function checkedIds(root) {
+    return Array.prototype.map.call(root.querySelectorAll('input[type=checkbox][data-id]:checked'),
+      function (c) { return parseInt(c.getAttribute('data-id'), 10); });
+  }
+
+  // ---- pieces --------------------------------------------------------------
   function renderTiles(s) {
     var tiles = [
       ['Всего аккаунтов', s.users],
       ['Платят', s.paying],
       ['Только триал', s.trialOnly],
-      ['Подозрительных групп', s.suspiciousGroups],
-      ['Аккаунтов в них', s.accountsInSuspiciousGroups],
+      ['Временная почта', s.disposable, s.disposableActive > 0],
+      ['Тот же ящик', s.twins, s.twins > 0],
+      ['Без моделей (не платят)', s.noModels],
+      ['Подозрительных групп', s.suspiciousGroups, s.suspiciousGroups > 0],
       ['Заблокировано', s.banned],
       ['С ID установки', s.withInstallId]
     ];
     var box = $('tiles');
     box.textContent = '';
     tiles.forEach(function (t) {
-      box.appendChild(el('div', { className: 'tile' }, [
+      box.appendChild(el('div', { className: 'tile' + (t[2] ? ' bad' : '') }, [
         el('div', { className: 'n', text: t[1] }),
         el('div', { className: 'l', text: t[0] })
       ]));
     });
+  }
+
+  function tagBadges(tags) {
+    return tags.map(function (t) {
+      return el('span', {
+        className: 'badge ' + (TAG_STYLE[t.key] || 'dim'),
+        text: t.label,
+        attrs: t.detail ? { title: t.detail } : {}
+      });
+    });
+  }
+
+  function statusText(a) {
+    if (!a.active) return 'заблокирован';
+    if (a.flagged) return 'помечен';
+    if (!a.verified) return 'не подтвердил почту';
+    return 'активен';
+  }
+
+  function accountRow(a, withTags) {
+    var cb = el('input', { attrs: { type: 'checkbox', 'data-id': a.id } });
+    if (a.paid) cb.title = 'Платящий клиент';
+    var cells = [
+      el('td', {}, [cb]),
+      el('td', { text: a.id }),
+      el('td', { text: a.email }),
+      el('td', { text: fmtDate(a.createdAt) }),
+      el('td', { text: fmtDate(a.lastSeen) }),
+      el('td', { text: a.paid ? 'да' : '—' }),
+      el('td', { text: a.models }),
+      el('td', { text: a.product === 'profile_stats' ? 'PS' : 'SE' })
+    ];
+    if (withTags) cells.push(el('td', { className: 'tags' }, tagBadges(a.tags)));
+    cells.push(el('td', { text: statusText(a), attrs: a.flagged ? { title: a.flagged } : {} }));
+    var cls = (a.active ? '' : 'banned') + (a.paid ? ' paid' : '');
+    return el('tr', { className: cls.trim() }, cells);
+  }
+
+  function accountTable(rows, withTags) {
+    var heads = ['', 'ID', 'Email', 'Создан', 'Последний вход', 'Оплата', 'Моделей', 'Плагин'];
+    if (withTags) heads.push('Признаки');
+    heads.push('Статус');
+    var table = el('table');
+    table.appendChild(el('thead', {}, [el('tr', {}, heads.map(function (h) { return el('th', { text: h }); }))]));
+    var tbody = el('tbody');
+    rows.forEach(function (a) { tbody.appendChild(accountRow(a, withTags)); });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function renderAccounts() {
+    var onlyUnpaid = $('onlyUnpaid').checked;
+    var onlyTagged = $('onlyTagged').checked;
+    var hideBanned = $('hideBanned').checked;
+
+    var rows = report.accounts.filter(function (a) {
+      if (onlyUnpaid && a.paid) return false;
+      if (hideBanned && !a.active) return false;
+      // "No models" alone is not suspicious enough to surface by itself.
+      if (onlyTagged && !a.tags.some(function (t) { return t.key !== 'noModels'; })) return false;
+      return true;
+    });
+
+    var holder = $('accountsTable');
+    var table = rows.length
+      ? accountTable(rows, true)
+      : el('div', { className: 'sub', text: 'Под эти фильтры никто не подходит.', attrs: { style: 'margin:0' } });
+    holder.replaceWith(table);
+    table.id = 'accountsTable';
   }
 
   function traceLine(label, items) {
@@ -129,91 +223,41 @@
   function renderGroup(group) {
     var box = el('div', { className: 'panel group' + (group.suspicious ? ' suspicious' : '') });
 
-    var head = el('div', { className: 'ghead' }, [
+    box.appendChild(el('div', { className: 'ghead' }, [
       el('strong', { text: group.accounts + ' аккаунт(а/ов)' }),
       el('span', { className: 'badge warn', text: 'триалов: ' + group.trials }),
       el('span', { className: 'badge ' + (group.paid ? 'good' : 'bad'), text: 'оплат: ' + group.paid }),
       group.suspicious ? el('span', { className: 'badge bad', text: 'похоже на перебор триалов' }) : null,
       el('span', { className: 'sub', text: fmtDate(group.firstSeen) + ' — ' + fmtDate(group.lastSeen), attrs: { style: 'margin:0' } })
-    ]);
-    box.appendChild(head);
+    ]));
 
     [traceLine('Общие модели', group.sharedModels),
+     traceLine('Один почтовый ящик', group.sharedMailboxes),
      traceLine('Общая установка расширения', group.sharedInstalls),
      traceLine('Общие IP', group.sharedIps)].forEach(function (l) { if (l) box.appendChild(l); });
 
-    var table = el('table');
-    var thead = el('tr', {}, ['', 'ID', 'Email', 'Создан', 'Триал', 'Оплата', 'Моделей', 'Страна', 'Статус']
-      .map(function (h) { return el('th', { text: h }); }));
-    table.appendChild(el('thead', {}, [thead]));
+    box.appendChild(el('div', { className: 'scroll' }, [accountTable(group.members, false)]));
 
-    var tbody = el('tbody');
-    group.members.forEach(function (m) {
-      var cb = el('input', { attrs: { type: 'checkbox', 'data-id': m.id } });
-      if (m.paid) cb.title = 'Платящий клиент';
-      var status = !m.active ? 'заблокирован' : (m.flagged ? 'помечен' : 'активен');
-      var row = el('tr', { className: m.active ? '' : 'banned' }, [
-        el('td', {}, [cb]),
-        el('td', { text: m.id }),
-        el('td', { text: m.email }),
-        el('td', { text: fmtDate(m.createdAt) }),
-        el('td', { text: m.hadTrial ? 'да' : '—' }),
-        el('td', { text: m.paid ? 'да' : '—' }),
-        el('td', { text: m.models }),
-        el('td', { text: m.country || '—' }),
-        el('td', { text: status, attrs: m.flagged ? { title: m.flagged } : {} })
-      ]);
-      tbody.appendChild(row);
-    });
-    table.appendChild(tbody);
-    box.appendChild(el('div', { className: 'scroll' }, [table]));
-
-    var banBtn = el('button', { className: 'danger', text: 'Заблокировать отмеченных' });
-    var unbanBtn = el('button', { text: 'Разблокировать отмеченных' });
-    var selectAll = el('button', { text: 'Отметить неплатящих' });
     var msg = el('span', { className: 'sub', attrs: { style: 'margin:0' } });
+    var markUnpaid = el('button', { text: 'Отметить неплатящих' });
+    var ban = el('button', { className: 'danger', text: 'Заблокировать отмеченных' });
+    var unban = el('button', { text: 'Разблокировать отмеченных' });
 
-    function selected() {
-      return Array.prototype.map.call(box.querySelectorAll('input[type=checkbox]:checked'),
-        function (c) { return parseInt(c.getAttribute('data-id'), 10); });
-    }
-
-    selectAll.addEventListener('click', function () {
+    markUnpaid.addEventListener('click', function () {
       group.members.forEach(function (m) {
         var c = box.querySelector('input[data-id="' + m.id + '"]');
         if (c) c.checked = !m.paid;
       });
     });
+    var reason = 'Перебор триалов (группа из ' + group.accounts + ')';
+    ban.addEventListener('click', function () { act('ban', checkedIds(box), reason, msg); });
+    unban.addEventListener('click', function () { act('unban', checkedIds(box), null, msg); });
 
-    async function act(kind) {
-      var ids = selected();
-      if (!ids.length) { msg.textContent = 'Никто не отмечен'; return; }
-      if (kind === 'ban' && !confirm('Заблокировать ' + ids.length + ' аккаунт(а/ов)? Их сессии перестанут работать сразу.')) return;
-      banBtn.disabled = unbanBtn.disabled = true;
-      var r = await api('/admin/users/' + kind, {
-        method: 'POST',
-        body: { userIds: ids, reason: 'Перебор триалов (группа из ' + group.accounts + ')' }
-      });
-      banBtn.disabled = unbanBtn.disabled = false;
-      if (!r.ok) {
-        var extra = r.data.protected ? ' — ' + r.data.protected.map(function (p) { return p.email; }).join(', ') : '';
-        msg.textContent = (r.data.error || 'Ошибка') + extra;
-        return;
-      }
-      await load();
-    }
-    banBtn.addEventListener('click', function () { act('ban'); });
-    unbanBtn.addEventListener('click', function () { act('unban'); });
-
-    box.appendChild(el('div', { className: 'actions' }, [selectAll, banBtn, unbanBtn, msg]));
+    box.appendChild(el('div', { className: 'actions' }, [markUnpaid, ban, unban, msg]));
     return box;
   }
 
-  function render() {
-    if (!report) return;
-    renderTiles(report.summary);
-    $('generated').textContent = 'Отчёт на ' + fmtDate(report.generatedAt);
-
+  function renderGroups() {
     var onlySuspicious = $('onlySuspicious').checked;
     var groups = $('groups');
     groups.textContent = '';
@@ -224,28 +268,60 @@
         : 'Связанных аккаунтов не найдено.' }));
     }
     list.forEach(function (c) { groups.appendChild(renderGroup(c)); });
+  }
 
+  function renderIps() {
     var ips = $('ips');
     ips.textContent = '';
     if (!report.busyIps.length) {
-      ips.appendChild(el('div', { className: 'sub', text: 'Нет. IP начнут собираться после обновления сервера.', attrs: { style: 'margin:0' } }));
-    } else {
-      var t = el('table');
-      t.appendChild(el('thead', {}, [el('tr', {}, ['IP', 'Аккаунтов', 'ID аккаунтов'].map(function (h) { return el('th', { text: h }); }))]));
-      var tb = el('tbody');
-      report.busyIps.forEach(function (row) {
-        tb.appendChild(el('tr', {}, [
-          el('td', { text: row.ip }), el('td', { text: row.accounts }), el('td', { text: row.userIds.join(', ') })
-        ]));
-      });
-      t.appendChild(tb);
-      ips.appendChild(el('div', { className: 'scroll' }, [t]));
+      ips.appendChild(el('div', { className: 'sub', text: 'Нет.', attrs: { style: 'margin:0' } }));
+      return;
     }
+    var t = el('table');
+    t.appendChild(el('thead', {}, [el('tr', {}, ['IP', 'Аккаунтов', 'Кто'].map(function (h) { return el('th', { text: h }); }))]));
+    var tb = el('tbody');
+    report.busyIps.forEach(function (row) {
+      tb.appendChild(el('tr', {}, [
+        el('td', { text: row.ip }),
+        el('td', { text: row.accounts }),
+        el('td', { className: 'tags', text: row.users.map(function (u) { return '#' + u.id + ' ' + u.email; }).join(', ') })
+      ]));
+    });
+    t.appendChild(tb);
+    ips.appendChild(el('div', { className: 'scroll' }, [t]));
   }
 
+  function render() {
+    if (!report) return;
+    $('generated').textContent = 'Отчёт на ' + fmtDate(report.generatedAt);
+    renderTiles(report.summary);
+    renderAccounts();
+    renderGroups();
+    renderIps();
+  }
+
+  // ---- wiring --------------------------------------------------------------
   $('loginForm').addEventListener('submit', login);
   $('reload').addEventListener('click', load);
-  $('onlySuspicious').addEventListener('change', render);
+  ['onlyUnpaid', 'onlyTagged', 'hideBanned'].forEach(function (id) { $(id).addEventListener('change', renderAccounts); });
+  $('onlySuspicious').addEventListener('change', renderGroups);
+
+  $('selectDisposable').addEventListener('click', function () {
+    var table = $('accountsTable');
+    report.accounts.forEach(function (a) {
+      var c = table.querySelector('input[data-id="' + a.id + '"]');
+      if (c) c.checked = !a.paid && a.active && a.tags.some(function (t) { return t.key === 'disposable'; });
+    });
+  });
+  $('clearSelection').addEventListener('click', function () {
+    Array.prototype.forEach.call($('accountsTable').querySelectorAll('input[type=checkbox]'), function (c) { c.checked = false; });
+  });
+  $('banSelected').addEventListener('click', function () {
+    act('ban', checkedIds($('accountsTable')), 'Заблокирован из отчёта', $('accountsMsg'));
+  });
+  $('unbanSelected').addEventListener('click', function () {
+    act('unban', checkedIds($('accountsTable')), null, $('accountsMsg'));
+  });
 
   if (getToken()) load(); else showLogin();
 })();

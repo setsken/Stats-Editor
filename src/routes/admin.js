@@ -1,12 +1,18 @@
 const express = require('express');
 const { query } = require('../config/database');
 const { authenticateAdmin } = require('../middleware/auth');
+const {
+  canonicalEmail, emailDomain, isListedDisposable, lookupMx, disposableMxMatch
+} = require('../services/email-risk');
 
 const router = express.Router();
 
 // Everything here sits behind authenticateAdmin: a normal sign-in whose email
 // is listed in ADMIN_EMAILS.
 router.use(authenticateAdmin);
+
+// Registrations closer together than this are shown as a burst.
+const BURST_MINUTES = 10;
 
 // Small union-find, used to merge accounts that share a strong trace into one
 // group — most likely one person.
@@ -38,20 +44,43 @@ function index(rows, key) {
   return byValue;
 }
 
-// Accounts grouped by what they share.
+// Is this domain a throwaway inbox? Same two layers as registration: the list,
+// then the mail servers. A failed lookup is "unknown", never "disposable".
+async function classifyDomains(domains) {
+  const verdicts = new Map();
+  const queue = [...domains];
+  async function worker() {
+    while (queue.length) {
+      const domain = queue.shift();
+      if (isListedDisposable(domain)) {
+        verdicts.set(domain, { disposable: true, detail: 'домен в списке временных' });
+        continue;
+      }
+      const mx = await lookupMx(domain);
+      const hit = mx.status === 'ok' ? mx.hosts.map(disposableMxMatch).find(Boolean) : null;
+      if (hit) verdicts.set(domain, { disposable: true, detail: 'почтовый сервер сети ' + hit });
+      else if (mx.status === 'none') verdicts.set(domain, { disposable: true, detail: 'у домена нет почтового сервера' });
+      else verdicts.set(domain, { disposable: false });
+    }
+  }
+  await Promise.all(Array.from({ length: 8 }, worker));
+  return verdicts;
+}
+
+// Accounts, what they share, and what looks wrong about each of them.
 //
-// Strong traces join accounts into one group:
-//   - the same OnlyFans model added to the plugin (the plugin is used for
-//     working models, so this is what a trial-cycler cannot avoid)
+// Strong traces join accounts into one group — most likely one person:
+//   - the same OnlyFans model added to the plugin
 //   - the same extension installation
-// Shared IP addresses are listed as supporting evidence only — an agency
-// office or a mobile carrier puts many honest people behind one address.
+//   - the same mailbox under another spelling (ivan+2@gmail.com, i.van@gmail.com)
+// Shared IP addresses are supporting evidence only: an agency office or a
+// mobile carrier puts many honest people behind one address.
 router.get('/abuse-report', async (req, res) => {
   try {
     const users = (await query(`
-      SELECT u.id, u.email, u.created_at, u.is_active, u.email_verified, u.signup_product,
-             u.signup_ip, u.signup_country, u.install_id, u.last_ip, u.last_seen_at,
-             u.flagged_reason,
+      SELECT u.id, u.email, u.email_canonical, u.created_at, u.is_active, u.email_verified,
+             u.signup_product, u.signup_ip, u.signup_country, u.install_id, u.last_ip,
+             u.last_seen_at, u.last_login_at, u.flagged_reason,
              (u.trial_used OR u.trial_started_at IS NOT NULL) AS had_trial,
              EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.id AND p.status = 'completed') AS paid,
              (SELECT COUNT(*) FROM user_models m WHERE m.user_id = u.id)::int AS models
@@ -77,22 +106,30 @@ router.get('/abuse-report', async (req, res) => {
       SELECT id AS user_id, signup_ip AS value FROM users WHERE signup_ip IS NOT NULL
     `)).rows;
 
+    const canonicalRows = users.map(u => ({
+      user_id: u.id,
+      value: u.email_canonical || canonicalEmail(u.email)
+    }));
+
     const byModel = index(modelRows, 'value');
     const byInstall = index(installRows, 'value');
     const byIp = index(ipRows, 'value');
+    const byCanonical = index(canonicalRows, 'value');
 
+    const usersById = new Map(users.map(u => [u.id, u]));
+
+    // ---- groups from strong traces
     const { find, join } = makeGroups(users.map(u => u.id));
-    for (const ids of [...byModel.values(), ...byInstall.values()]) {
+    for (const ids of [...byModel.values(), ...byInstall.values(), ...byCanonical.values()]) {
       const list = [...ids];
       for (let i = 1; i < list.length; i++) join(list[0], list[i]);
     }
 
-    const usersById = new Map(users.map(u => [u.id, u]));
-    const groups = new Map();
+    const groupsByRoot = new Map();
     for (const u of users) {
       const root = find(u.id);
-      if (!groups.has(root)) groups.set(root, []);
-      groups.get(root).push(u.id);
+      if (!groupsByRoot.has(root)) groupsByRoot.set(root, []);
+      groupsByRoot.get(root).push(u.id);
     }
 
     const shared = (byValue, ids) => {
@@ -104,13 +141,52 @@ router.get('/abuse-report', async (req, res) => {
       return out.sort((a, b) => b.accounts - a.accounts);
     };
 
+    // ---- throwaway inboxes among existing accounts
+    const verdicts = await classifyDomains(new Set(users.map(u => emailDomain(u.email)).filter(Boolean)));
+
+    // ---- per-account findings
+    const tagsById = new Map(users.map(u => [u.id, []]));
+    const tag = (id, key, label, detail) => tagsById.get(id).push({ key, label, detail: detail || null });
+
+    for (const u of users) {
+      const verdict = verdicts.get(emailDomain(u.email));
+      if (verdict && verdict.disposable) tag(u.id, 'disposable', 'временная почта', verdict.detail);
+      if (u.models === 0) tag(u.id, 'noModels', 'нет моделей');
+    }
+
+    for (const owners of byCanonical.values()) {
+      if (owners.size < 2) continue;
+      for (const id of owners) {
+        const others = [...owners].filter(o => o !== id).map(o => '#' + o);
+        tag(id, 'twin', 'тот же ящик', 'что и ' + others.join(', '));
+      }
+    }
+
+    for (const owners of byIp.values()) {
+      if (owners.size < 2) continue;
+      for (const id of owners) {
+        const others = [...owners].filter(o => o !== id).map(o => '#' + o);
+        tag(id, 'sharedIp', 'общий IP', 'с ' + others.join(', '));
+      }
+    }
+
+    for (let i = 1; i < users.length; i++) {
+      const gapMin = (new Date(users[i].created_at) - new Date(users[i - 1].created_at)) / 60000;
+      if (gapMin <= BURST_MINUTES) {
+        tag(users[i].id, 'burst', 'всплеск регистраций',
+          Math.max(0, Math.round(gapMin)) + ' мин после #' + users[i - 1].id);
+      }
+    }
+
+    // ---- groups for display
     const clusters = [];
-    for (const ids of groups.values()) {
+    for (const ids of groupsByRoot.values()) {
       if (ids.length < 2) continue;
       const members = ids.map(id => usersById.get(id));
       const paidCount = members.filter(m => m.paid).length;
       const trialCount = members.filter(m => m.had_trial).length;
       const created = members.map(m => new Date(m.created_at).getTime());
+      for (const id of ids) tag(id, 'group', 'в группе', ids.length + ' акк.');
       clusters.push({
         accounts: members.length,
         trials: trialCount,
@@ -121,24 +197,54 @@ router.get('/abuse-report', async (req, res) => {
         lastSeen: new Date(Math.max(...created)).toISOString(),
         sharedModels: shared(byModel, ids),
         sharedInstalls: shared(byInstall, ids),
+        sharedMailboxes: shared(byCanonical, ids),
         sharedIps: shared(byIp, ids),
-        members: members.map(m => ({
-          id: m.id, email: m.email, createdAt: m.created_at, active: m.is_active,
-          verified: m.email_verified, paid: m.paid, hadTrial: m.had_trial,
-          models: m.models, country: m.signup_country, flagged: m.flagged_reason
-        }))
+        memberIds: ids
       });
     }
-
     clusters.sort((a, b) =>
       (b.suspicious - a.suspicious) || (b.accounts - a.accounts) || (b.trials - a.trials));
 
-    // IPs carrying several accounts, whether or not anything stronger links them.
+    // ---- one row per account, worst first
+    const WEIGHT = { disposable: 4, twin: 3, group: 2, burst: 1, sharedIp: 1, noModels: 0.5 };
+    const accounts = users.map(u => {
+      const tags = tagsById.get(u.id);
+      const score = u.paid ? 0 : tags.reduce((s, t) => s + (WEIGHT[t.key] || 0), 0);
+      return {
+        id: u.id,
+        email: u.email,
+        createdAt: u.created_at,
+        lastSeen: u.last_seen_at || u.last_login_at,
+        active: u.is_active,
+        verified: u.email_verified,
+        paid: u.paid,
+        hadTrial: u.had_trial,
+        models: u.models,
+        product: u.signup_product,
+        country: u.signup_country,
+        flagged: u.flagged_reason,
+        tags,
+        score
+      };
+    }).sort((a, b) => (b.score - a.score) || (new Date(b.createdAt) - new Date(a.createdAt)));
+
+    const accountsById = new Map(accounts.map(a => [a.id, a]));
+    for (const c of clusters) {
+      c.members = c.memberIds.map(id => accountsById.get(id));
+      delete c.memberIds;
+    }
+
+    // IPs carrying several accounts, with who they are.
     const busyIps = [...byIp.entries()]
       .filter(([, owners]) => owners.size >= 3)
-      .map(([ip, owners]) => ({ ip, accounts: owners.size, userIds: [...owners] }))
+      .map(([ip, owners]) => ({
+        ip,
+        accounts: owners.size,
+        users: [...owners].map(id => ({ id, email: usersById.get(id)?.email || '?' }))
+      }))
       .sort((a, b) => b.accounts - a.accounts);
 
+    const has = (a, key) => a.tags.some(t => t.key === key);
     const summary = {
       users: users.length,
       verified: users.filter(u => u.email_verified).length,
@@ -146,13 +252,17 @@ router.get('/abuse-report', async (req, res) => {
       trialOnly: users.filter(u => u.had_trial && !u.paid).length,
       banned: users.filter(u => !u.is_active).length,
       flagged: users.filter(u => u.flagged_reason).length,
+      disposable: accounts.filter(a => has(a, 'disposable')).length,
+      disposableActive: accounts.filter(a => has(a, 'disposable') && a.active && !a.paid).length,
+      twins: accounts.filter(a => has(a, 'twin')).length,
+      noModels: accounts.filter(a => !a.paid && has(a, 'noModels')).length,
       linkedGroups: clusters.length,
       suspiciousGroups: clusters.filter(c => c.suspicious).length,
       accountsInSuspiciousGroups: clusters.filter(c => c.suspicious).reduce((n, c) => n + c.accounts, 0),
       withInstallId: users.filter(u => u.install_id).length
     };
 
-    res.json({ summary, clusters, busyIps, generatedAt: new Date().toISOString() });
+    res.json({ summary, accounts, clusters, busyIps, generatedAt: new Date().toISOString() });
   } catch (error) {
     console.error('Abuse report error:', error);
     res.status(500).json({ error: 'Could not build the report' });

@@ -47,7 +47,10 @@ const initDatabase = async () => {
       { name: 'last_ip', type: 'VARCHAR(64)' },
       { name: 'last_seen_at', type: 'TIMESTAMP' },
       // Set by hand (or by the abuse report) to mark an account as suspect.
-      { name: 'flagged_reason', type: 'TEXT' }
+      { name: 'flagged_reason', type: 'TEXT' },
+      // The mailbox an address really delivers to: ivan+2@gmail.com and
+      // i.van@gmail.com are both ivan@gmail.com.
+      { name: 'email_canonical', type: 'VARCHAR(255)' }
     ];
 
     for (const col of columnsToAdd) {
@@ -81,6 +84,18 @@ const initDatabase = async () => {
       }
     } catch (err) {
       console.error('Error backfilling email_verified:', err.message);
+    }
+
+    try {
+      const { canonicalEmail } = require('../services/email-risk');
+      const missing = (await pool.query('SELECT id, email FROM users WHERE email_canonical IS NULL')).rows;
+      for (const row of missing) {
+        await pool.query('UPDATE users SET email_canonical = $1 WHERE id = $2', [canonicalEmail(row.email), row.id]);
+      }
+      if (missing.length) console.log(`✅ Canonical email filled in for ${missing.length} users`);
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_users_email_canonical ON users(email_canonical)');
+    } catch (err) {
+      console.error('Error filling email_canonical:', err.message);
     }
 
     // Sign-in / sign-up history — the raw material for spotting one person
