@@ -237,6 +237,32 @@ app.use('/api/auth/resend-verification', signupLimiter);
 app.use('/api/webhooks', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
+// The abuse report page loads its script by a content-fingerprinted URL.
+// Cloudflare keeps .js files in browsers for four hours whatever the origin
+// says, so after a deploy a fresh page met a stale script and the report broke
+// (the page is HTML, which Cloudflare never caches, so it is always current).
+// A new script now means a new URL, which no browser can have cached.
+let adminPageHtml = null;
+function buildAdminPage() {
+  const fs = require('fs');
+  const crypto = require('crypto');
+  const dir = path.join(__dirname, '..', 'public');
+  const script = fs.readFileSync(path.join(dir, 'admin-abuse.js'));
+  const version = crypto.createHash('sha1').update(script).digest('hex').slice(0, 10);
+  return fs.readFileSync(path.join(dir, 'admin-abuse.html'), 'utf8')
+    .replace('src="admin-abuse.js"', 'src="admin-abuse.js?v=' + version + '"');
+}
+app.get(['/admin-abuse.html', '/admin'], (req, res) => {
+  try {
+    // Built once: the files only change with a deploy, which restarts the server.
+    if (!adminPageHtml) adminPageHtml = buildAdminPage();
+    res.set('Cache-Control', 'no-store').type('html').send(adminPageHtml);
+  } catch (err) {
+    console.error('Admin page not available:', err.message);
+    res.status(500).send('Admin page not available');
+  }
+});
+
 // Serve static files (logo, etc.)
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
