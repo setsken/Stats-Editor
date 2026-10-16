@@ -7,7 +7,7 @@
   var report = null;
 
   var TAG_STYLE = {
-    disposable: 'bad', twin: 'bad', group: 'warn', burst: 'warn', sharedIp: 'info', noModels: 'dim'
+    disposable: 'bad', undeliverable: 'bad', twin: 'bad', group: 'warn', burst: 'warn', sharedIp: 'info', noModels: 'dim'
   };
 
   function $(id) { return document.getElementById(id); }
@@ -123,6 +123,7 @@
       ['Платят', s.paying],
       ['Только триал', s.trialOnly],
       ['Временная почта', s.disposable, s.disposableActive > 0],
+      ['Несуществующий адрес', s.undeliverable, s.undeliverable > 0],
       ['Тот же ящик', s.twins, s.twins > 0],
       ['Без моделей (не платят)', s.noModels],
       ['Подозрительных групп', s.suspiciousGroups, s.suspiciousGroups > 0],
@@ -310,7 +311,9 @@
     var table = $('accountsTable');
     report.accounts.forEach(function (a) {
       var c = table.querySelector('input[data-id="' + a.id + '"]');
-      if (c) c.checked = !a.paid && a.active && a.tags.some(function (t) { return t.key === 'disposable'; });
+      if (c) c.checked = !a.paid && a.active && a.tags.some(function (t) {
+        return t.key === 'disposable' || t.key === 'undeliverable';
+      });
     });
   });
   $('clearSelection').addEventListener('click', function () {

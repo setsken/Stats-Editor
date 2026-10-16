@@ -53,14 +53,16 @@ async function classifyDomains(domains) {
     while (queue.length) {
       const domain = queue.shift();
       if (isListedDisposable(domain)) {
-        verdicts.set(domain, { disposable: true, detail: 'домен в списке временных' });
+        verdicts.set(domain, { kind: 'disposable', detail: 'домен в списке временных' });
         continue;
       }
       const mx = await lookupMx(domain);
-      const hit = mx.status === 'ok' ? mx.hosts.map(disposableMxMatch).find(Boolean) : null;
-      if (hit) verdicts.set(domain, { disposable: true, detail: 'почтовый сервер сети ' + hit });
-      else if (mx.status === 'none') verdicts.set(domain, { disposable: true, detail: 'у домена нет почтового сервера' });
-      else verdicts.set(domain, { disposable: false });
+      const real = mx.status === 'ok' ? mx.hosts.filter(h => h && h !== 'localhost') : [];
+      const hit = real.map(disposableMxMatch).find(Boolean);
+      if (hit) verdicts.set(domain, { kind: 'disposable', detail: 'почтовый сервер сети ' + hit });
+      else if (mx.status === 'none') verdicts.set(domain, { kind: 'undeliverable', detail: 'такого домена нет или у него нет почты' });
+      else if (mx.status === 'ok' && !real.length) verdicts.set(domain, { kind: 'undeliverable', detail: 'домен не принимает почту' });
+      else verdicts.set(domain, { kind: null });
     }
   }
   await Promise.all(Array.from({ length: 8 }, worker));
@@ -150,7 +152,8 @@ router.get('/abuse-report', async (req, res) => {
 
     for (const u of users) {
       const verdict = verdicts.get(emailDomain(u.email));
-      if (verdict && verdict.disposable) tag(u.id, 'disposable', 'временная почта', verdict.detail);
+      if (verdict && verdict.kind === 'disposable') tag(u.id, 'disposable', 'временная почта', verdict.detail);
+      if (verdict && verdict.kind === 'undeliverable') tag(u.id, 'undeliverable', 'несуществующий адрес', verdict.detail);
       if (u.models === 0) tag(u.id, 'noModels', 'нет моделей');
     }
 
@@ -206,7 +209,7 @@ router.get('/abuse-report', async (req, res) => {
       (b.suspicious - a.suspicious) || (b.accounts - a.accounts) || (b.trials - a.trials));
 
     // ---- one row per account, worst first
-    const WEIGHT = { disposable: 4, twin: 3, group: 2, burst: 1, sharedIp: 1, noModels: 0.5 };
+    const WEIGHT = { disposable: 4, undeliverable: 4, twin: 3, group: 2, burst: 1, sharedIp: 1, noModels: 0.5 };
     const accounts = users.map(u => {
       const tags = tagsById.get(u.id);
       const score = u.paid ? 0 : tags.reduce((s, t) => s + (WEIGHT[t.key] || 0), 0);
@@ -254,6 +257,8 @@ router.get('/abuse-report', async (req, res) => {
       flagged: users.filter(u => u.flagged_reason).length,
       disposable: accounts.filter(a => has(a, 'disposable')).length,
       disposableActive: accounts.filter(a => has(a, 'disposable') && a.active && !a.paid).length,
+      undeliverable: accounts.filter(a => has(a, 'undeliverable')).length,
+      fakeActive: accounts.filter(a => (has(a, 'disposable') || has(a, 'undeliverable')) && a.active && !a.paid).length,
       twins: accounts.filter(a => has(a, 'twin')).length,
       noModels: accounts.filter(a => !a.paid && has(a, 'noModels')).length,
       linkedGroups: clusters.length,
