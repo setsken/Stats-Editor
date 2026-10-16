@@ -60,7 +60,7 @@ async function classifyDomains(domains) {
       const real = mx.status === 'ok' ? mx.hosts.filter(h => h && h !== 'localhost') : [];
       const hit = real.map(disposableMxMatch).find(Boolean);
       if (hit) verdicts.set(domain, { kind: 'disposable', detail: 'почтовый сервер сети ' + hit });
-      else if (mx.status === 'none') verdicts.set(domain, { kind: 'undeliverable', detail: 'такого домена нет или у него нет почты' });
+      else if (mx.status === 'none') verdicts.set(domain, { kind: 'undeliverable', detail: 'домен не отвечает: не существует или приостановлен регистратором' });
       else if (mx.status === 'ok' && !real.length) verdicts.set(domain, { kind: 'undeliverable', detail: 'домен не принимает почту' });
       else verdicts.set(domain, { kind: null });
     }
@@ -153,7 +153,7 @@ router.get('/abuse-report', async (req, res) => {
     for (const u of users) {
       const verdict = verdicts.get(emailDomain(u.email));
       if (verdict && verdict.kind === 'disposable') tag(u.id, 'disposable', 'временная почта', verdict.detail);
-      if (verdict && verdict.kind === 'undeliverable') tag(u.id, 'undeliverable', 'несуществующий адрес', verdict.detail);
+      if (verdict && verdict.kind === 'undeliverable') tag(u.id, 'undeliverable', 'почта не работает', verdict.detail);
       if (u.models === 0) tag(u.id, 'noModels', 'нет моделей');
     }
 
@@ -209,7 +209,7 @@ router.get('/abuse-report', async (req, res) => {
       (b.suspicious - a.suspicious) || (b.accounts - a.accounts) || (b.trials - a.trials));
 
     // ---- one row per account, worst first
-    const WEIGHT = { disposable: 4, undeliverable: 4, twin: 3, group: 2, burst: 1, sharedIp: 1, noModels: 0.5 };
+    const WEIGHT = { disposable: 4, undeliverable: 2, twin: 3, group: 2, burst: 1, sharedIp: 1, noModels: 0.5 };
     const accounts = users.map(u => {
       const tags = tagsById.get(u.id);
       const score = u.paid ? 0 : tags.reduce((s, t) => s + (WEIGHT[t.key] || 0), 0);
