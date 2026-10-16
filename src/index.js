@@ -17,6 +17,7 @@ const modelsRoutes = require('./routes/models');
 const webhooksRoutes = require('./routes/webhooks');
 const promoRoutes = require('./routes/promo');
 const presetsRoutes = require('./routes/presets');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -194,13 +195,39 @@ app.use(cors({
   credentials: true
 }));
 
+function clientKey(req) {
+  const cfIp = req.get('cf-connecting-ip');
+  const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
+  return cfIp || forwarded || req.ip || 'unknown';
+}
+
 // Rate limiting - generous limits for extension users
 const limiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 200, // 200 requests per minute
+  keyGenerator: clientKey,
+  // The key is derived from proxy headers on purpose; the built-in checks
+  // assume req.ip and would only log noise about it.
+  validate: { xForwardedForHeader: false, trustProxy: false },
   message: { error: 'Too many requests, please try again later' }
 });
 app.use('/api/', limiter);
+
+// Account creation and code entry get a much tighter budget: enough for an
+// office of real people, too little for churning out accounts or guessing a
+// six-digit code.
+const signupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator: clientKey,
+  validate: { xForwardedForHeader: false, trustProxy: false },
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts from this network. Please try again later.', code: 'RATE_LIMITED' }
+});
+app.use('/api/auth/register', signupLimiter);
+app.use('/api/auth/verify-email', signupLimiter);
+app.use('/api/auth/resend-verification', signupLimiter);
 
 // Body parsing - raw for webhooks, json for rest
 app.use('/api/webhooks', express.raw({ type: 'application/json' }));
@@ -237,6 +264,7 @@ app.get('/payment/cancel', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/models', modelsRoutes);
 app.use('/api/webhooks', webhooksRoutes);

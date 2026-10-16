@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Подозрительные аккаунты</title>
+  <style>
+    :root {
+      --bg: #0b1020; --panel: #121a2e; --line: #23304d; --text: #e2e8f0;
+      --muted: #8a99b5; --accent: #00d4ff; --bad: #f87171; --good: #34d399; --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 16px; margin: 32px 0 12px; }
+    .sub { color: var(--muted); margin: 0 0 20px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    form.login { max-width: 360px; display: grid; gap: 10px; }
+    input[type=email], input[type=password] { width: 100%; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid var(--line); background: #0e1526; color: var(--text); font: inherit; }
+    button { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--line); background: #1a2540;
+      color: var(--text); font: inherit; cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #04121a; font-weight: 600; }
+    button.danger { background: var(--bad); border-color: var(--bad); color: #1a0505; font-weight: 600; }
+    button:disabled { opacity: .5; cursor: default; }
+    .error { color: var(--bad); min-height: 1.5em; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+    .tile .n { font-size: 22px; font-weight: 700; }
+    .tile .l { color: var(--muted); font-size: 12px; }
+    .group { margin-bottom: 14px; }
+    .group.suspicious { border-color: rgba(248,113,113,.55); }
+    .ghead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .badge.bad { background: rgba(248,113,113,.15); color: var(--bad); }
+    .badge.good { background: rgba(52,211,153,.15); color: var(--good); }
+    .badge.warn { background: rgba(251,191,36,.15); color: var(--warn); }
+    .traces { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    .traces b { color: var(--text); font-weight: 600; }
+    .scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 600; }
+    tr.banned td { opacity: .55; }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .hidden { display: none; }
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Подозрительные аккаунты</h1>
+  <p class="sub">Аккаунты, связанные общей моделью OnlyFans или одной установкой расширения. Общий IP — только дополнительный признак.</p>
+
+  <section id="loginView" class="panel">
+    <form class="login" id="loginForm">
+      <div>Вход администратора</div>
+      <input type="email" id="email" placeholder="Email" autocomplete="username" required>
+      <input type="password" id="password" placeholder="Пароль" autocomplete="current-password" required>
+      <button type="submit" class="primary">Войти</button>
+      <div class="error" id="loginError"></div>
+    </form>
+  </section>
+
+  <section id="reportView" class="hidden">
+    <div class="toolbar">
+      <button id="reload">Обновить</button>
+      <label class="chk"><input type="checkbox" id="onlySuspicious" checked> Только подозрительные группы</label>
+      <span class="sub" id="generated" style="margin:0"></span>
+    </div>
+    <div class="tiles" id="tiles"></div>
+
+    <h2>Группы связанных аккаунтов</h2>
+    <div id="groups"></div>
+
+    <h2>IP-адреса с тремя и более аккаунтами</h2>
+    <div id="ips" class="panel"></div>
+  </section>
+</main>
+<script src="admin-abuse.js"></script>
+</body>
+</html>

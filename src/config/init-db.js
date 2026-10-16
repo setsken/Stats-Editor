@@ -31,7 +31,23 @@ const initDatabase = async () => {
       { name: 'email_verification_code', type: 'VARCHAR(10)' },
       { name: 'email_verification_expires', type: 'TIMESTAMP' },
       { name: 'password_reset_token', type: 'VARCHAR(255)' },
-      { name: 'password_reset_expires', type: 'TIMESTAMP' }
+      { name: 'password_reset_expires', type: 'TIMESTAMP' },
+      // Which product the signup came through. /verify-email receives only the
+      // address and the code, so the trial it creates has to read the product
+      // from here instead of guessing.
+      { name: 'signup_product', type: "VARCHAR(50) DEFAULT 'stats_editor'" },
+      // A six-digit code is guessable if it can be tried without limit.
+      { name: 'email_verification_attempts', type: 'INTEGER DEFAULT 0' },
+      { name: 'email_verification_sent_at', type: 'TIMESTAMP' },
+      // Where the account came from, and from which browser profile.
+      { name: 'signup_ip', type: 'VARCHAR(64)' },
+      { name: 'signup_country', type: 'VARCHAR(8)' },
+      { name: 'signup_user_agent', type: 'TEXT' },
+      { name: 'install_id', type: 'VARCHAR(64)' },
+      { name: 'last_ip', type: 'VARCHAR(64)' },
+      { name: 'last_seen_at', type: 'TIMESTAMP' },
+      // Set by hand (or by the abuse report) to mark an account as suspect.
+      { name: 'flagged_reason', type: 'TEXT' }
     ];
 
     for (const col of columnsToAdd) {
@@ -46,6 +62,45 @@ const initDatabase = async () => {
         }
       }
     }
+
+    // Everyone who registered before verification existed stays verified —
+    // the flag defaults to FALSE, and without this they would all be locked out
+    // of their own accounts the moment the check goes live.
+    //
+    // This runs on every start, so it must only ever match those old accounts.
+    // A signup through the code flow always has email_verification_sent_at set;
+    // an account that has never had a code sent predates the flow. Going by age
+    // instead would quietly confirm anyone who simply never entered their code.
+    try {
+      const backfill = await pool.query(
+        `UPDATE users SET email_verified = TRUE
+         WHERE email_verified IS NOT TRUE AND email_verification_sent_at IS NULL`
+      );
+      if (backfill.rowCount > 0) {
+        console.log(`✅ Marked ${backfill.rowCount} pre-existing users as verified`);
+      }
+    } catch (err) {
+      console.error('Error backfilling email_verified:', err.message);
+    }
+
+    // Sign-in / sign-up history — the raw material for spotting one person
+    // running several accounts.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS auth_events (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        event VARCHAR(32) NOT NULL,
+        ip VARCHAR(64),
+        country VARCHAR(8),
+        user_agent TEXT,
+        install_id VARCHAR(64),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_auth_events_ip ON auth_events(ip)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_auth_events_install ON auth_events(install_id)');
+    console.log('✅ Table "auth_events" ready');
 
     // Create subscriptions table
     await pool.query(`

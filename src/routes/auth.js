@@ -132,12 +132,165 @@ function renderWelcomeHtml(brand, email, trialDays) {
   </div>`;
 }
 
+// Verification is what stops a 7-day trial being handed to any address that
+// merely looks like an email. Set REQUIRE_EMAIL_VERIFICATION=false to fall back
+// to the old straight-to-trial behaviour (useful if outbound mail ever breaks).
+const VERIFICATION_REQUIRED = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false';
+const CODE_TTL_MINUTES = 15;
+const MAX_CODE_ATTEMPTS = 8;
+const RESEND_COOLDOWN_MS = 60 * 1000;
+const TRIAL_MODEL_LIMIT = parseInt(process.env.TRIAL_MODEL_LIMIT) || 10;
+
+function generateVerificationCode() {
+  // Six digits from a cryptographic source — Math.random() is predictable.
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+// Throwaway inbox providers. Not exhaustive and never will be, but it removes
+// the easiest route: open a temp inbox, take the trial, repeat.
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'guerrillamail.org',
+  'sharklasers.com', 'grr.la', 'spam4.me', '10minutemail.com', '10minutemail.net',
+  'tempmail.com', 'temp-mail.org', 'temp-mail.io', 'tempmailo.com', 'tempr.email',
+  'throwawaymail.com', 'yopmail.com', 'yopmail.fr', 'yopmail.net', 'fakeinbox.com',
+  'trashmail.com', 'trashmail.de', 'trash-mail.com', 'mytrashmail.com', 'dispostable.com',
+  'getnada.com', 'nada.email', 'maildrop.cc', 'mailnesia.com', 'mailcatch.com',
+  'tempinbox.com', 'emailondeck.com', 'moakt.com', 'mohmal.com', 'luxusmail.org',
+  'inboxkitten.com', 'mailpoof.com', 'tempmailaddress.com', 'burnermail.io',
+  'anonaddy.me', 'mail-temp.com', 'minuteinbox.com', 'mail7.io', 'tmpmail.org',
+  'tmpmail.net', 'tmails.net', 'crazymailing.com', 'emltmp.com', 'mailtemp.top',
+  'tempail.com', 'byom.de', 'spambox.us', 'spambog.com', 'spamgourmet.com',
+  'incognitomail.com', 'mailexpire.com', 'jetable.org', 'meltmail.com',
+  'nowmymail.com', 'armyspy.com', 'cuvox.de', 'dayrep.com', 'einrot.com',
+  'fleckens.hu', 'gustr.com', 'jourrapide.com', 'rhyta.com', 'superrito.com',
+  'teleworm.us', 'wegwerfmail.de', 'discard.email', 'mailde.de', 'mailbox52.ga',
+  'linshiyouxiang.net', 'tempmail.plus', 'vmani.com', 'dropmail.me', 'firemailbox.club'
+]);
+
+function emailDomain(email) {
+  return String(email || '').split('@')[1]?.toLowerCase() || '';
+}
+
+function isDisposableEmail(email) {
+  return DISPOSABLE_DOMAINS.has(emailDomain(email));
+}
+
+// Does the domain actually accept mail? Catches typos and invented domains
+// without bothering real users: anything other than "this domain has no mail
+// server" is allowed through, because a DNS hiccup must not block a signup.
+async function emailDomainAcceptsMail(email) {
+  const domain = emailDomain(email);
+  if (!domain) return false;
+  try {
+    const dns = require('dns').promises;
+    const records = await Promise.race([
+      dns.resolveMx(domain),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('DNS_TIMEOUT')), 4000))
+    ]);
+    return Array.isArray(records) && records.length > 0;
+  } catch (err) {
+    if (err && (err.code === 'ENOTFOUND' || err.code === 'ENODATA' || err.code === 'NXDOMAIN')) {
+      return false;
+    }
+    console.warn('MX lookup inconclusive for', domain, '-', err.message, '- allowing');
+    return true;
+  }
+}
+
+function renderCodeHtml(brand, code) {
+  return `
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #0b1020; padding: 24px 12px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="600" style="max-width: 600px; margin: 0 auto; background: #0f172a; border-radius: 16px; overflow: hidden;">
+      <tr><td style="background: ${brand.gradient}; padding: 28px 32px; text-align: center;">
+        <div style="color: #ffffff; font-size: 22px; font-weight: 800;">${brand.name}</div>
+        <div style="color: rgba(255,255,255,0.85); font-size: 13px; margin-top: 4px;">${brand.tagline}</div>
+      </td></tr>
+      <tr><td style="padding: 32px;">
+        <div style="color: #e2e8f0; font-size: 16px; font-weight: 700; margin-bottom: 8px;">Confirm your email</div>
+        <div style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
+          Enter this code in the extension to finish creating your account and start your free trial.
+        </div>
+        <div style="text-align: center; margin: 0 0 24px;">
+          <div style="display: inline-block; background: ${brand.colorSoft}; border: 1px solid ${brand.color}; border-radius: 12px; padding: 16px 28px; color: #ffffff; font-size: 32px; font-weight: 800; letter-spacing: 8px;">${code}</div>
+        </div>
+        <div style="color: #64748b; font-size: 13px; line-height: 1.6;">
+          The code is valid for ${CODE_TTL_MINUTES} minutes. If you did not ask to create an account, just ignore this message.
+        </div>
+      </td></tr>
+    </table>
+  </div>`;
+}
+
+// Who is on the other end of a request. Requests arrive through Cloudflare
+// (api.ofstats.pro) or straight at Railway (the fallback host), so the real
+// address is in a different header depending on the route. None of this is
+// proof — headers can be forged on the direct route — it is evidence for
+// linking accounts, never a reason on its own to refuse anyone.
+function clientMeta(req) {
+  const cfIp = req.get('cf-connecting-ip');
+  const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
+  const ip = (cfIp || forwarded || req.ip || '').slice(0, 64) || null;
+
+  const country = (req.get('cf-ipcountry') || '').slice(0, 8) || null;
+  const userAgent = (req.get('user-agent') || '').slice(0, 500) || null;
+
+  // Random id the extension makes once per browser profile and keeps across
+  // sign-outs — the one trace that survives switching accounts.
+  const rawInstall = (req.body && req.body.installId) || req.get('x-install-id') || '';
+  const installId = /^[A-Za-z0-9-]{8,64}$/.test(rawInstall) ? rawInstall : null;
+
+  return { ip, country, userAgent, installId };
+}
+
+// Never allowed to break a sign-in: if the write fails, the user still gets in.
+async function recordAuthEvent(userId, event, meta) {
+  try {
+    await query(
+      `INSERT INTO auth_events (user_id, event, ip, country, user_agent, install_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, event, meta.ip, meta.country, meta.userAgent, meta.installId]
+    );
+    await query(
+      `UPDATE users
+          SET last_ip = COALESCE($1, last_ip),
+              last_seen_at = NOW(),
+              install_id = COALESCE($2, install_id)
+        WHERE id = $3`,
+      [meta.ip, meta.installId, userId]
+    );
+  } catch (err) {
+    console.error('Auth event not recorded for user', userId, '-', err.message);
+  }
+}
+
+// The first values win: a signup retried from another place is still visible
+// in auth_events, while these keep where the account was born.
+async function recordSignup(userId, meta) {
+  try {
+    await query(
+      `UPDATE users
+          SET signup_ip = COALESCE(signup_ip, $1),
+              signup_country = COALESCE(signup_country, $2),
+              signup_user_agent = COALESCE(signup_user_agent, $3)
+        WHERE id = $4`,
+      [meta.ip, meta.country, meta.userAgent, userId]
+    );
+  } catch (err) {
+    console.error('Signup details not recorded for user', userId, '-', err.message);
+  }
+}
+
+// Last outbound-mail failure, so the diagnostic endpoint can report what Resend
+// actually said instead of a bare "false".
+let lastEmailError = null;
+
 // Helper to send email via Resend HTTP API (bypasses SMTP port blocks)
 async function sendEmail(to, subject, html, fromOverride) {
   const apiKey = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
   const from = fromOverride || process.env.SMTP_FROM || 'Stats Editor Pro <support@ofstats.pro>';
 
   if (!apiKey) {
+    lastEmailError = 'No API key: set SMTP_PASS or RESEND_API_KEY';
     console.log('Resend API key not configured, skipping email to:', to);
     return false;
   }
@@ -159,9 +312,125 @@ async function sendEmail(to, subject, html, fromOverride) {
     console.log('Email sent via Resend API to:', to, '| id:', response.data?.id);
     return true;
   } catch (error) {
-    console.error('Email send error (Resend API):', error.response?.data || error.message);
+    lastEmailError = error.response?.data || error.message || String(error);
+    console.error('Email send error (Resend API):', lastEmailError);
     return false;
   }
+}
+
+const NO_PLAN = { plan: 'none', status: 'expired', model_limit: 0, isActive: false };
+
+// Has another account already had a trial from this installation? Accounts
+// created before trial_used existed only have trial_started_at, so both count.
+async function trialAlreadyUsedFrom(installId, userId) {
+  if (!installId) return false;
+  const prior = await getOne(
+    `SELECT u.id
+       FROM users u
+      WHERE u.id <> $1
+        AND (u.trial_used = TRUE OR u.trial_started_at IS NOT NULL)
+        AND (u.install_id = $2
+             OR EXISTS (SELECT 1 FROM auth_events e WHERE e.user_id = u.id AND e.install_id = $2))
+      LIMIT 1`,
+    [userId, installId]
+  );
+  return prior ? prior.id : false;
+}
+
+// Starts the trial for a confirmed account and hands back a session.
+// trial_used is set here so a second trial can be refused later on.
+async function startTrial(userId, email, signupProduct, installId) {
+  const priorAccount = await trialAlreadyUsedFrom(installId, userId);
+  if (priorAccount) {
+    await query(
+      'UPDATE users SET flagged_reason = COALESCE(flagged_reason, $1) WHERE id = $2',
+      ['Repeat trial from the installation of account #' + priorAccount, userId]
+    );
+    const token = jwt.sign(
+      { userId, email },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
+    );
+    // The popup sends an inactive subscription straight to the plans screen.
+    return { token, trialDays: 0, subscription: NO_PLAN, trialDenied: true };
+  }
+
+  const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
+  // Trial is scoped to the product the user registered through, otherwise
+  // someone signing up via Profile Stats lands on a Stats Editor-only
+  // trial row and the PS popup correctly reports 'No plan'.
+  const trialProduct = signupProduct === 'profile_stats' ? 'profile_stats' : 'stats_editor';
+
+  await query(
+    `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at, product)
+     VALUES ($1, 'trial', $2, 'active', 'trial', NOW() + INTERVAL '${trialDays} days', $3)`,
+    [userId, TRIAL_MODEL_LIMIT, trialProduct]
+  );
+
+  await query(
+    'UPDATE users SET trial_started_at = NOW(), trial_used = TRUE WHERE id = $1',
+    [userId]
+  );
+
+  const token = jwt.sign(
+    { userId, email },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
+  );
+
+  return {
+    token,
+    trialDays,
+    subscription: { plan: 'trial', status: 'active', model_limit: TRIAL_MODEL_LIMIT, product: trialProduct, isActive: true }
+  };
+}
+
+// The pre-verification behaviour, kept behind REQUIRE_EMAIL_VERIFICATION=false
+// as an escape hatch in case outbound mail breaks.
+async function completeRegistration(res, { email, passwordHash, signupProduct, brand, existingUserId, meta }) {
+  let user;
+  if (existingUserId) {
+    const updated = await query(
+      'UPDATE users SET password_hash = $1, signup_product = $2 WHERE id = $3 RETURNING id, email',
+      [passwordHash, signupProduct, existingUserId]
+    );
+    user = updated.rows[0];
+  } else {
+    const inserted = await query(
+      `INSERT INTO users (email, password_hash, email_verified, signup_product)
+       VALUES ($1, $2, TRUE, $3)
+       RETURNING id, email`,
+      [email, passwordHash, signupProduct]
+    );
+    user = inserted.rows[0];
+  }
+
+  if (meta) {
+    await recordSignup(user.id, meta);
+    await recordAuthEvent(user.id, 'register', meta);
+  }
+
+  const { token, trialDays, subscription, trialDenied } =
+    await startTrial(user.id, user.email, signupProduct, meta && meta.installId);
+
+  if (!trialDenied) {
+    sendEmail(
+      user.email,
+      `Welcome to ${brand.name} — your ${trialDays}-day trial is live`,
+      renderWelcomeHtml(brand, user.email, trialDays),
+      brand.from
+    );
+  }
+
+  return res.status(201).json({
+    message: 'Registration successful',
+    user: { id: user.id, email: user.email },
+    token,
+    subscription,
+    trial: trialDenied
+      ? { active: false }
+      : { active: true, days: trialDays, modelLimit: TRIAL_MODEL_LIMIT }
+  });
 }
 
 // Register new user
@@ -183,63 +452,280 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const signupProduct = product === 'profile_stats' ? 'profile_stats' : 'stats_editor';
+
+    if (VERIFICATION_REQUIRED) {
+      if (isDisposableEmail(normalizedEmail)) {
+        return res.status(400).json({
+          error: 'Temporary email addresses are not accepted. Please use a permanent one.',
+          code: 'DISPOSABLE_EMAIL'
+        });
+      }
+      if (!(await emailDomainAcceptsMail(normalizedEmail))) {
+        return res.status(400).json({
+          error: 'That email address does not seem to exist. Please check the spelling.',
+          code: 'EMAIL_UNDELIVERABLE'
+        });
+      }
+    }
+
     const existingUser = await getOne(
-      'SELECT id FROM users WHERE email = $1',
-      [email.toLowerCase()]
+      'SELECT id, email_verified FROM users WHERE email = $1',
+      [normalizedEmail]
     );
 
-    if (existingUser) {
+    // A half-finished signup is not a taken address: let them try again and
+    // send a fresh code, instead of locking the address behind "already
+    // registered" forever.
+    if (existingUser && existingUser.email_verified !== false) {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const result = await query(
-      `INSERT INTO users (email, password_hash, trial_started_at)
-       VALUES ($1, $2, NOW())
-       RETURNING id, email, created_at`,
-      [email.toLowerCase(), passwordHash]
-    );
+    if (!VERIFICATION_REQUIRED) {
+      return await completeRegistration(res, {
+        email: normalizedEmail, passwordHash, signupProduct, brand,
+        existingUserId: existingUser?.id, meta: clientMeta(req)
+      });
+    }
 
-    const user = result.rows[0];
+    const code = generateVerificationCode();
+    let user;
 
-    const trialDays = parseInt(process.env.TRIAL_DAYS) || 7;
-    // Trial is scoped to the product the user registered through, otherwise
-    // someone signing up via Profile Stats lands on a Stats Editor-only
-    // trial row and the PS popup correctly reports 'No plan'.
-    const trialProduct = product === 'profile_stats' ? 'profile_stats' : 'stats_editor';
-    await query(
-      `INSERT INTO subscriptions (user_id, plan, model_limit, status, payment_provider, expires_at, product)
-       VALUES ($1, 'trial', 10, 'active', 'trial', NOW() + INTERVAL '${trialDays} days', $2)`,
-      [user.id, trialProduct]
-    );
+    if (existingUser) {
+      const updated = await query(
+        `UPDATE users
+            SET password_hash = $1,
+                email_verification_code = $2,
+                email_verification_expires = NOW() + INTERVAL '${CODE_TTL_MINUTES} minutes',
+                email_verification_attempts = 0,
+                email_verification_sent_at = NOW(),
+                signup_product = $3
+          WHERE id = $4
+        RETURNING id, email`,
+        [passwordHash, code, signupProduct, existingUser.id]
+      );
+      user = updated.rows[0];
+    } else {
+      const inserted = await query(
+        `INSERT INTO users (email, password_hash, email_verified, email_verification_code,
+                            email_verification_expires, email_verification_sent_at, signup_product)
+         VALUES ($1, $2, FALSE, $3, NOW() + INTERVAL '${CODE_TTL_MINUTES} minutes', NOW(), $4)
+         RETURNING id, email`,
+        [normalizedEmail, passwordHash, code, signupProduct]
+      );
+      user = inserted.rows[0];
+    }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
-    );
+    const meta = clientMeta(req);
+    await recordSignup(user.id, meta);
+    await recordAuthEvent(user.id, 'register', meta);
 
-    // Send welcome email (non-blocking) — branded per product, with
-    // a feature list so the user knows what the trial actually unlocks.
-    sendEmail(
+    // Awaited on purpose: if the code cannot be delivered there is no point
+    // sending the user to a screen asking for it.
+    const sent = await sendEmail(
       user.email,
-      `Welcome to ${brand.name} — your ${trialDays}-day trial is live`,
-      renderWelcomeHtml(brand, user.email, trialDays),
+      `${brand.name} — your verification code`,
+      renderCodeHtml(brand, code),
       brand.from
     );
 
+    if (!sent) {
+      console.error('Verification code could not be sent to', user.email, '-', lastEmailError);
+      return res.status(502).json({
+        error: 'We could not send the verification code. Please try again in a minute.',
+        code: 'EMAIL_SEND_FAILED'
+      });
+    }
+
     res.status(201).json({
-      message: 'Registration successful',
-      user: { id: user.id, email: user.email },
-      token,
-      trial: { active: true, days: trialDays, modelLimit: 10 }
+      message: 'Verification code sent',
+      requiresVerification: true,
+      email: user.email
     });
 
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Diagnostic: is outbound mail working at all? Guarded by ADMIN_TOKEN, and does
+// nothing unless that variable is set.
+router.post('/email-test', async (req, res) => {
+  const adminToken = process.env.ADMIN_TOKEN;
+  if (!adminToken) {
+    return res.status(404).json({ error: 'Not available' });
+  }
+  if (req.get('x-admin-token') !== adminToken) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const to = req.body?.to;
+  if (!to) return res.status(400).json({ error: 'Provide "to"' });
+
+  lastEmailError = null;
+  const brand = getBrand(req.body?.product);
+  const ok = await sendEmail(to, `${brand.name} — delivery test`, renderCodeHtml(brand, '123456'), brand.from);
+
+  res.json({
+    sent: ok,
+    from: brand.from,
+    apiKeyConfigured: !!(process.env.SMTP_PASS || process.env.RESEND_API_KEY),
+    verificationRequired: VERIFICATION_REQUIRED,
+    error: ok ? null : lastEmailError
+  });
+});
+
+// Confirm the code, start the trial, hand back a session.
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and code are required' });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = await getOne(
+      `SELECT id, email, email_verified, email_verification_code, email_verification_expires,
+              email_verification_attempts, signup_product
+         FROM users WHERE email = $1`,
+      [normalizedEmail]
+    );
+
+    // Same answer whether the address is unknown or the code is wrong, so this
+    // cannot be used to find out which addresses exist.
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired code', code: 'INVALID_CODE' });
+    }
+
+    if (user.email_verified) {
+      return res.status(400).json({ error: 'This email is already confirmed. Please sign in.', code: 'ALREADY_VERIFIED' });
+    }
+
+    if ((user.email_verification_attempts || 0) >= MAX_CODE_ATTEMPTS) {
+      return res.status(429).json({
+        error: 'Too many incorrect attempts. Request a new code.',
+        code: 'TOO_MANY_ATTEMPTS'
+      });
+    }
+
+    if (!user.email_verification_expires || new Date(user.email_verification_expires) < new Date()) {
+      return res.status(400).json({ error: 'The code has expired. Request a new one.', code: 'CODE_EXPIRED' });
+    }
+
+    if (!user.email_verification_code || String(code).trim() !== user.email_verification_code) {
+      await query(
+        'UPDATE users SET email_verification_attempts = COALESCE(email_verification_attempts, 0) + 1 WHERE id = $1',
+        [user.id]
+      );
+      return res.status(400).json({ error: 'Invalid or expired code', code: 'INVALID_CODE' });
+    }
+
+    await query(
+      `UPDATE users
+          SET email_verified = TRUE,
+              email_verification_code = NULL,
+              email_verification_expires = NULL,
+              email_verification_attempts = 0
+        WHERE id = $1`,
+      [user.id]
+    );
+
+    const meta = clientMeta(req);
+    await recordAuthEvent(user.id, 'verify', meta);
+
+    const signupProduct = user.signup_product || 'stats_editor';
+    const { token, trialDays, subscription, trialDenied } =
+      await startTrial(user.id, user.email, signupProduct, meta.installId);
+    const brand = getBrand(signupProduct);
+
+    if (!trialDenied) {
+      sendEmail(
+        user.email,
+        `Welcome to ${brand.name} — your ${trialDays}-day trial is live`,
+        renderWelcomeHtml(brand, user.email, trialDays),
+        brand.from
+      );
+    }
+
+    res.json({
+      message: 'Email verified',
+      user: { id: user.id, email: user.email },
+      token,
+      subscription,
+      trial: trialDenied
+        ? { active: false }
+        : { active: true, days: trialDays, modelLimit: TRIAL_MODEL_LIMIT }
+    });
+
+  } catch (error) {
+    console.error('Verify email error:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// Send another code.
+router.post('/resend-verification', async (req, res) => {
+  // One reply for every case — an unknown address, an already-confirmed one and
+  // a genuine resend look identical from outside.
+  const generic = { message: 'If that address still needs confirming, a new code is on its way.' };
+
+  try {
+    const { email, product } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = await getOne(
+      'SELECT id, email, email_verified, email_verification_sent_at, signup_product FROM users WHERE email = $1',
+      [normalizedEmail]
+    );
+
+    if (!user || user.email_verified) return res.json(generic);
+
+    // Quietly ignore rapid repeats rather than becoming a way to mail-bomb
+    // somebody else's inbox.
+    if (user.email_verification_sent_at &&
+        Date.now() - new Date(user.email_verification_sent_at).getTime() < RESEND_COOLDOWN_MS) {
+      return res.json(generic);
+    }
+
+    const code = generateVerificationCode();
+    await query(
+      `UPDATE users
+          SET email_verification_code = $1,
+              email_verification_expires = NOW() + INTERVAL '${CODE_TTL_MINUTES} minutes',
+              email_verification_attempts = 0,
+              email_verification_sent_at = NOW()
+        WHERE id = $2`,
+      [code, user.id]
+    );
+
+    const brand = getBrand(product || user.signup_product);
+    const sent = await sendEmail(
+      user.email,
+      `${brand.name} — your verification code`,
+      renderCodeHtml(brand, code),
+      brand.from
+    );
+
+    if (!sent) {
+      console.error('Resend of verification code failed for', user.email, '-', lastEmailError);
+      return res.status(502).json({
+        error: 'We could not send the code. Please try again in a minute.',
+        code: 'EMAIL_SEND_FAILED'
+      });
+    }
+
+    res.json(generic);
+
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({ error: 'Could not resend the code' });
   }
 });
 
@@ -253,7 +739,7 @@ router.post('/login', async (req, res) => {
     }
 
     const user = await getOne(
-      'SELECT id, email, password_hash, is_active FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, is_active, email_verified FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -270,7 +756,17 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password', code: 'INVALID_CREDENTIALS', canResetPassword: true });
     }
 
+    if (VERIFICATION_REQUIRED && user.email_verified === false) {
+      return res.status(403).json({
+        error: 'Please confirm your email first — we sent you a code.',
+        code: 'EMAIL_NOT_VERIFIED',
+        requiresVerification: true,
+        email: user.email
+      });
+    }
+
     await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
+    await recordAuthEvent(user.id, 'login', clientMeta(req));
 
     const token = jwt.sign(
       { userId: user.id, email: user.email },
