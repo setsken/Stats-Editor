@@ -23,6 +23,10 @@ const adminRoutes = require('./routes/admin');
 // little after start-up and then once a day.
 require('./services/email-risk').startAutoRefresh();
 
+// Delete sign-in traces (IP, country, browser) older than the retention period
+// the privacy policies promise.
+require('./services/retention').startRetention();
+
 const app = express();
 
 // Run migrations on startup

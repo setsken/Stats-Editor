@@ -256,7 +256,7 @@
             <p class="subtitle">Stats Editor — Chrome Extension</p>
             <span class="updated">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Last Updated: February 3, 2026
+                Last Updated: October 16, 2026
             </span>
         </section>
 
@@ -268,7 +268,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
                     Privacy at a Glance
                 </h3>
-                <p>Stats Editor is designed with your privacy in mind. We operate on a minimal data principle — we only collect what's absolutely necessary for the extension to function (email for authentication). All statistics editing happens locally in your browser and is never transmitted anywhere.</p>
+                <p>Stats Editor is designed with your privacy in mind. We operate on a minimal data principle — we only collect what's absolutely necessary for the extension to function: your email for authentication, plus a few sign-in details used solely to stop abuse of the free trial. All statistics editing happens locally in your browser and is never transmitted anywhere.</p>
             </div>
 
             <!-- Section 1 -->
@@ -306,8 +306,24 @@
                             <td>Verify subscription/premium access</td>
                             <td><span class="badge-local">Secure Server</span></td>
                         </tr>
+                        <tr>
+                            <td><strong>IP Address &amp; Country</strong></td>
+                            <td>Recorded when you register, confirm your email or sign in — used only to detect abuse of the free trial, such as many accounts created from one source</td>
+                            <td><span class="badge-local">Secure Server · 90 days</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Browser &amp; OS</strong></td>
+                            <td>The browser's user-agent string, recorded at the same moments and for the same purpose</td>
+                            <td><span class="badge-local">Secure Server · 90 days</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Installation ID</strong></td>
+                            <td>A random identifier the extension creates once when installed. It contains nothing about you or your device; it lets us offer the free trial once per installation</td>
+                            <td><span class="badge-local">Secure Server · while your account exists</span></td>
+                        </tr>
                     </tbody>
                 </table>
+                <p>IP addresses, countries and browser details are deleted automatically after 90 days. They are recorded only at registration, email confirmation and sign-in — never for your actions inside the extension or on OnlyFans pages — and are used for nothing except preventing abuse.</p>
             </section>
 
             <!-- Section 3 -->
@@ -320,7 +336,8 @@
                     <li>Your subscriber/fan lists or personal information</li>
                     <li>Your messages, content, or media files</li>
                     <li>Your browsing history outside OnlyFans</li>
-                    <li>Any personally identifiable information beyond email</li>
+                    <li>Any personal data beyond what is listed in section 2</li>
+                    <li>Your activity inside the extension — IP and browser are recorded only when you register or sign in</li>
                     <li>Screenshots or visual content you create</li>
                 </ul>
             </section>
@@ -331,6 +348,7 @@
                 <p>The limited data we collect is used exclusively for:</p>
                 <ul>
                     <li>Authenticating your account and verifying license status</li>
+                    <li>Preventing abuse of the free trial — the only use of IP addresses, browser details and the installation ID</li>
                     <li>Providing customer support when you contact us</li>
                     <li>Sending important service-related notifications</li>
                     <li>Improving extension functionality and user experience</li>
