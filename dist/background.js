@@ -624,12 +624,28 @@ async function broadcastAuthStatus(isAuthenticated) {
 
 // ==================== AUTH API ====================
 
+// A random id for this browser profile, made once and kept for good. Signing
+// out does not clear it (logout() removes only the session keys), so the
+// server can see when several accounts come from the same installation —
+// which is how one person cycling free trials shows up.
+async function getInstallId() {
+  try {
+    const stored = await chrome.storage.local.get('ofStatsInstallId');
+    if (stored.ofStatsInstallId) return stored.ofStatsInstallId;
+    const id = crypto.randomUUID();
+    await chrome.storage.local.set({ ofStatsInstallId: id });
+    return id;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function apiRegister(email, password) {
   try {
     const response = await apiFetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, installId: await getInstallId() })
     });
     
     const data = await response.json();
@@ -661,7 +677,7 @@ async function apiLogin(email, password) {
     const response = await apiFetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, installId: await getInstallId() })
     });
     
     const data = await response.json();
@@ -778,7 +794,7 @@ async function apiVerifyEmail(email, code) {
     const response = await apiFetch(`${API_URL}/auth/verify-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code })
+      body: JSON.stringify({ email, code, installId: await getInstallId() })
     });
     
     const data = await response.json();

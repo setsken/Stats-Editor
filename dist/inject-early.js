@@ -9570,17 +9570,33 @@
       return { total: total, renews: renews, newSubs: Math.max(0, total - renews) };
     };
 
-    function getCachedSeries() {
-      try {
-        var raw = localStorage.getItem(SERIES_KEY);
-        if (!raw) return null;
-        var parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length === 30) return parsed;
-      } catch (e) {}
-      return null;
+    function seriesCacheKey(days, total) {
+      var thirty = getEffectiveThirty();
+      return days + '|' + total + '|' + (thirty === null ? '' : thirty);
     }
-    function setCachedSeries(arr) {
-      try { localStorage.setItem(SERIES_KEY, JSON.stringify(arr)); } catch (e) {}
+
+    function readSeriesCache() {
+      try {
+        var parsed = JSON.parse(localStorage.getItem(SERIES_KEY) || '{}');
+        // An older build stored a bare array — treat that as empty and move on.
+        return (parsed && !Array.isArray(parsed) && typeof parsed === 'object') ? parsed : {};
+      } catch (e) { return {}; }
+    }
+
+    function getCachedSeries(days, total) {
+      var cached = readSeriesCache()[seriesCacheKey(days, total)];
+      return (Array.isArray(cached) && cached.length) ? cached : null;
+    }
+
+    function setCachedSeries(days, total, arr) {
+      try {
+        var cache = readSeriesCache();
+        var keys = Object.keys(cache);
+        // Hold only the recently used windows.
+        while (keys.length >= 8) { delete cache[keys.shift()]; }
+        cache[seriesCacheKey(days, total)] = arr;
+        localStorage.setItem(SERIES_KEY, JSON.stringify(cache));
+      } catch (e) {}
     }
 
     // ---------- DOM finders ----------
@@ -9885,15 +9901,15 @@
       var total = totalForPeriod(p.days);
       if (total === null) total = count;
 
-      // Only the default month view reuses the cached series; other windows are
-      // derived on the spot, so switching periods never shows the previous shape.
-      var data;
-      if (p.days === 30 && !regenerate) {
-        data = getCachedSeries();
-      }
+      // Every window keeps its own remembered shape, so reloading the page — or
+      // coming back to a period — draws the same chart. A new shape is built
+      // only when the window, the total or the 30-day setting actually differ,
+      // and `regenerate` alone no longer forces one: after a reload it is always
+      // true simply because nothing has been applied yet.
+      var data = getCachedSeries(p.days, total);
       if (!data) {
         data = buildSeriesForPeriod(p.days, total);
-        if (p.days === 30) setCachedSeries(data);
+        setCachedSeries(p.days, total, data);
       }
       // forceFresh on regenerate so canvases are recreated (no Chart.js ghost from old data)
       return renderChart(p.days, data, !!regenerate);
@@ -9904,6 +9920,7 @@
     // on every MutationObserver tick. Regenerated only when user applies a new value.
     var PCT_KEY = 'ofStatsCustomSubsPct';
     var RENEWS_KEY = 'ofStatsCustomSubsRenews';
+    var RANDOMS_FOR_KEY = 'ofStatsCustomSubsRandomsFor';
 
     function getCachedPct() {
       try { var v = localStorage.getItem(PCT_KEY); return v === null ? null : parseFloat(v); } catch (e) { return null; }
@@ -9915,12 +9932,20 @@
     function setCachedRenews(v) { try { localStorage.setItem(RENEWS_KEY, String(v)); } catch (e) {} }
 
     function regenerateSummaryRandoms(count) {
+      // Already drawn for this very value — keep them, so reloading the page
+      // does not reshuffle the summary.
+      var madeFor = null;
+      try { madeFor = localStorage.getItem(RANDOMS_FOR_KEY); } catch (e) {}
+      if (madeFor === String(count) && getCachedPct() !== null && getCachedRenews() !== null) return;
+
       // pct between -25 and +25, one decimal
       var pct = Math.round((Math.random() * 50 - 25) * 10) / 10;
       setCachedPct(pct);
       // renews 0% to 40% of count
       var renews = Math.round(count * Math.random() * 0.4);
       setCachedRenews(renews);
+
+      try { localStorage.setItem(RANDOMS_FOR_KEY, String(count)); } catch (e) {}
     }
 
     // Find the subs-page subtree root (ancestor that contains both the Subscribers
