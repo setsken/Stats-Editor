@@ -3841,6 +3841,33 @@
   // Get or generate earnings data - uses localStorage to persist across page reloads
   // pendingCount = transactions within 7 days (status: pending/loading)
   // completeCount = transactions older than 7 days (status: complete ~98%, reversed ~2%)
+  // Today is only partly over: generated transactions used to be spread over
+  // all 24 hours of it, so at 10 am the list showed payments from this evening.
+  //
+  // How much of today has already passed, 0..1.
+  function earningsTodayFraction(now) {
+    var start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.min(1, (now.getTime() - start.getTime()) / 86400000));
+  }
+  // A moment inside the day that starts at dayStart, at `fraction` of it
+  // (0 = midnight, 1 = end of the day). For today the day "ends" a minute
+  // before now, so nothing is ever stamped in the future.
+  function earningsMomentInDay(dayStart, fraction, now) {
+    var start = dayStart.getTime();
+    var span = 86400000 - 1000;
+    if (now.getTime() - start < 86400000) {
+      span = Math.max(0, now.getTime() - start - 60000);
+    }
+    return new Date(start + Math.floor(span * Math.max(0, Math.min(1, fraction))));
+  }
+  // Data cached before this fix can still hold payments later than now.
+  function earningsHasFuture(list, now) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].date && list[i].date.getTime() > now.getTime()) return true;
+    }
+    return false;
+  }
   function getOrGenerateEarningsData(pendingCount, completeCount) {
     completeCount = completeCount || 0;
     var totalCount = pendingCount + completeCount;
@@ -3862,7 +3889,7 @@
         for (var i = 0; i < parsed.length; i++) {
           parsed[i].date = new Date(parsed[i].date);
         }
-        return parsed;
+        if (!earningsHasFuture(parsed, new Date())) return parsed;
       }
     } catch(e) {}
     
@@ -3888,17 +3915,33 @@
       pendingDays.push(dayDate);
     }
     
-    // Distribute transactions evenly across all 8 days
+    // Distribute transactions across the 8 days. Today has only had some of
+    // its hours, so it gets that share of a full day's transactions and the
+    // rest goes to the complete days.
     var numDays = pendingDays.length; // 8 days
-    var basePerDay = Math.floor(pendingCount / numDays);
-    var extraTrans = pendingCount % numDays;
-    
-    var transPerDay = [];
+    var todayFraction = earningsTodayFraction(now);
+    var weights = [];
+    var weightSum = 0;
     for (var d = 0; d < numDays; d++) {
-      // Give extra transactions to earlier days (more recent)
-      var dayTrans = basePerDay + (d < extraTrans ? 1 : 0);
-      transPerDay.push(dayTrans);
+      weights.push(d === 0 ? todayFraction : 1);
+      weightSum += weights[d];
     }
+    var transPerDay = [];
+    var remainders = [];
+    var assigned = 0;
+    for (var d = 0; d < numDays; d++) {
+      var exact = weightSum > 0 ? pendingCount * weights[d] / weightSum : 0;
+      transPerDay.push(Math.floor(exact));
+      assigned += Math.floor(exact);
+      remainders.push({ d: d, r: exact - Math.floor(exact) });
+    }
+    // What rounding left over goes to the largest remainders, recent days first.
+    remainders.sort(function(a, b) { return (b.r - a.r) || (a.d - b.d); });
+    for (var k = 0; assigned < pendingCount; k++, assigned++) {
+      transPerDay[remainders[k % numDays].d]++;
+    }
+    
+
     
     // Generate transactions for each day
     for (var dayIndex = 0; dayIndex < numDays; dayIndex++) {
@@ -3907,19 +3950,14 @@
       
       var dayStart = new Date(pendingDays[dayIndex]);
       dayStart.setHours(0, 0, 0, 0);
-      var dayEnd = new Date(pendingDays[dayIndex]);
-      dayEnd.setHours(23, 59, 59, 0);
+
       
-      // Generate times for this day, spread throughout the day
+      // Spread through the part of the day that has happened — the whole day
+      // for past days, midnight to now for today — evenly, with jitter.
       var dayTransactions = [];
       for (var t = 0; t < dayTransCount; t++) {
-        // Spread evenly with some randomness
-        var hourSlot = 23 - Math.floor((t / dayTransCount) * 24);
-        var hour = Math.max(0, Math.min(23, hourSlot + Math.floor(Math.random() * 2 - 1)));
-        var minute = Math.floor(Math.random() * 60);
         
-        var transDate = new Date(dayStart);
-        transDate.setHours(hour, minute, Math.floor(Math.random() * 60), 0);
+        var transDate = earningsMomentInDay(dayStart, 1 - (t + Math.random()) / dayTransCount, now);
         
         var amount = earningsGenerateAmount();
         dayTransactions.push({
@@ -7252,8 +7290,10 @@
           for (var i = 0; i < parsed.length; i++) {
             parsed[i].date = new Date(parsed[i].date);
           }
-          log('OF Stats: Using cached auto-transactions (' + parsed.length + ' transactions, Gross: $' + roundedGross.toFixed(2) + ')');
-          return parsed;
+          if (!earningsHasFuture(parsed, new Date())) {
+            log('OF Stats: Using cached auto-transactions (' + parsed.length + ' transactions, Gross: $' + roundedGross.toFixed(2) + ')');
+            return parsed;
+          }
         }
       }
     } catch(e) {}
@@ -7274,12 +7314,16 @@
     var generated = [];
     var now = new Date();
     
-    // Generate pending transactions (last 7 days)
+    // Generate pending transactions (last 7 days). Today weighs only as much
+    // as the part of it already gone, and its times stay before now.
+    var todayFractionAuto = earningsTodayFraction(now);
     for (var p = 0; p < pendingCount; p++) {
-      var pendingDaysAgo = Math.floor(Math.random() * 7); // 0-6 days ago
-      var transDatePending = new Date(now);
-      transDatePending.setDate(transDatePending.getDate() - pendingDaysAgo);
-      transDatePending.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60), Math.floor(Math.random() * 60), 0);
+      var pick = Math.random() * (6 + todayFractionAuto);
+      var pendingDaysAgo = pick < todayFractionAuto ? 0 : 1 + Math.floor(pick - todayFractionAuto); // 0-6 days ago
+      var pendingDay = new Date(now);
+      pendingDay.setDate(pendingDay.getDate() - pendingDaysAgo);
+      pendingDay.setHours(0, 0, 0, 0);
+      var transDatePending = earningsMomentInDay(pendingDay, Math.random(), now);
       
       var amountPending = earningsGenerateAmount();
       generated.push({
