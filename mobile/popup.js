@@ -5314,3 +5314,18 @@ function setupPresetListeners() {
     }
   });
 }
+
+// Footer version — always the one in the manifest, never a typed-in copy.
+(function () {
+  function showVersion() {
+    try {
+      var el = document.getElementById('appVersion');
+      if (el) el.textContent = 'v' + chrome.runtime.getManifest().version;
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', showVersion);
+  } else {
+    showVersion();
+  }
+})();

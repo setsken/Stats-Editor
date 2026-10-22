@@ -6970,6 +6970,7 @@
     
     // Determine currently selected period
     var selectedPeriod = getSelectedStatisticsPeriod();
+    window.ofStatsCurrentPeriod = selectedPeriod;
     log('OF Stats: Selected statistics period: ' + selectedPeriod);
     // Store globally for observer
     window.ofStatsCurrentPeriod = selectedPeriod;
@@ -7827,20 +7828,24 @@
     // Check if we have cached chart data and if Gross hasn't changed
     var cacheKey = 'ofStatsChartDataCache';
     var grossKey = 'ofStatsChartGrossValue';
+    var periodKey = 'ofStatsChartDataPeriod';
+    var currentPeriod = String(window.ofStatsCurrentPeriod || '');
     var cachedData = null;
     var cachedGross = null;
+    var cachedPeriod = null;
     
     try {
       cachedData = localStorage.getItem(cacheKey);
       cachedGross = localStorage.getItem(grossKey);
+      cachedPeriod = localStorage.getItem(periodKey);
     } catch (e) {
       log('OF Stats: Cannot access localStorage for chart cache');
     }
     
     log('OF Stats Chart Cache Debug: cachedData=' + (cachedData ? 'exists' : 'null') + ', cachedGross=' + cachedGross + ', currentGross=' + grossValue);
     
-    // If Gross is the same and we have cached data, use it
-    if (cachedData && cachedGross && parseFloat(cachedGross) === grossValue) {
+    // Reuse the cache only when both the Gross and the selected period match.
+    if (cachedData && cachedGross && parseFloat(cachedGross) === grossValue && cachedPeriod === currentPeriod) {
       // If charts already exist and rendered, skip completely
       var existingMainCanvas = document.getElementById('of-stats-earnings-chart-main');
       if (existingMainCanvas && typeof Chart !== 'undefined' && Chart.getChart(existingMainCanvas)) {
@@ -7916,6 +7921,7 @@
         try {
           localStorage.setItem(cacheKey, JSON.stringify(chartData));
           localStorage.setItem(grossKey, grossValue.toString());
+          localStorage.setItem(periodKey, currentPeriod);
         } catch (e) {}
         
         loadChartScriptsAndDraw(chartData);
@@ -8105,6 +8111,7 @@
     try {
       localStorage.setItem(cacheKey, JSON.stringify(chartData));
       localStorage.setItem(grossKey, grossValue.toString());
+      localStorage.setItem(periodKey, currentPeriod);
       log('OF Stats: Chart data cached with Gross value $' + grossValue);
     } catch (e) {
       log('OF Stats: Cannot save chart data to cache');
