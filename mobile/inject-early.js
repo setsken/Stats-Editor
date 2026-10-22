@@ -4413,7 +4413,7 @@
   }
   
   // Calculate Gross from average of 2 most recent months (from /my/stats/earnings page)
-  // Gross must always be greater than Current balance
+  // The resulting Net must always exceed Current balance + Pending balance
   // NOTE: This function must return STABLE values (no random) for chart caching to work
   function calculateGrossFromMonths(months) {
     if (!months || months.length < 2) {
@@ -4432,17 +4432,23 @@
     // Convert Net to Gross (Net = 80% of Gross, so Gross = Net / 0.8)
     var avgGross = avgNet / 0.8;
     
-    // Ensure Gross is always greater than Current balance
-    var currentBalance = getCurrentBalanceValue();
-    if (avgGross <= currentBalance) {
-      // Add 20% buffer above current balance (fixed, no random)
-      avgGross = currentBalance * 1.2;
+    // The page shows this window's NET as the headline figure, with the gross
+    // in brackets, while Current balance and Pending balance are both money
+    // earned inside that same window — so the net has to stay above their sum.
+    // The old check compared the GROSS against the current balance alone and
+    // ignored pending, which let the page show $25k earned over 30 days above
+    // $26k available and $97k pending: a creator holding four times what she
+    // had earned. Averaging two months is what pulls the figure down — the
+    // current month is generated above the balances, the previous one is not.
+    var minGross = getMinBalanceRequirement() * 1.08 / 0.8; // fixed: no random
+    if (avgGross < minGross) {
+      avgGross = minGross;
     }
     
     // Round to 2 decimal places for stability
     avgGross = Math.round(avgGross * 100) / 100;
     
-    log('OF Stats: Calculated Gross from 2 months average - Month1 Net: $' + month1Net.toFixed(2) + ', Month2 Net: $' + month2Net.toFixed(2) + ', Avg Gross: $' + avgGross.toFixed(2) + ', Current Balance: $' + currentBalance.toFixed(2));
+    log('OF Stats: Calculated Gross from 2 months average - Month1 Net: $' + month1Net.toFixed(2) + ', Month2 Net: $' + month2Net.toFixed(2) + ', Avg Gross: $' + avgGross.toFixed(2) + ', min Gross from balances: $' + minGross.toFixed(2));
     return avgGross;
   }
   
