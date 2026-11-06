@@ -22,8 +22,26 @@
   // Store intercepted profile data
   window.ofStatsProfileData = window.ofStatsProfileData || {};
   
+  // Who is signed in, as OnlyFans itself reports it. Everything that decides "is
+  // this our own profile?" reads this. Until now the answer depended on a username
+  // saved when the popup was opened, read from the first username on the page —
+  // on the feed or on another model's profile that was somebody else.
+  function rememberOwnUsername(username) {
+    const name = String(username || '').toLowerCase();
+    if (!/^[a-z0-9._-]{1,64}$/.test(name)) return;
+    try {
+      if (localStorage.getItem('ofStatsOwnUsername') !== name) {
+        localStorage.setItem('ofStatsOwnUsername', name);
+      }
+    } catch (e) {}
+  }
+
   // Helper function to process user data
   function processUserData(url, data) {
+    // Signed out, this endpoint answers {isAuth: false, csrf}.
+    if (data && data.isAuth !== false && /\/api2\/v2\/users\/me(\?|$)/.test(url)) {
+      rememberOwnUsername(data.username);
+    }
     if (!data || (!data.id && !data.username && !data.name)) return;
     // Skip if this looks like a list/array response
     if (Array.isArray(data)) return;
@@ -213,5 +231,26 @@
     return originalXHRSend.apply(this, args);
   };
   
+  // This script can load after the site has already asked who is signed in, and
+  // then the response above is never seen. The site's own store knows as well.
+  function readOwnUsernameFromStore() {
+    try {
+      const app = document.querySelector('#app');
+      const store = app && app.__vue__ && app.__vue__.$store;
+      if (!store || !store.getters || !store.getters['auth/isAuth']) return false;
+      const user = store.getters['auth/authUser'];
+      if (!user || !user.username) return false;
+      rememberOwnUsername(user.username);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  let storeChecks = 0;
+  const storeTimer = setInterval(function() {
+    storeChecks++;
+    if (readOwnUsernameFromStore() || storeChecks >= 60) clearInterval(storeTimer);
+  }, 1000);
+
   log('OF Stats: Fetch + XHR interceptor installed!');
 })();

@@ -124,7 +124,13 @@
     if (path.startsWith('/my/')) return true;
     
     // Get our saved model username from settings
-    const ourUsername = cachedSettings && cachedSettings.myModelUsername ? cachedSettings.myModelUsername.toLowerCase() : null;
+    // Who is signed in comes from OnlyFans itself (see page-interceptor.js). The
+    // name saved by the popup is only a fallback for the moment before that is
+    // known: it was missing until the popup had been opened, and could hold
+    // somebody else's name.
+    let signedInUsername = null;
+    try { signedInUsername = localStorage.getItem('ofStatsOwnUsername'); } catch (e) {}
+    const ourUsername = signedInUsername || (cachedSettings && cachedSettings.myModelUsername ? cachedSettings.myModelUsername.toLowerCase() : null);
     
     // Get username from URL
     const pathParts = path.split('/').filter(Boolean);
@@ -1294,6 +1300,24 @@
     log('OF Stats: Withdrawal button activated');
   }
   
+  // The Fans item in a profile header. Its aria-label is translated ("Фаны" on the
+  // Russian site), so looking for the word "fans" left the real number on screen
+  // in every other language. The icon is the same in all of them.
+  function isFansSectionButton(btn) {
+    if (!btn || !btn.getAttribute) return false;
+    const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+    if (label.indexOf('following') !== -1 || label.indexOf('подпис') !== -1) return false;
+    if (label.indexOf('fans') !== -1) return true;
+    return !!btn.querySelector('svg[data-icon-name="icon-follow"], use[href="#icon-follow"]');
+  }
+
+  // The periodic pass below revisits these counters every second; only touch the
+  // DOM when the text is actually wrong, so it does not fight the site's own
+  // rendering.
+  function setTextIfChanged(element, text) {
+    if ((element.textContent || '').trim() !== String(text).trim()) element.textContent = text;
+  }
+
   // Function to replace element content immediately
   function replaceContent(element) {
     if (!element || !cachedSettings) return;
@@ -1306,13 +1330,10 @@
     // AND we're on our own profile page
     if (classStr.indexOf('b-profile__sections__count') !== -1) {
       try {
-        const parentBtn = element.closest('button.b-profile__sections__item');
-        if (parentBtn && parentBtn.getAttribute) {
-          const label = (parentBtn.getAttribute('aria-label') || '').toLowerCase();
-          // Only replace fans count on OUR profile page
-          if (label.indexOf('fans') !== -1 && cachedSettings.fansCount && isOwnProfilePage()) {
-            element.textContent = cachedSettings.fansCount.trim();
-          }
+        const parentBtn = element.closest('.b-profile__sections__item');
+        // Only replace fans count on OUR profile page
+        if (isFansSectionButton(parentBtn) && cachedSettings.fansCount && isOwnProfilePage()) {
+          setTextIfChanged(element, cachedSettings.fansCount.trim());
         }
       } catch (e) {}
     }
@@ -1365,12 +1386,12 @@
         const index = Array.from(allItems).indexOf(parent);
         
         if (index === 0 && cachedSettings.fansCount) {
-          element.textContent = ' ' + cachedSettings.fansCount + ' ';
+          setTextIfChanged(element, ' ' + cachedSettings.fansCount + ' ');
           // Also update aria-label for tooltip
           const ariaValue = cachedSettings.fansCount.replace(/[^\d]/g, '') || cachedSettings.fansCount;
           parent.setAttribute('aria-label', ariaValue);
         } else if (index === 1 && cachedSettings.followingCount) {
-          element.textContent = ' ' + cachedSettings.followingCount + ' ';
+          setTextIfChanged(element, ' ' + cachedSettings.followingCount + ' ');
           // Also update aria-label for tooltip
           const ariaValue = cachedSettings.followingCount.replace(/[^\d]/g, '') || cachedSettings.followingCount;
           parent.setAttribute('aria-label', ariaValue);
@@ -1382,13 +1403,10 @@
     // Only on our own profile page
     try {
       // If the element is a profile sections button, check aria-label
-      if (element.tagName === 'BUTTON' && element.getAttribute && element.getAttribute('aria-label') && isOwnProfilePage()) {
-        const label = (element.getAttribute('aria-label') || '').toLowerCase();
-        if (label.indexOf('fans') !== -1) {
-          const span = element.querySelector('span.b-profile__sections__count');
-          if (span && cachedSettings.fansCount) {
-            span.textContent = cachedSettings.fansCount.trim();
-          }
+      if (classStr.indexOf('b-profile__sections__item') !== -1 && isFansSectionButton(element) && isOwnProfilePage()) {
+        const span = element.querySelector('span.b-profile__sections__count');
+        if (span && cachedSettings.fansCount) {
+          setTextIfChanged(span, cachedSettings.fansCount.trim());
         }
       }
     } catch (e) {}
@@ -9078,6 +9096,18 @@
   setTimeout(checkExisting, 1500);
   setTimeout(checkExisting, 2000);
   setTimeout(checkExisting, 3000);
+
+  // The site updates these counters in place: the observer above only sees added
+  // nodes, and the passes above stop after three seconds, so a profile that loaded
+  // slowly or re-rendered later kept its real number. Keep them right for as long
+  // as the page is open. Reading the cache first means Reset, disabling the plugin
+  // or an expired subscription — which all remove it — are respected at once.
+  setInterval(function() {
+    var liveSettings = null;
+    try { liveSettings = localStorage.getItem('ofStatsCache'); } catch (e) {}
+    if (!liveSettings || !cachedSettings || cachedSettings.enabled === false) return;
+    document.querySelectorAll('.l-sidebar__user-data__item__count, .b-profile__sections__count').forEach(replaceContent);
+  }, 800);
   
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', checkExisting);

@@ -26,6 +26,17 @@
   // Flag to track if we've stored original values
   let originalsStored = false;
   
+  // The Fans item in a profile header. Its aria-label is translated ("Фаны" on the
+  // Russian site), so looking for the word "fans" left the real number on screen
+  // in every other language. The icon is the same in all of them.
+  function isFansSectionButton(btn) {
+    if (!btn || !btn.getAttribute) return false;
+    const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+    if (label.indexOf('following') !== -1 || label.indexOf('подпис') !== -1) return false;
+    if (label.indexOf('fans') !== -1) return true;
+    return !!btn.querySelector('svg[data-icon-name="icon-follow"], use[href="#icon-follow"]');
+  }
+
   // Function to check if current page is our model's profile (where we should apply fake values)
   function isOwnProfilePage() {
     const path = window.location.pathname;
@@ -42,7 +53,13 @@
       }
     } catch(e) {}
     
-    const ourUsername = cachedSettings && cachedSettings.myModelUsername ? cachedSettings.myModelUsername.toLowerCase() : null;
+    // Who is signed in comes from OnlyFans itself (see page-interceptor.js). The
+    // name saved by the popup is only a fallback for the moment before that is
+    // known: it was missing until the popup had been opened, and could hold
+    // somebody else's name.
+    let signedInUsername = null;
+    try { signedInUsername = localStorage.getItem('ofStatsOwnUsername'); } catch (e) {}
+    const ourUsername = signedInUsername || (cachedSettings && cachedSettings.myModelUsername ? cachedSettings.myModelUsername.toLowerCase() : null);
     
     // Get username from URL
     const pathParts = path.split('/').filter(Boolean);
@@ -226,45 +243,31 @@
   
   // Get model name from page (prioritize sidebar/menu which always shows OUR username)
   function getModelName() {
-    // Priority 1: Sidebar user menu - always shows OUR username
-    const sidebarSelectors = [
-      '.m-native-custom-menu__user-title',  // Mobile/native menu username
-      '.l-sidebar__user-name',               // Sidebar username
-      '.g-user-username'                     // Global user username in header
+    // Who is signed in, as OnlyFans itself reports it (page-interceptor.js).
+    try {
+      const own = localStorage.getItem('ofStatsOwnUsername');
+      if (own) return '@' + own;
+    } catch (e) {}
+
+    // Until that is known, only places that can hold nothing but our own username.
+    // The generic .g-user-username / .b-username selectors used here before match
+    // whoever is on the page — the author of the first post in the feed, or the
+    // model whose profile is open. The popup then saved that as "our" username,
+    // our real profile stopped being recognised, and its fans count kept the real
+    // number while the sidebar showed the configured one.
+    const ownSelectors = [
+      '.m-native-custom-menu__user-title',
+      '.l-sidebar__user-name',
+      '.l-sidebar .g-user-username'
     ];
-    
-    for (const selector of sidebarSelectors) {
+    for (const selector of ownSelectors) {
       const el = document.querySelector(selector);
-      if (el && el.textContent.trim()) {
-        const name = el.textContent.trim();
-        if (name.startsWith('@') || name.length > 0) {
-          log('OF Stats Editor: Found OUR model name from sidebar:', name);
-          return name;
-        }
-      }
+      const name = el ? el.textContent.trim() : '';
+      if (/^@[A-Za-z0-9._-]+$/.test(name)) return name;
     }
-    
-    // Priority 2: Other selectors (may show OTHER model's username if on their profile)
-    const fallbackSelectors = [
-      '.b-username__text', 
-      '.b-username',
-      '[class*="username"]'
-    ];
-    
-    for (const selector of fallbackSelectors) {
-      const el = document.querySelector(selector);
-      if (el && el.textContent.trim()) {
-        const name = el.textContent.trim();
-        if (name.startsWith('@') || name.length > 0) {
-          log('OF Stats Editor: Found model name (fallback):', name);
-          return name;
-        }
-      }
-    }
-    
     return null;
   }
-  
+
   // Get model avatar URL
   function getModelAvatar() {
     // Try to find avatar image
@@ -1722,10 +1725,9 @@
       const isOwn = isOwnProfilePage();
       log('OF Stats Editor: Checking if should update profile fans - isOwnProfilePage:', isOwn);
       if (isOwn) {
-        const profileFansButtons = document.querySelectorAll('button.b-profile__sections__item');
+        const profileFansButtons = document.querySelectorAll('.b-profile__sections__item');
         profileFansButtons.forEach(btn => {
-          const label = (btn.getAttribute('aria-label') || '').toLowerCase();
-          if (label.includes('fans')) {
+          if (isFansSectionButton(btn)) {
             const countSpan = btn.querySelector('span.b-profile__sections__count');
             if (countSpan) {
               countSpan.textContent = settings.fansCount.trim();
