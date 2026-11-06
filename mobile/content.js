@@ -28,12 +28,13 @@
   
   // The Fans item in a profile header. Its aria-label is translated ("Фаны" on the
   // Russian site), so looking for the word "fans" left the real number on screen
-  // in every other language. The icon is the same in all of them.
+  // in every other language. The icon is the same in all of them, but a page with
+  // no posts shows the item as plain text with no icon, hence the word as well.
   function isFansSectionButton(btn) {
     if (!btn || !btn.getAttribute) return false;
     const label = (btn.getAttribute('aria-label') || '').toLowerCase();
     if (label.indexOf('following') !== -1 || label.indexOf('подпис') !== -1) return false;
-    if (label.indexOf('fans') !== -1) return true;
+    if (label.indexOf('fans') !== -1 || label.indexOf('фан') !== -1) return true;
     return !!btn.querySelector('svg[data-icon-name="icon-follow"], use[href="#icon-follow"]');
   }
 
